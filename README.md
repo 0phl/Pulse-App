@@ -1,16 +1,23 @@
-# basic_flutter_app
+# PulseApp
 
-A new Flutter project.
+A community engagement mobile application that helps connect and empower local communities.
+
+## Features
+
+- **Community Notices**: Stay updated with important announcements and events in your community
+- **Marketplace**: Connect with local businesses and browse community marketplace
+- **Volunteer Opportunities**: Find and participate in local volunteer activities
+- **Community Reporting**: Easy-to-use platform for reporting community concerns
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+This app is built with Flutter and requires the following prerequisites:
 
-A few resources to get you started if this is your first Flutter project:
+- Flutter SDK (^3.5.4)
+- Dart SDK
+- Android Studio / Xcode for mobile development
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### Installation
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+1. Clone the repository
+2. Install dependencies:
