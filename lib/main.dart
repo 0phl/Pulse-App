@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import 'pages/market_page.dart';
+import 'pages/login_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
@@ -24,7 +31,8 @@ class MyApp extends StatelessWidget {
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final bool isLoggedIn;
+  const MainScreen({super.key, this.isLoggedIn = false});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -40,7 +48,41 @@ class _MainScreenState extends State<MainScreen> {
     Center(child: Text('Report')),
   ];
 
+  void _showLoginRequired() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Login Required'),
+          content: const Text('Please login to access this feature.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Login'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _onItemTapped(int index) {
+    if (!widget.isLoggedIn && index != 0) {
+      _showLoginRequired();
+      return;
+    }
     setState(() {
       _selectedIndex = index;
     });
@@ -93,17 +135,56 @@ class HomePage extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications, color: Colors.white),
-            onPressed: () {},
+            onPressed: () {
+              // Show login required dialog if trying to access notifications
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: const Text('Login Required'),
+                    content: const Text('Please login to view notifications.'),
+                    actions: <Widget>[
+                      TextButton(
+                        child: const Text('Cancel'),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      TextButton(
+                        child: const Text('Login'),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const LoginPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Text(
-                'UN',
-                style: TextStyle(
-                  color: Theme.of(context).primaryColor,
-                  fontWeight: FontWeight.bold,
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                );
+              },
+              child: const CircleAvatar(
+                backgroundColor: Colors.white,
+                child: Text(
+                  'G',
+                  style: TextStyle(
+                    color: Color(0xFF00C49A),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
