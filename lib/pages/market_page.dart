@@ -101,6 +101,7 @@ class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateM
         title: const Text('Community Market'),
         backgroundColor: const Color(0xFF00C49A),
         foregroundColor: Colors.white,
+        automaticallyImplyLeading: false,
         bottom: TabBar(
           controller: _tabController,
           labelColor: Colors.white,

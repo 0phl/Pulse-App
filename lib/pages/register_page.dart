@@ -33,7 +33,8 @@ class _RegisterPageState extends State<RegisterPage> {
   List<Barangay> _barangays = [];
   final _regionDropdownKey = GlobalKey<DropdownSearchState<Region>>();
   final _provinceDropdownKey = GlobalKey<DropdownSearchState<Province>>();
-  final _municipalityDropdownKey = GlobalKey<DropdownSearchState<Municipality>>();
+  final _municipalityDropdownKey =
+      GlobalKey<DropdownSearchState<Municipality>>();
   final _barangayDropdownKey = GlobalKey<DropdownSearchState<Barangay>>();
   bool _obscurePassword = true;
 
@@ -71,7 +72,8 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _loadMunicipalities(String provinceCode) async {
     try {
-      final municipalities = await _locationService.getMunicipalities(provinceCode);
+      final municipalities =
+          await _locationService.getMunicipalities(provinceCode);
       setState(() {
         _municipalities = municipalities;
         _selectedMunicipality = null;
@@ -214,8 +216,10 @@ class _RegisterPageState extends State<RegisterPage> {
             showSearchBox: true,
           ),
           items: _municipalities,
-          itemAsString: (Municipality? municipality) => municipality?.name ?? '',
-          compareFn: (Municipality? m1, Municipality? m2) => m1?.code == m2?.code,
+          itemAsString: (Municipality? municipality) =>
+              municipality?.name ?? '',
+          compareFn: (Municipality? m1, Municipality? m2) =>
+              m1?.code == m2?.code,
           dropdownDecoratorProps: const DropDownDecoratorProps(
             dropdownSearchDecoration: InputDecoration(
               labelText: "Municipality",
@@ -277,6 +281,7 @@ class _RegisterPageState extends State<RegisterPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Register'),
+        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -338,7 +343,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                       ),
                       onPressed: () {
                         setState(() {
@@ -366,7 +373,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   margin: const EdgeInsets.symmetric(vertical: 16),
                   child: ElevatedButton(
                     onPressed: () {
-                      if (_formKey.currentState!.validate() && 
+                      if (_formKey.currentState!.validate() &&
                           _selectedDate != null &&
                           _selectedRegion != null &&
                           _selectedProvince != null &&
@@ -376,7 +383,8 @@ class _RegisterPageState extends State<RegisterPage> {
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const MainScreen(isLoggedIn: true),
+                            builder: (context) =>
+                                const MainScreen(isLoggedIn: true),
                           ),
                         );
                       }
@@ -405,4 +413,4 @@ class _RegisterPageState extends State<RegisterPage> {
       ),
     );
   }
-} 
+}
