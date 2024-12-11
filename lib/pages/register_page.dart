@@ -375,27 +375,13 @@ class _RegisterPageState extends State<RegisterPage> {
                   height: 50,
                   margin: const EdgeInsets.symmetric(vertical: 16),
                   child: ElevatedButton(
-<<<<<<< HEAD
-                    onPressed: () {
-=======
                     onPressed: () async {
->>>>>>> ab1b17e79c11d8e96f4ff052c769614edc0598d7
                       if (_formKey.currentState!.validate() &&
                           _selectedDate != null &&
                           _selectedRegion != null &&
                           _selectedProvince != null &&
                           _selectedMunicipality != null &&
                           _selectedBarangay != null) {
-<<<<<<< HEAD
-                        // TODO: Implement registration logic
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const MainScreen(isLoggedIn: true),
-                          ),
-                        );
-=======
                         setState(() {
                           _isLoading = true;
                         });
@@ -422,7 +408,8 @@ class _RegisterPageState extends State<RegisterPage> {
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const MainScreen(isLoggedIn: true),
+                                builder: (context) =>
+                                    const MainScreen(isLoggedIn: true),
                               ),
                             );
                           }
@@ -442,7 +429,6 @@ class _RegisterPageState extends State<RegisterPage> {
                             });
                           }
                         }
->>>>>>> ab1b17e79c11d8e96f4ff052c769614edc0598d7
                       }
                     },
                     style: ElevatedButton.styleFrom(

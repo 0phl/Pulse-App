@@ -16,9 +16,9 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
   }
-  
-  FirebaseDatabase.instance.databaseURL = 
-    'https://pulse-app-ea5be-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+  FirebaseDatabase.instance.databaseURL =
+      'https://pulse-app-ea5be-default-rtdb.asia-southeast1.firebasedatabase.app';
 
   runApp(const MyApp());
 }
@@ -108,7 +108,7 @@ class _HomePageState extends State<HomePage> {
   Stream<String> getInitialStream() {
     final auth = FirebaseAuth.instance;
     final database = FirebaseDatabase.instance.ref();
-    
+
     if (auth.currentUser != null) {
       return database
           .child('users')
@@ -143,30 +143,6 @@ class _HomePageState extends State<HomePage> {
               // Navigate to notifications page
             },
           ),
-<<<<<<< HEAD
-          PopupMenuButton(
-            icon: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Text(
-                'G',
-                style: TextStyle(
-                  color: Color(0xFF00C49A),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            itemBuilder: (BuildContext context) => [
-              PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout, color: Color(0xFF00C49A)),
-                    SizedBox(width: 8),
-                    Text('Logout'),
-                  ],
-                ),
-              ),
-=======
           const SizedBox(width: 8),
           PopupMenuButton(
             icon: StreamBuilder<String>(
@@ -195,24 +171,18 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
->>>>>>> ab1b17e79c11d8e96f4ff052c769614edc0598d7
             ],
             onSelected: (value) {
               if (value == 'logout') {
                 // Navigate to login page
                 Navigator.pushAndRemoveUntil(
                   context,
-<<<<<<< HEAD
-                  MaterialPageRoute(builder: (context) => LoginPage()),
-=======
                   MaterialPageRoute(builder: (context) => const LoginPage()),
->>>>>>> ab1b17e79c11d8e96f4ff052c769614edc0598d7
                   (route) => false,
                 );
               }
             },
           ),
-          SizedBox(width: 8),
         ],
       ),
       body: Container(

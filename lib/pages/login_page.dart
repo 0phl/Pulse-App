@@ -70,7 +70,9 @@ class _LoginPageState extends State<LoginPage> {
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                       ),
                       onPressed: () {
                         setState(() {
@@ -107,7 +109,8 @@ class _LoginPageState extends State<LoginPage> {
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const MainScreen(isLoggedIn: true),
+                                builder: (context) =>
+                                    const MainScreen(isLoggedIn: true),
                               ),
                             );
                           }
@@ -158,7 +161,8 @@ class _LoginPageState extends State<LoginPage> {
                     );
                   },
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                   ),
                   child: const Text(
                     'Don\'t have an account? Register',
@@ -175,4 +179,4 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-} 
+}
