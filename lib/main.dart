@@ -5,16 +5,27 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    Firebase.app(); // Try to get existing app
-  } catch (e) {
-    await Firebase.initializeApp(
-      name: 'Pulse-App',
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+  
+  if (kIsWeb) {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } catch (e) {
+      print('Firebase initialization error: $e');
+    }
+  } else {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } catch (e) {
+      print('Firebase initialization error: $e');
+    }
   }
 
   FirebaseDatabase.instance.databaseURL =

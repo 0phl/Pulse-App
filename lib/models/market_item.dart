@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class MarketItem {
   final String id;
   final String title;
@@ -6,6 +8,7 @@ class MarketItem {
   final String sellerId;
   final String sellerName;
   final String imageUrl;
+  final DateTime? createdAt;
 
   MarketItem({
     required this.id,
@@ -15,7 +18,34 @@ class MarketItem {
     required this.sellerId,
     required this.sellerName,
     required this.imageUrl,
+    this.createdAt,
   });
+
+  factory MarketItem.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return MarketItem(
+      id: doc.id,
+      title: data['title'] ?? '',
+      price: (data['price'] ?? 0.0).toDouble(),
+      description: data['description'] ?? '',
+      sellerId: data['sellerId'] ?? '',
+      sellerName: data['sellerName'] ?? '',
+      imageUrl: data['imageUrl'] ?? '',
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'title': title,
+      'price': price,
+      'description': description,
+      'sellerId': sellerId,
+      'sellerName': sellerName,
+      'imageUrl': imageUrl,
+      'createdAt': createdAt ?? FieldValue.serverTimestamp(),
+    };
+  }
 
   Map<String, dynamic> toJson() {
     return {

@@ -5,6 +5,9 @@ import 'chat_page.dart';
 import 'add_item_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class MarketPage extends StatefulWidget {
   const MarketPage({super.key});
@@ -15,83 +18,89 @@ class MarketPage extends StatefulWidget {
 
 class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  List<MarketItem> _allItems = [];
-  List<MarketItem> _userItems = [];
-  String _userId = 'user1'; // Default user ID
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  Stream<List<MarketItem>>? _allItemsStream;
+  Stream<List<MarketItem>>? _userItemsStream;
+  bool _isAddingItem = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadItems();
+    _initializeStreams();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  void _initializeStreams() {
+    // Stream for all items
+    _allItemsStream = _firestore
+        .collection('market_items')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => MarketItem.fromFirestore(doc))
+            .toList());
+
+    // Stream for user's items
+    final currentUser = _auth.currentUser;
+    if (currentUser != null) {
+      _userItemsStream = _firestore
+          .collection('market_items')
+          .where('sellerId', isEqualTo: currentUser.uid)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((snapshot) => snapshot.docs
+              .map((doc) => MarketItem.fromFirestore(doc))
+              .toList());
+    }
   }
 
-  Future<void> _loadItems() async {
-    final prefs = await SharedPreferences.getInstance();
-    _userId = prefs.getString('userId') ?? 'user1';
-    
-    // Load user's items from SharedPreferences
-    final userItemsJson = prefs.getStringList('userItems') ?? [];
-    final loadedUserItems = userItemsJson
-        .map((item) => MarketItem.fromJson(json.decode(item)))
-        .toList();
-
-    // Default items
-    final defaultItems = [
-      MarketItem(
-        id: '1',
-        title: 'Pre-loved iPhone 13',
-        price: 35000.00,
-        description:
-            'iPhone 13 128GB, 98% battery health, complete with box and accessories',
-        sellerId: 'user1',
-        sellerName: 'John Doe',
-        imageUrl:
-            'https://images.unsplash.com/photo-1632661674596-df8be070a5c5?q=80&w=1000',
-      ),
-      MarketItem(
-        id: '2',
-        title: 'Gaming Chair',
-        price: 4500.00,
-        description:
-            'Ergonomic gaming chair, 3 months used, very good condition',
-        sellerId: 'user2',
-        sellerName: 'Jane Smith',
-        imageUrl:
-            'https://images.unsplash.com/photo-1598550476439-6847785fcea6',
-      ),
-      MarketItem(
-        id: '3',
-        title: 'Sony WH-1000XM4',
-        price: 12000.00,
-        description:
-            'Noise cancelling headphones, barely used, complete package',
-        sellerId: 'user3',
-        sellerName: 'Mike Wilson',
-        imageUrl:
-            'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb',
-      ),
-    ];
+  Future<void> _handleNewItem(MarketItem item) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
 
     setState(() {
-      // Show newest items first by reversing the loadedUserItems list
-      _allItems = [...loadedUserItems.reversed, ...defaultItems];
-      _userItems = loadedUserItems.reversed.toList();
+      _isAddingItem = true;
     });
-  }
 
-  void _handleNewItem(MarketItem item) {
-    setState(() {
-      // Add new item at the beginning of both lists
-      _allItems.insert(0, item);
-      _userItems.insert(0, item);
-    });
+    try {
+      // Get user data from Realtime Database
+      final userSnapshot = await FirebaseDatabase.instance
+          .ref()
+          .child('users')
+          .child(currentUser.uid)
+          .get();
+
+      if (!userSnapshot.exists) {
+        throw 'User data not found';
+      }
+      
+      final userData = userSnapshot.value as Map<dynamic, dynamic>;
+
+      // Create new item document in Firestore
+      await _firestore.collection('market_items').add({
+        'title': item.title,
+        'price': item.price,
+        'description': item.description,
+        'sellerId': currentUser.uid,
+        'sellerName': userData['fullName'] ?? userData['username'] ?? 'Unknown User',
+        'imageUrl': item.imageUrl,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Item added successfully!')),
+      );
+    } catch (e) {
+      print('Error adding item: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error adding item: $e')),
+      );
+    } finally {
+      setState(() {
+        _isAddingItem = false;
+      });
+    }
   }
 
   @override
@@ -117,24 +126,50 @@ class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateM
         controller: _tabController,
         children: [
           // All Items Tab
-          _buildItemList(_allItems),
+          StreamBuilder<List<MarketItem>>(
+            stream: _allItemsStream,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              return _buildItemList(snapshot.data ?? []);
+            },
+          ),
           // My Items Tab
-          _buildItemList(_userItems),
+          StreamBuilder<List<MarketItem>>(
+            stream: _userItemsStream,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              return _buildItemList(snapshot.data ?? []);
+            },
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AddItemPage(
-                onItemAdded: _handleNewItem,
-              ),
-            ),
-          );
-        },
+        onPressed: _isAddingItem 
+          ? null 
+          : () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AddItemPage(
+                    onItemAdded: _handleNewItem,
+                  ),
+                ),
+              );
+            },
         backgroundColor: const Color(0xFF00C49A),
-        child: const Icon(Icons.add, color: Colors.white),
+        child: _isAddingItem 
+          ? const CircularProgressIndicator(color: Colors.white)
+          : const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
