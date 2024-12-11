@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../main.dart';
 import '../services/location_service.dart';
+import '../services/auth_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -33,9 +34,12 @@ class _RegisterPageState extends State<RegisterPage> {
   List<Barangay> _barangays = [];
   final _regionDropdownKey = GlobalKey<DropdownSearchState<Region>>();
   final _provinceDropdownKey = GlobalKey<DropdownSearchState<Province>>();
-  final _municipalityDropdownKey = GlobalKey<DropdownSearchState<Municipality>>();
+  final _municipalityDropdownKey =
+      GlobalKey<DropdownSearchState<Municipality>>();
   final _barangayDropdownKey = GlobalKey<DropdownSearchState<Barangay>>();
   bool _obscurePassword = true;
+  bool _isLoading = false;
+  final _authService = AuthService();
 
   @override
   void initState() {
@@ -71,7 +75,8 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _loadMunicipalities(String provinceCode) async {
     try {
-      final municipalities = await _locationService.getMunicipalities(provinceCode);
+      final municipalities =
+          await _locationService.getMunicipalities(provinceCode);
       setState(() {
         _municipalities = municipalities;
         _selectedMunicipality = null;
@@ -214,8 +219,10 @@ class _RegisterPageState extends State<RegisterPage> {
             showSearchBox: true,
           ),
           items: _municipalities,
-          itemAsString: (Municipality? municipality) => municipality?.name ?? '',
-          compareFn: (Municipality? m1, Municipality? m2) => m1?.code == m2?.code,
+          itemAsString: (Municipality? municipality) =>
+              municipality?.name ?? '',
+          compareFn: (Municipality? m1, Municipality? m2) =>
+              m1?.code == m2?.code,
           dropdownDecoratorProps: const DropDownDecoratorProps(
             dropdownSearchDecoration: InputDecoration(
               labelText: "Municipality",
@@ -277,6 +284,7 @@ class _RegisterPageState extends State<RegisterPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Register'),
+        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -338,7 +346,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                       ),
                       onPressed: () {
                         setState(() {
@@ -365,20 +375,59 @@ class _RegisterPageState extends State<RegisterPage> {
                   height: 50,
                   margin: const EdgeInsets.symmetric(vertical: 16),
                   child: ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate() && 
+                    onPressed: () async {
+                      if (_formKey.currentState!.validate() &&
                           _selectedDate != null &&
                           _selectedRegion != null &&
                           _selectedProvince != null &&
                           _selectedMunicipality != null &&
                           _selectedBarangay != null) {
-                        // TODO: Implement registration logic
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const MainScreen(isLoggedIn: true),
-                          ),
-                        );
+                        setState(() {
+                          _isLoading = true;
+                        });
+                        try {
+                          Map<String, String> location = {
+                            'region': _selectedRegion!.name,
+                            'province': _selectedProvince!.name,
+                            'municipality': _selectedMunicipality!.name,
+                            'barangay': _selectedBarangay!.name,
+                          };
+
+                          await _authService.registerWithEmailAndPassword(
+                            email: _emailController.text.trim(),
+                            password: _passwordController.text,
+                            fullName: _nameController.text.trim(),
+                            username: _usernameController.text.trim(),
+                            mobile: _mobileController.text.trim(),
+                            birthDate: _selectedDate!,
+                            address: _addressController.text.trim(),
+                            location: location,
+                          );
+
+                          if (mounted) {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const MainScreen(isLoggedIn: true),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(e.toString()),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        } finally {
+                          if (mounted) {
+                            setState(() {
+                              _isLoading = false;
+                            });
+                          }
+                        }
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -389,13 +438,15 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       elevation: 2,
                     ),
-                    child: const Text(
-                      'Register',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            'Register',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
               ],
@@ -405,4 +456,4 @@ class _RegisterPageState extends State<RegisterPage> {
       ),
     );
   }
-} 
+}

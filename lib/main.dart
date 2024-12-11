@@ -1,8 +1,25 @@
 import 'package:flutter/material.dart';
 import 'pages/market_page.dart';
 import 'pages/login_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    Firebase.app(); // Try to get existing app
+  } catch (e) {
+    await Firebase.initializeApp(
+      name: 'Pulse-App',
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
+  
+  FirebaseDatabase.instance.databaseURL = 
+    'https://pulse-app-ea5be-default-rtdb.asia-southeast1.firebasedatabase.app';
+
   runApp(const MyApp());
 }
 
@@ -19,7 +36,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00C49A)),
         useMaterial3: true,
       ),
-      home: const MainScreen(),
+      home: const LoginPage(),
     );
   }
 }
@@ -42,41 +59,7 @@ class _MainScreenState extends State<MainScreen> {
     Center(child: Text('Report')),
   ];
 
-  void _showLoginRequired() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Login Required'),
-          content: const Text('Please login to access this feature.'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Login'),
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   void _onItemTapped(int index) {
-    if (!widget.isLoggedIn && index != 0) {
-      _showLoginRequired();
-      return;
-    }
     setState(() {
       _selectedIndex = index;
     });
@@ -114,13 +97,40 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  Stream<String> getInitialStream() {
+    final auth = FirebaseAuth.instance;
+    final database = FirebaseDatabase.instance.ref();
+    
+    if (auth.currentUser != null) {
+      return database
+          .child('users')
+          .child(auth.currentUser!.uid)
+          .onValue
+          .map((event) {
+        if (event.snapshot.value != null) {
+          final userData = event.snapshot.value as Map<dynamic, dynamic>;
+          final fullName = userData['fullName'] as String;
+          return fullName[0].toUpperCase();
+        }
+        return '?';
+      });
+    }
+    return Stream.value('?');
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text(
           'PulseApp',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -130,58 +140,48 @@ class HomePage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.notifications, color: Colors.white),
             onPressed: () {
-              // Show login required dialog if trying to access notifications
-              showDialog(
-                context: context,
-                builder: (BuildContext context) {
-                  return AlertDialog(
-                    title: const Text('Login Required'),
-                    content: const Text('Please login to view notifications.'),
-                    actions: <Widget>[
-                      TextButton(
-                        child: const Text('Cancel'),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      TextButton(
-                        child: const Text('Login'),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const LoginPage(),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  );
-                },
-              );
+              // Navigate to notifications page
             },
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
+          const SizedBox(width: 8),
+          PopupMenuButton(
+            icon: StreamBuilder<String>(
+              stream: getInitialStream(),
+              builder: (context, snapshot) {
+                return CircleAvatar(
+                  backgroundColor: Colors.white,
+                  child: Text(
+                    snapshot.data ?? '?',
+                    style: TextStyle(
+                      color: Color(0xFF00C49A),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 );
               },
-              child: const CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Text(
-                  'G',
-                  style: TextStyle(
-                    color: Color(0xFF00C49A),
-                    fontWeight: FontWeight.bold,
-                  ),
+            ),
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: const [
+                    Icon(Icons.logout, color: Color(0xFF00C49A)),
+                    SizedBox(width: 8),
+                    Text('Logout'),
+                  ],
                 ),
               ),
-            ),
+            ],
+            onSelected: (value) {
+              if (value == 'logout') {
+                // Navigate to login page
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                  (route) => false,
+                );
+              }
+            },
           ),
         ],
       ),

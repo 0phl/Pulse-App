@@ -17,19 +17,31 @@ class LocationService {
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
         regions = data.map((json) => Region.fromJson(json)).toList();
+      } else {
+        print('Failed to load regions. Status code: ${response.statusCode}');
+        print('Response body: ${response.body}');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error loading regions from API: $e');
+      print('Stack trace: $stackTrace');
     }
 
-    // Add local data
-    regions.addAll(_getLocalRegions());
+    // Add local data only if API call failed
+    if (regions.isEmpty) {
+      regions.addAll(_getLocalRegions());
+    }
     
     // Remove duplicates based on code
     final uniqueRegions = regions.fold<Map<String, Region>>({}, (map, region) {
-      map[region.code] = region;
+      if (region.code.isNotEmpty && region.name.isNotEmpty) {
+        map[region.code] = region;
+      }
       return map;
     }).values.toList();
+
+    if (uniqueRegions.isEmpty) {
+      print('Warning: No regions found after processing');
+    }
 
     return uniqueRegions..sort((a, b) => a.name.compareTo(b.name));
   }
@@ -39,27 +51,52 @@ class LocationService {
     List<Province> provinces = [];
     
     try {
+      // Special handling for NCR
+      final String endpoint = regionCode == '13' || regionCode == '130000000' 
+          ? '$baseUrl/regions/130000000/districts'  // Use districts endpoint for NCR
+          : '$baseUrl/regions/$regionCode/provinces';
+      
       final response = await http.get(
-        Uri.parse('$baseUrl/regions/$regionCode/provinces'),
+        Uri.parse(endpoint),
         headers: {'Accept': 'application/json'},
       );
 
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
-        provinces = data.map((json) => Province.fromJson(json)).toList();
+        if (regionCode == '13' || regionCode == '130000000') {
+          // Convert districts to provinces for NCR
+          provinces = data.map((json) => Province(
+            code: json['code'] ?? json['district_code'] ?? '',
+            name: (json['name'] ?? json['district_name'] ?? '').toUpperCase(),
+          )).toList();
+        } else {
+          provinces = data.map((json) => Province.fromJson(json)).toList();
+        }
+      } else {
+        print('Failed to load provinces/districts. Status code: ${response.statusCode}');
+        print('Response body: ${response.body}');
       }
-    } catch (e) {
-      print('Error loading provinces from API: $e');
+    } catch (e, stackTrace) {
+      print('Error loading provinces/districts from API: $e');
+      print('Stack trace: $stackTrace');
     }
 
-    // Add local data
-    provinces.addAll(_getLocalProvinces(regionCode));
+    // Add local data only if API call failed
+    if (provinces.isEmpty) {
+      provinces.addAll(_getLocalProvinces(regionCode));
+    }
     
     // Remove duplicates based on code
     final uniqueProvinces = provinces.fold<Map<String, Province>>({}, (map, province) {
-      map[province.code] = province;
+      if (province.code.isNotEmpty && province.name.isNotEmpty) {
+        map[province.code] = province;
+      }
       return map;
     }).values.toList();
+
+    if (uniqueProvinces.isEmpty) {
+      print('Warning: No provinces/districts found for region $regionCode');
+    }
 
     return uniqueProvinces..sort((a, b) => a.name.compareTo(b.name));
   }
@@ -69,27 +106,45 @@ class LocationService {
     List<Municipality> municipalities = [];
     
     try {
+      // For NCR districts, we need to use a different endpoint
+      final bool isNCRDistrict = provinceCode.startsWith('13');
+      final String endpoint = isNCRDistrict
+          ? '$baseUrl/districts/$provinceCode/cities-municipalities'
+          : '$baseUrl/provinces/$provinceCode/cities-municipalities';
+
       final response = await http.get(
-        Uri.parse('$baseUrl/provinces/$provinceCode/cities-municipalities'),
+        Uri.parse(endpoint),
         headers: {'Accept': 'application/json'},
       );
 
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
         municipalities = data.map((json) => Municipality.fromJson(json)).toList();
+      } else {
+        print('Failed to load municipalities. Status code: ${response.statusCode}');
+        print('Response body: ${response.body}');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('Error loading municipalities from API: $e');
+      print('Stack trace: $stackTrace');
     }
 
-    // Add local data
-    municipalities.addAll(_getLocalMunicipalities(provinceCode));
+    // Add local data only if API call failed
+    if (municipalities.isEmpty) {
+      municipalities.addAll(_getLocalMunicipalities(provinceCode));
+    }
     
     // Remove duplicates based on code
     final uniqueMunicipalities = municipalities.fold<Map<String, Municipality>>({}, (map, municipality) {
-      map[municipality.code] = municipality;
+      if (municipality.code.isNotEmpty && municipality.name.isNotEmpty) {
+        map[municipality.code] = municipality;
+      }
       return map;
     }).values.toList();
+
+    if (uniqueMunicipalities.isEmpty) {
+      print('Warning: No municipalities found for province/district $provinceCode');
+    }
 
     return uniqueMunicipalities..sort((a, b) => a.name.compareTo(b.name));
   }
