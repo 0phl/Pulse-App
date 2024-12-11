@@ -1,8 +1,25 @@
 import 'package:flutter/material.dart';
 import 'pages/market_page.dart';
 import 'pages/login_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    Firebase.app(); // Try to get existing app
+  } catch (e) {
+    await Firebase.initializeApp(
+      name: 'Pulse-App',
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
+  
+  FirebaseDatabase.instance.databaseURL = 
+    'https://pulse-app-ea5be-default-rtdb.asia-southeast1.firebasedatabase.app';
+
   runApp(const MyApp());
 }
 
@@ -80,8 +97,34 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  Stream<String> getInitialStream() {
+    final auth = FirebaseAuth.instance;
+    final database = FirebaseDatabase.instance.ref();
+    
+    if (auth.currentUser != null) {
+      return database
+          .child('users')
+          .child(auth.currentUser!.uid)
+          .onValue
+          .map((event) {
+        if (event.snapshot.value != null) {
+          final userData = event.snapshot.value as Map<dynamic, dynamic>;
+          final fullName = userData['fullName'] as String;
+          return fullName[0].toUpperCase();
+        }
+        return '?';
+      });
+    }
+    return Stream.value('?');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +143,7 @@ class HomePage extends StatelessWidget {
               // Navigate to notifications page
             },
           ),
+<<<<<<< HEAD
           PopupMenuButton(
             icon: CircleAvatar(
               backgroundColor: Colors.white,
@@ -122,13 +166,47 @@ class HomePage extends StatelessWidget {
                   ],
                 ),
               ),
+=======
+          const SizedBox(width: 8),
+          PopupMenuButton(
+            icon: StreamBuilder<String>(
+              stream: getInitialStream(),
+              builder: (context, snapshot) {
+                return CircleAvatar(
+                  backgroundColor: Colors.white,
+                  child: Text(
+                    snapshot.data ?? '?',
+                    style: TextStyle(
+                      color: Color(0xFF00C49A),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              },
+            ),
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: const [
+                    Icon(Icons.logout, color: Color(0xFF00C49A)),
+                    SizedBox(width: 8),
+                    Text('Logout'),
+                  ],
+                ),
+              ),
+>>>>>>> ab1b17e79c11d8e96f4ff052c769614edc0598d7
             ],
             onSelected: (value) {
               if (value == 'logout') {
                 // Navigate to login page
                 Navigator.pushAndRemoveUntil(
                   context,
+<<<<<<< HEAD
                   MaterialPageRoute(builder: (context) => LoginPage()),
+=======
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+>>>>>>> ab1b17e79c11d8e96f4ff052c769614edc0598d7
                   (route) => false,
                 );
               }
