@@ -62,6 +62,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+  DateTime? _lastPressedAt;
 
   static const List<Widget> _pages = <Widget>[
     HomePage(),
@@ -78,31 +79,56 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _pages[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _selectedIndex,
-        selectedItemColor: const Color(0xFF00C49A),
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart),
-            label: 'Market',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.volunteer_activism),
-            label: 'Volunteer',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.report),
-            label: 'Report',
-          ),
-        ],
+    return WillPopScope(
+      onWillPop: () async {
+        if (_selectedIndex != 0) {
+          // If not on home page, go to home page
+          setState(() {
+            _selectedIndex = 0;
+          });
+          return false;
+        }
+        
+        // Double-press back to exit
+        if (_lastPressedAt == null || 
+            DateTime.now().difference(_lastPressedAt!) > const Duration(seconds: 2)) {
+          _lastPressedAt = DateTime.now();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Press back again to exit'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        body: _pages[_selectedIndex],
+        bottomNavigationBar: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          currentIndex: _selectedIndex,
+          selectedItemColor: const Color(0xFF00C49A),
+          onTap: _onItemTapped,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_cart),
+              label: 'Market',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.volunteer_activism),
+              label: 'Volunteer',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.report),
+              label: 'Report',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -135,6 +161,13 @@ class _HomePageState extends State<HomePage> {
       });
     }
     return Stream.value('?');
+  }
+
+  Future<void> _refreshHome() async {
+    await Future.delayed(const Duration(milliseconds: 1000));
+    setState(() {
+      getInitialStream();
+    });
   }
 
   @override
@@ -196,36 +229,45 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: Container(
-        color: const Color(0xFFE8F5F0),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(bottom: 16.0),
-                child: Text(
-                  'Community Notices',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+      body: RefreshIndicator(
+        onRefresh: _refreshHome,
+        color: const Color(0xFF00C49A),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            Container(
+              color: const Color(0xFFE8F5F0),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 16.0),
+                      child: Text(
+                        'Community Notices',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    _buildNoticeCard(
+                      'Community Clean-up Drive',
+                      'Posted 2 hours ago',
+                      'Join us this Saturday for our monthly community clean-up initiative. Together, we can make our neighborhood cleaner and greener!',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildNoticeCard(
+                      'Local Business Meet',
+                      'Posted 5 hours ago',
+                      'Connect with local entrepreneurs and small business owners at our upcoming networking event. Share ideas and grow together!',
+                    ),
+                  ],
                 ),
               ),
-              _buildNoticeCard(
-                'Community Clean-up Drive',
-                'Posted 2 hours ago',
-                'Join us this Saturday for our monthly community clean-up initiative. Together, we can make our neighborhood cleaner and greener!',
-              ),
-              const SizedBox(height: 16),
-              _buildNoticeCard(
-                'Local Business Meet',
-                'Posted 5 hours ago',
-                'Connect with local entrepreneurs and small business owners at our upcoming networking event. Share ideas and grow together!',
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

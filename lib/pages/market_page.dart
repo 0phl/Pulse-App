@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'edit_item_page.dart';
 
 class MarketPage extends StatefulWidget {
   const MarketPage({super.key});
@@ -103,6 +104,48 @@ class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateM
     }
   }
 
+  void _handleEdit(BuildContext context, MarketItem item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditItemPage(
+          item: item,
+          onItemUpdated: (MarketItem updatedItem) {
+            // The Firestore stream will automatically update the UI
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _refreshAllItems() async {
+    setState(() {
+      _allItemsStream = _firestore
+          .collection('market_items')
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((snapshot) => snapshot.docs
+              .map((doc) => MarketItem.fromFirestore(doc))
+              .toList());
+    });
+  }
+
+  Future<void> _refreshUserItems() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser != null) {
+      setState(() {
+        _userItemsStream = _firestore
+            .collection('market_items')
+            .where('sellerId', isEqualTo: currentUser.uid)
+            .orderBy('createdAt', descending: true)
+            .snapshots()
+            .map((snapshot) => snapshot.docs
+                .map((doc) => MarketItem.fromFirestore(doc))
+                .toList());
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -135,7 +178,11 @@ class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateM
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              return _buildItemList(snapshot.data ?? []);
+              return RefreshIndicator(
+                onRefresh: _refreshAllItems,
+                color: const Color(0xFF00C49A),
+                child: _buildItemList(snapshot.data ?? [], showEditButton: false),
+              );
             },
           ),
           // My Items Tab
@@ -148,7 +195,11 @@ class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateM
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              return _buildItemList(snapshot.data ?? []);
+              return RefreshIndicator(
+                onRefresh: _refreshUserItems,
+                color: const Color(0xFF00C49A),
+                child: _buildItemList(snapshot.data ?? [], showEditButton: true),
+              );
             },
           ),
         ],
@@ -174,25 +225,39 @@ class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildItemList(List<MarketItem> items) {
+  Widget _buildItemList(List<MarketItem> items, {required bool showEditButton}) {
     if (items.isEmpty) {
-      return const Center(
-        child: Text(
-          'No items to display',
-          style: TextStyle(fontSize: 16, color: Colors.grey),
-        ),
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 200),
+          Center(
+            child: Text(
+              'No items to display',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+          ),
+        ],
       );
     }
 
+    final currentUser = _auth.currentUser;
+    
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       itemCount: items.length,
       itemBuilder: (context, index) {
+        final isOwner = currentUser?.uid == items[index].sellerId;
+        
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: MarketItemCard(
             item: items[index],
-            onInterested: () => _handleInterested(context, items[index]),
+            onInterested: isOwner ? null : () => _handleInterested(context, items[index]),
+            isOwner: isOwner,
+            onEdit: isOwner ? () => _handleEdit(context, items[index]) : null,
+            showEditButton: showEditButton,
           ),
         );
       },
