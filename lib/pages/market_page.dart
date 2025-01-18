@@ -3,8 +3,9 @@ import '../widgets/market_item_card.dart';
 import '../models/market_item.dart';
 import 'chat_page.dart';
 import 'add_item_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -16,7 +17,8 @@ class MarketPage extends StatefulWidget {
   State<MarketPage> createState() => _MarketPageState();
 }
 
-class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateMixin {
+class _MarketPageState extends State<MarketPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -37,9 +39,8 @@ class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateM
         .collection('market_items')
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => MarketItem.fromFirestore(doc))
-            .toList());
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList());
 
     // Stream for user's items
     final currentUser = _auth.currentUser;
@@ -74,8 +75,12 @@ class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateM
       if (!userSnapshot.exists) {
         throw 'User data not found';
       }
-      
+
       final userData = userSnapshot.value as Map<dynamic, dynamic>;
+
+      // Upload image to Imgur and get the download URL
+      String downloadUrl =
+          await _uploadImage(item.imageUrl); // Assuming item.imageUrl is a File
 
       // Create new item document in Firestore
       await _firestore.collection('market_items').add({
@@ -83,8 +88,9 @@ class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateM
         'price': item.price,
         'description': item.description,
         'sellerId': currentUser.uid,
-        'sellerName': userData['fullName'] ?? userData['username'] ?? 'Unknown User',
-        'imageUrl': item.imageUrl,
+        'sellerName':
+            userData['fullName'] ?? userData['username'] ?? 'Unknown User',
+        'imageUrl': downloadUrl, // Use the download URL
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -100,6 +106,28 @@ class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateM
       setState(() {
         _isAddingItem = false;
       });
+    }
+  }
+
+  Future<String> _uploadImage(String imagePath) async {
+    File imageFile = File(imagePath); // Convert the path to a File
+    final bytes = await imageFile.readAsBytes();
+    final base64Image = base64Encode(bytes);
+
+    final response = await http.post(
+      Uri.parse('https://api.imgur.com/3/image'),
+      headers: {
+        'Authorization': 'Client-ID d22045c222ba371', // Use your Client ID
+        'Content-Type': 'application/json',
+      },
+      body: json.encode({'image': base64Image}),
+    );
+
+    if (response.statusCode == 200) {
+      final jsonResponse = json.decode(response.body);
+      return jsonResponse['data']['link']; // Return the image URL
+    } else {
+      throw Exception('Failed to upload image: ${response.body}');
     }
   }
 
@@ -154,22 +182,22 @@ class _MarketPageState extends State<MarketPage> with SingleTickerProviderStateM
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _isAddingItem 
-          ? null 
-          : () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AddItemPage(
-                    onItemAdded: _handleNewItem,
+        onPressed: _isAddingItem
+            ? null
+            : () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddItemPage(
+                      onItemAdded: _handleNewItem,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
         backgroundColor: const Color(0xFF00C49A),
-        child: _isAddingItem 
-          ? const CircularProgressIndicator(color: Colors.white)
-          : const Icon(Icons.add, color: Colors.white),
+        child: _isAddingItem
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
