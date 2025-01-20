@@ -10,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../widgets/image_viewer_page.dart';
+import 'edit_item_page.dart';
 
 class MarketPage extends StatefulWidget {
   const MarketPage({super.key});
@@ -226,6 +227,7 @@ class _MarketPageState extends State<MarketPage>
       padding: const EdgeInsets.all(16),
       itemCount: items.length,
       itemBuilder: (context, index) {
+        final bool isMyItemsTab = _tabController.index == 1;
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: MarketItemCard(
@@ -233,10 +235,60 @@ class _MarketPageState extends State<MarketPage>
             onInterested: () => _handleInterested(context, items[index]),
             onImageTap: () => _handleImageTap(context, items[index].imageUrl),
             isOwner: _auth.currentUser?.uid == items[index].sellerId,
+            showEditButton: isMyItemsTab,
+            onEdit: isMyItemsTab ? () => _handleEditItem(items[index]) : null,
           ),
         );
       },
     );
+  }
+
+  void _handleEditItem(MarketItem item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditItemPage(
+          item: item,
+          onItemUpdated: _handleItemUpdate,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleItemUpdate(MarketItem updatedItem, String? newImagePath) async {
+    setState(() {
+      _isAddingItem = true;
+    });
+
+    try {
+      String imageUrl = updatedItem.imageUrl;
+      
+      // Only upload new image if provided
+      if (newImagePath != null) {
+        imageUrl = await _uploadImage(newImagePath);
+      }
+
+      // Update the item in Firestore
+      await _firestore.collection('market_items').doc(updatedItem.id).update({
+        'title': updatedItem.title,
+        'price': updatedItem.price,
+        'description': updatedItem.description,
+        'imageUrl': imageUrl,
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Item updated successfully!')),
+      );
+    } catch (e) {
+      print('Error updating item: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating item: $e')),
+      );
+    } finally {
+      setState(() {
+        _isAddingItem = false;
+      });
+    }
   }
 
   void _handleInterested(BuildContext context, MarketItem item) {

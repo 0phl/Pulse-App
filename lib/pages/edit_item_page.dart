@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/market_item.dart';
 import 'package:image_picker/image_picker.dart';
+import '../models/market_item.dart';
+import 'dart:io';
 
 class EditItemPage extends StatefulWidget {
   final MarketItem item;
-  final Function onItemUpdated;
+  final Function(MarketItem updatedItem, String? newImagePath) onItemUpdated;
 
   const EditItemPage({
-    super.key,
+    Key? key,
     required this.item,
     required this.onItemUpdated,
-  });
+  }) : super(key: key);
 
   @override
   State<EditItemPage> createState() => _EditItemPageState();
@@ -22,9 +22,8 @@ class _EditItemPageState extends State<EditItemPage> {
   late TextEditingController _titleController;
   late TextEditingController _priceController;
   late TextEditingController _descriptionController;
-  String? _imageUrl;
-  bool _isUpdating = false;
-  final ImagePicker _picker = ImagePicker();
+  String? _newImagePath;
+  String? _currentImageUrl;
 
   @override
   void initState() {
@@ -32,7 +31,7 @@ class _EditItemPageState extends State<EditItemPage> {
     _titleController = TextEditingController(text: widget.item.title);
     _priceController = TextEditingController(text: widget.item.price.toString());
     _descriptionController = TextEditingController(text: widget.item.description);
-    _imageUrl = widget.item.imageUrl;
+    _currentImageUrl = widget.item.imageUrl;
   }
 
   @override
@@ -44,74 +43,30 @@ class _EditItemPageState extends State<EditItemPage> {
   }
 
   Future<void> _pickImage() async {
-    try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
-        setState(() {
-          _imageUrl = image.path;
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking image: $e')),
-      );
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+    if (image != null) {
+      setState(() {
+        _newImagePath = image.path;
+      });
     }
   }
 
-  Future<void> _updateItem() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_imageUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select an image')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isUpdating = true;
-    });
-
-    try {
+  void _handleSubmit() {
+    if (_formKey.currentState!.validate()) {
       final updatedItem = MarketItem(
         id: widget.item.id,
         title: _titleController.text,
         price: double.parse(_priceController.text),
         description: _descriptionController.text,
-        imageUrl: _imageUrl!,
+        imageUrl: _currentImageUrl!, // This will be updated in MarketPage if new image
         sellerId: widget.item.sellerId,
         sellerName: widget.item.sellerName,
       );
 
-      await FirebaseFirestore.instance
-          .collection('market_items')
-          .doc(widget.item.id)
-          .update({
-        'title': updatedItem.title,
-        'price': updatedItem.price,
-        'description': updatedItem.description,
-        'imageUrl': updatedItem.imageUrl,
-      });
-
-      widget.onItemUpdated(updatedItem);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Item updated successfully!')),
-        );
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating item: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUpdating = false;
-        });
-      }
+      widget.onItemUpdated(updatedItem, _newImagePath);
+      Navigator.pop(context);
     }
   }
 
@@ -130,38 +85,23 @@ class _EditItemPageState extends State<EditItemPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Image Preview and Pick Button
-              Container(
-                height: 200,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: _imageUrl != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          _imageUrl!,
+              GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  height: 200,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: _newImagePath != null
+                      ? Image.file(
+                          File(_newImagePath!),
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Center(
-                              child: Text('Error loading image'),
-                            );
-                          },
+                        )
+                      : Image.network(
+                          _currentImageUrl!,
+                          fit: BoxFit.cover,
                         ),
-                      )
-                    : const Center(
-                        child: Text('No image selected'),
-                      ),
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton.icon(
-                onPressed: _pickImage,
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Change Image'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00C49A),
-                  foregroundColor: Colors.white,
                 ),
               ),
               const SizedBox(height: 16),
@@ -169,7 +109,7 @@ class _EditItemPageState extends State<EditItemPage> {
                 controller: _titleController,
                 decoration: const InputDecoration(
                   labelText: 'Title',
-                  hintText: 'Enter item title',
+                  border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -183,7 +123,7 @@ class _EditItemPageState extends State<EditItemPage> {
                 controller: _priceController,
                 decoration: const InputDecoration(
                   labelText: 'Price',
-                  hintText: 'Enter item price',
+                  border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
                 validator: (value) {
@@ -201,9 +141,9 @@ class _EditItemPageState extends State<EditItemPage> {
                 controller: _descriptionController,
                 decoration: const InputDecoration(
                   labelText: 'Description',
-                  hintText: 'Enter item description',
+                  border: OutlineInputBorder(),
                 ),
-                maxLines: 3,
+                maxLines: 4,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter a description';
@@ -213,15 +153,15 @@ class _EditItemPageState extends State<EditItemPage> {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _isUpdating ? null : _updateItem,
+                onPressed: _handleSubmit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00C49A),
-                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: _isUpdating
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Update Item'),
+                child: const Text(
+                  'Save Changes',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ],
           ),

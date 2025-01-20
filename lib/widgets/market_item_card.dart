@@ -8,6 +8,7 @@ class MarketItemCard extends StatelessWidget {
   final VoidCallback onImageTap;
   final bool isOwner;
   final bool showEditButton;
+  final VoidCallback? onEdit;
 
   const MarketItemCard({
     super.key,
@@ -16,6 +17,7 @@ class MarketItemCard extends StatelessWidget {
     required this.onImageTap,
     required this.isOwner,
     this.showEditButton = false,
+    this.onEdit,
   });
 
   @override
@@ -88,7 +90,7 @@ class MarketItemCard extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () => {},
+                      onPressed: onEdit,
                       icon: const Icon(Icons.edit),
                       label: const Text('Edit Item'),
                       style: ElevatedButton.styleFrom(
