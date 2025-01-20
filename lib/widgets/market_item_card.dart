@@ -4,16 +4,16 @@ import 'dart:io';
 
 class MarketItemCard extends StatelessWidget {
   final MarketItem item;
-  final VoidCallback? onInterested;
-  final VoidCallback? onEdit;
+  final VoidCallback onInterested;
+  final VoidCallback onImageTap;
   final bool isOwner;
   final bool showEditButton;
 
   const MarketItemCard({
     super.key,
     required this.item,
-    this.onInterested,
-    this.onEdit,
+    required this.onInterested,
+    required this.onImageTap,
     required this.isOwner,
     this.showEditButton = false,
   });
@@ -28,9 +28,15 @@ class MarketItemCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: _buildImage(),
+          GestureDetector(
+            onTap: onImageTap,
+            child: Hero(
+              tag: item.imageUrl,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                child: _buildImage(),
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -82,7 +88,7 @@ class MarketItemCard extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: onEdit,
+                      onPressed: () => {},
                       icon: const Icon(Icons.edit),
                       label: const Text('Edit Item'),
                       style: ElevatedButton.styleFrom(

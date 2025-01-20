@@ -6,6 +6,8 @@ import 'package:firebase_database/firebase_database.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'pages/volunteer_page.dart';
+import 'pages/report_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,8 +69,8 @@ class _MainScreenState extends State<MainScreen> {
   static const List<Widget> _pages = <Widget>[
     HomePage(),
     MarketPage(),
-    Center(child: Text('Volunteer')),
-    Center(child: Text('Report')),
+    VolunteerPage(),
+    ReportPage(),
   ];
 
   void _onItemTapped(int index) {
@@ -196,7 +198,7 @@ class _HomePageState extends State<HomePage> {
                   backgroundColor: Colors.white,
                   child: Text(
                     snapshot.data ?? '?',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Color(0xFF00C49A),
                       fontWeight: FontWeight.bold,
                     ),
@@ -205,10 +207,10 @@ class _HomePageState extends State<HomePage> {
               },
             ),
             itemBuilder: (BuildContext context) => [
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'logout',
                 child: Row(
-                  children: const [
+                  children: [
                     Icon(Icons.logout, color: Color(0xFF00C49A)),
                     SizedBox(width: 8),
                     Text('Logout'),
