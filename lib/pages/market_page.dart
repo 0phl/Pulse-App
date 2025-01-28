@@ -61,16 +61,21 @@ class _MarketPageState extends State<MarketPage>
               if (parts.length == 3) {
                 final buyerId = parts[1];
                 final sellerId = parts[2];
-                
+
                 // Count unread messages for chats where we are either buyer or seller
                 if (buyerId == currentUser.uid || sellerId == currentUser.uid) {
-                  final messages = (chatValue['messages'] as Map<dynamic, dynamic>).values.toList();
-                  final readStatus = (chatValue['readStatus'] as Map<dynamic, dynamic>?)?[currentUser.uid] ?? 0;
-                  
+                  final messages =
+                      (chatValue['messages'] as Map<dynamic, dynamic>)
+                          .values
+                          .toList();
+                  final readStatus = (chatValue['readStatus']
+                          as Map<dynamic, dynamic>?)?[currentUser.uid] ??
+                      0;
+
                   // Count messages newer than last read timestamp
                   final unreadMessages = messages.where((msg) {
                     return msg['timestamp'] > readStatus &&
-                           msg['senderId'] != currentUser.uid;
+                        msg['senderId'] != currentUser.uid;
                   }).length;
                   unreadCount += unreadMessages;
                 }
@@ -186,8 +191,6 @@ class _MarketPageState extends State<MarketPage>
     }
   }
 
-<<<<<<< HEAD
-=======
   void _handleImageTap(BuildContext context, String imageUrl) {
     Navigator.push(
       context,
@@ -197,12 +200,12 @@ class _MarketPageState extends State<MarketPage>
     );
   }
 
->>>>>>> zon
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Community Market', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Community Market',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF00C49A),
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
@@ -354,14 +357,15 @@ class _MarketPageState extends State<MarketPage>
     );
   }
 
-  Future<void> _handleItemUpdate(MarketItem updatedItem, String? newImagePath) async {
+  Future<void> _handleItemUpdate(
+      MarketItem updatedItem, String? newImagePath) async {
     setState(() {
       _isAddingItem = true;
     });
 
     try {
       String imageUrl = updatedItem.imageUrl;
-      
+
       // Only upload new image if provided
       if (newImagePath != null) {
         imageUrl = await _uploadImage(newImagePath);
