@@ -11,6 +11,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../widgets/image_viewer_page.dart';
 import 'edit_item_page.dart';
+import 'chat_list_page.dart';
 
 class MarketPage extends StatefulWidget {
   const MarketPage({super.key});
@@ -24,15 +25,67 @@ class _MarketPageState extends State<MarketPage>
   late TabController _tabController;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseDatabase _database = FirebaseDatabase.instance;
   Stream<List<MarketItem>>? _allItemsStream;
   Stream<List<MarketItem>>? _userItemsStream;
   bool _isAddingItem = false;
+  int _unreadChats = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(() {
+        setState(() {});
+      });
     _initializeStreams();
+    _setupChatListener();
+  }
+
+  void _setupChatListener() {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    _database.ref('chats').onValue.listen((event) {
+      if (!mounted) return;
+
+      try {
+        int unreadCount = 0;
+        final chatData = event.snapshot.value as Map<dynamic, dynamic>?;
+
+        if (chatData != null) {
+          chatData.forEach((chatId, chatValue) {
+            if (chatValue is Map && chatValue.containsKey('messages')) {
+              // Parse chat ID parts (itemId_buyerId_sellerId)
+              final parts = chatId.toString().split('_');
+              if (parts.length == 3) {
+                final buyerId = parts[1];
+                final sellerId = parts[2];
+                
+                // Count unread messages for chats where we are either buyer or seller
+                if (buyerId == currentUser.uid || sellerId == currentUser.uid) {
+                  final messages = (chatValue['messages'] as Map<dynamic, dynamic>).values.toList();
+                  final readStatus = (chatValue['readStatus'] as Map<dynamic, dynamic>?)?[currentUser.uid] ?? 0;
+                  
+                  // Count messages newer than last read timestamp
+                  final unreadMessages = messages.where((msg) {
+                    return msg['timestamp'] > readStatus &&
+                           msg['senderId'] != currentUser.uid;
+                  }).length;
+                  unreadCount += unreadMessages;
+                }
+              }
+            }
+          });
+        }
+
+        setState(() {
+          _unreadChats = unreadCount;
+        });
+      } catch (e) {
+        print('Error processing chat notifications: $e');
+      }
+    });
   }
 
   void _initializeStreams() {
@@ -150,6 +203,49 @@ class _MarketPageState extends State<MarketPage>
         backgroundColor: const Color(0xFF00C49A),
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
+        actions: [
+          if (_tabController.index == 1) // Only show on My Items tab
+            Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chat),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ChatListPage(),
+                      ),
+                    );
+                  },
+                  tooltip: 'My Chats',
+                ),
+                if (_unreadChats > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        _unreadChats.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: Colors.white,
@@ -303,5 +399,11 @@ class _MarketPageState extends State<MarketPage>
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 }

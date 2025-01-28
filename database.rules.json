@@ -1,0 +1,32 @@
+{
+  "rules": {
+    "users": {
+      ".read": "auth != null",
+      ".indexOn": ["username", "email"],
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".read": "auth != null"
+      }
+    },
+    "chats": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$chatId": {
+        "messages": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "$messageId": {
+            ".validate": "newData.hasChildren(['message', 'senderId', 'senderName', 'timestamp'])"
+          }
+        },
+        "readStatus": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    }
+  }
+}
