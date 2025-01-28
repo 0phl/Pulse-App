@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:dropdown_search/dropdown_search.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../main.dart';
 import '../services/location_service.dart';
 import '../services/auth_service.dart';
@@ -177,81 +175,115 @@ class _RegisterPageState extends State<RegisterPage> {
               border: OutlineInputBorder(),
             ),
           ),
-          onChanged: (Region? value) {
+          onChanged: (Region? value) async {
             setState(() {
               _selectedRegion = value;
-              if (value != null) {
-                _loadProvinces(value.code);
-              }
+              _provinces = [];
+              _municipalities = [];
+              _barangays = [];
             });
+            if (value != null) {
+              await _loadProvinces(value.code);
+            }
           },
+          selectedItem: _selectedRegion,
         ),
         const SizedBox(height: 16),
         DropdownSearch<Province>(
           key: _provinceDropdownKey,
-          popupProps: const PopupProps.menu(
+          enabled: _selectedRegion != null,
+          popupProps: PopupProps.menu(
             showSelectedItems: true,
             showSearchBox: true,
+            loadingBuilder: (context, _) => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(),
+              ),
+            ),
           ),
           items: _provinces,
           itemAsString: (Province? province) => province?.name ?? '',
           compareFn: (Province? p1, Province? p2) => p1?.code == p2?.code,
-          dropdownDecoratorProps: const DropDownDecoratorProps(
+          dropdownDecoratorProps: DropDownDecoratorProps(
             dropdownSearchDecoration: InputDecoration(
               labelText: "Province",
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              filled: _selectedRegion == null,
+              fillColor: Colors.grey[200],
             ),
           ),
-          onChanged: (Province? value) {
+          onChanged: (Province? value) async {
             setState(() {
               _selectedProvince = value;
-              if (value != null) {
-                _loadMunicipalities(value.code);
-              }
+              _municipalities = [];
+              _barangays = [];
             });
+            if (value != null) {
+              await _loadMunicipalities(value.code);
+            }
           },
+          selectedItem: _selectedProvince,
         ),
         const SizedBox(height: 16),
         DropdownSearch<Municipality>(
           key: _municipalityDropdownKey,
-          popupProps: const PopupProps.menu(
+          enabled: _selectedProvince != null,
+          popupProps: PopupProps.menu(
             showSelectedItems: true,
             showSearchBox: true,
-          ),
-          items: _municipalities,
-          itemAsString: (Municipality? municipality) =>
-              municipality?.name ?? '',
-          compareFn: (Municipality? m1, Municipality? m2) =>
-              m1?.code == m2?.code,
-          dropdownDecoratorProps: const DropDownDecoratorProps(
-            dropdownSearchDecoration: InputDecoration(
-              labelText: "Municipality",
-              border: OutlineInputBorder(),
+            loadingBuilder: (context, _) => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(),
+              ),
             ),
           ),
-          onChanged: (Municipality? value) {
+          items: _municipalities,
+          itemAsString: (Municipality? municipality) => municipality?.name ?? '',
+          compareFn: (Municipality? m1, Municipality? m2) => m1?.code == m2?.code,
+          dropdownDecoratorProps: DropDownDecoratorProps(
+            dropdownSearchDecoration: InputDecoration(
+              labelText: "Municipality",
+              border: const OutlineInputBorder(),
+              filled: _selectedProvince == null,
+              fillColor: Colors.grey[200],
+            ),
+          ),
+          onChanged: (Municipality? value) async {
             setState(() {
               _selectedMunicipality = value;
-              if (value != null) {
-                _loadBarangays(value.code);
-              }
+              _barangays = [];
             });
+            if (value != null) {
+              await _loadBarangays(value.code);
+            }
           },
+          selectedItem: _selectedMunicipality,
         ),
         const SizedBox(height: 16),
         DropdownSearch<Barangay>(
           key: _barangayDropdownKey,
-          popupProps: const PopupProps.menu(
+          enabled: _selectedMunicipality != null,
+          popupProps: PopupProps.menu(
             showSelectedItems: true,
             showSearchBox: true,
+            loadingBuilder: (context, _) => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(),
+              ),
+            ),
           ),
           items: _barangays,
           itemAsString: (Barangay? barangay) => barangay?.name ?? '',
           compareFn: (Barangay? b1, Barangay? b2) => b1?.code == b2?.code,
-          dropdownDecoratorProps: const DropDownDecoratorProps(
+          dropdownDecoratorProps: DropDownDecoratorProps(
             dropdownSearchDecoration: InputDecoration(
               labelText: "Barangay",
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              filled: _selectedMunicipality == null,
+              fillColor: Colors.grey[200],
             ),
           ),
           onChanged: (Barangay? value) {
@@ -259,6 +291,7 @@ class _RegisterPageState extends State<RegisterPage> {
               _selectedBarangay = value;
             });
           },
+          selectedItem: _selectedBarangay,
         ),
         const SizedBox(height: 16),
         TextFormField(
@@ -418,7 +451,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(e.toString()),
-                                backgroundColor: Colors.red,
+                                backgroundColor: const Color.fromARGB(255, 90, 90, 90),
                               ),
                             );
                           }

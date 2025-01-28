@@ -5,11 +5,19 @@ import 'dart:io';
 class MarketItemCard extends StatelessWidget {
   final MarketItem item;
   final VoidCallback onInterested;
+  final VoidCallback onImageTap;
+  final bool isOwner;
+  final bool showEditButton;
+  final VoidCallback? onEdit;
 
   const MarketItemCard({
     super.key,
     required this.item,
     required this.onInterested,
+    required this.onImageTap,
+    required this.isOwner,
+    this.showEditButton = false,
+    this.onEdit,
   });
 
   @override
@@ -22,9 +30,15 @@ class MarketItemCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: _buildImage(),
+          GestureDetector(
+            onTap: onImageTap,
+            child: Hero(
+              tag: item.imageUrl,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                child: _buildImage(),
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -54,6 +68,7 @@ class MarketItemCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
+                // Description
                 Text(
                   item.description,
                   style: TextStyle(
@@ -62,30 +77,49 @@ class MarketItemCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
+                // Seller name
                 Text(
-                  'Seller: ${item.sellerName}',
+                  'Seller: ${item.sellerName}${isOwner ? ' (you)' : ''}',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: onInterested,
-                    icon: const Icon(Icons.chat_bubble_outline),
-                    label: const Text('I\'m Interested'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00C49A),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                if (isOwner && showEditButton)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit Item'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00C49A),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                if (!isOwner)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: onInterested,
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: const Text('I\'m Interested'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00C49A),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
