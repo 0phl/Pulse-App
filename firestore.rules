@@ -10,9 +10,24 @@ service cloud.firestore {
       allow create: if request.auth != null && 
                    request.resource.data.sellerId == request.auth.uid;
       
-      // Allow update/delete if user is the seller
-      allow update, delete: if request.auth != null && 
-                          resource.data.sellerId == request.auth.uid;
+      // Allow update if user is seller or buyer
+      allow update: if request.auth != null && (
+        // Allow seller to update their own items
+        resource.data.sellerId == request.auth.uid ||
+        // Allow buyer to update when they're the buyer or becoming the buyer
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['buyerUnreadCount', 'sellerUnreadCount', 'buyerId']) &&
+          (
+            resource.data.buyerId == request.auth.uid || 
+            request.resource.data.buyerId == request.auth.uid ||
+            resource.data.sellerId == request.auth.uid
+          )
+        )
+      );
+      
+      allow delete: if request.auth != null && 
+                   resource.data.sellerId == request.auth.uid;
     }
 
     // Deny access to other collections by default

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../services/community_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ChatPage extends StatefulWidget {
   final String itemId;
@@ -29,6 +30,7 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   final _messageController = TextEditingController();
+  final _scrollController = ScrollController();
   List<ChatMessage> _messages = [];
   late DatabaseReference _chatRef;
   late DatabaseReference _userRef;
@@ -41,6 +43,7 @@ class _ChatPageState extends State<ChatPage> {
   Map<String, String> _userNames = {};
   String _displayName = '';
   String? _currentUserCommunityId;
+  final _firestore = FirebaseFirestore.instance;
 
   @override
   void initState() {
@@ -68,12 +71,12 @@ class _ChatPageState extends State<ChatPage> {
     return 'User';
   }
 
-  void _initializeChat() async {
+  Future<void> _initializeChat() async {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
         setState(() {
-          _error = 'Please sign in to use chat';
+          _error = 'Please sign in to continue';
           _isLoading = false;
         });
         return;
@@ -149,17 +152,20 @@ class _ChatPageState extends State<ChatPage> {
         return;
       }
 
-      _setupChatListener();
-      if (!widget.isSeller) {
-        _sendInitialMessage();
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      // Mark messages as read BEFORE setting up the chat listener
+      await _markMessagesAsRead();
 
-      // Mark messages as read
-      _markAsRead();
+      // Set up chat listener after marking as read
+      _setupChatListener();
+      
+      if (!widget.isSeller) {
+        await _sendInitialMessage();
+      }
+      
+      setState(() {
+        _isLoading = false;
+      });
+
     } catch (e) {
       print('Chat initialization error: $e');
       setState(() {
@@ -192,57 +198,37 @@ class _ChatPageState extends State<ChatPage> {
           if (chatData != null) {
             chatData.forEach((key, value) {
               if (value is Map) {
-                try {
-                  final message = ChatMessage.fromJson(Map<String, dynamic>.from(value));
-                  // Get the sender's name from cache
-                  message.senderName = _userNames[message.senderId] ?? message.senderName;
-                  messages.add(message);
-                } catch (e) {
-                  print('Error parsing message: $e');
-                }
+                messages.add(ChatMessage.fromJson(Map<String, dynamic>.from(value)));
               }
             });
 
-            // Sort messages by timestamp (oldest first)
+            // Sort messages by timestamp
             messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
             setState(() {
               _messages = messages;
-              _isLoading = false;
             });
 
-            // Mark messages as read whenever new messages come in
-            _markAsRead();
-          } else {
-            setState(() {
-              _messages = [];
-              _isLoading = false;
+            // Jump to bottom immediately without animation
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_scrollController.hasClients) {
+                _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+              }
             });
           }
         } catch (e) {
           print('Error processing messages: $e');
-          setState(() {
-            _error = 'Error loading messages';
-            _isLoading = false;
-          });
         }
-      },
-      onError: (error) {
-        print('Chat listener error: $error');
-        setState(() {
-          _error = 'Error loading messages. Please try again later.';
-          _isLoading = false;
-        });
       },
     );
   }
 
-  void _sendInitialMessage() async {
+  Future<void> _sendInitialMessage() async {
     try {
       final messagesSnapshot = await _chatRef.child('messages').get();
       if (!messagesSnapshot.exists) {
         // Send the first message
-        _sendMessage(
+        await _sendMessage(
           message: 'Hi, I\'m interested in your ${widget.itemTitle}',
           isInitial: true,
         );
@@ -261,22 +247,51 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _messageController.dispose();
     super.dispose();
   }
 
-  void _sendMessage({String? message, bool isInitial = false}) async {
+  Future<void> _markMessagesAsRead() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return;
+
+      // Update the readStatus for the current user
+      await _chatRef.child('readStatus').update({
+        currentUser.uid: ServerValue.timestamp,
+      });
+
+      // Update unread status in market_items collection
+      try {
+        final itemDoc = await _firestore.collection('market_items').doc(widget.itemId).get();
+        if (!itemDoc.exists) return;
+
+        final updates = <String, dynamic>{
+          widget.isSeller ? 'sellerUnreadCount' : 'buyerUnreadCount': 0,
+        };
+
+        // Make sure to await this operation
+        await _firestore
+            .collection('market_items')
+            .doc(widget.itemId)
+            .update(updates);
+
+      } catch (e) {
+        print('Error updating unread count in Firestore: $e');
+      }
+    } catch (e) {
+      print('Error marking messages as read: $e');
+    }
+  }
+
+  Future<void> _sendMessage({String? message, bool isInitial = false}) async {
     try {
       final messageText = message ?? _messageController.text.trim();
       if (messageText.isEmpty) return;
 
       final currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please sign in to send messages')),
-        );
-        return;
-      }
+      if (currentUser == null) return;
 
       final newMessage = ChatMessage(
         message: messageText,
@@ -290,6 +305,31 @@ class _ChatPageState extends State<ChatPage> {
 
       if (!isInitial) {
         _messageController.clear();
+        // Jump to bottom immediately without animation
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
+      }
+
+      // Update unread count for the recipient
+      try {
+        final recipientField = widget.isSeller ? 'buyerUnreadCount' : 'sellerUnreadCount';
+        
+        final updates = <String, dynamic>{
+          recipientField: FieldValue.increment(1),
+        };
+
+        // Always include buyerId when sending a message
+        if (!widget.isSeller) {
+          updates['buyerId'] = currentUser.uid;
+        }
+
+        await _firestore
+            .collection('market_items')
+            .doc(widget.itemId)
+            .update(updates);
+      } catch (e) {
+        print('Error updating unread count: $e');
       }
     } catch (e) {
       print('Error sending message: $e');
@@ -327,6 +367,7 @@ class _ChatPageState extends State<ChatPage> {
                 : _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : ListView.builder(
+                        controller: _scrollController,
                         padding: const EdgeInsets.all(16),
                         itemCount: _messages.length,
                         itemBuilder: (context, index) {

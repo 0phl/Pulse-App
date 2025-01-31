@@ -123,6 +123,10 @@ class _ChatListPageState extends State<ChatListPage> {
       return;
     }
 
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
@@ -185,6 +189,14 @@ class _ChatListPageState extends State<ChatListPage> {
               final otherUserName =
                   await _getUserName(otherUserId) ?? 'Unknown User';
 
+              // Get unread count from Firestore
+              final itemDoc =
+                  await _firestore.collection('market_items').doc(itemId).get();
+              final itemData = itemDoc.data();
+              final unreadCount = isSeller
+                  ? (itemData?['sellerUnreadCount'] ?? 0)
+                  : (itemData?['buyerUnreadCount'] ?? 0);
+
               chats.add(ChatInfo(
                 chatId: chatId,
                 itemId: itemId,
@@ -200,6 +212,7 @@ class _ChatListPageState extends State<ChatListPage> {
                 itemTitle: itemDetails['title'] ?? 'Unknown Item',
                 isSeller: isSeller,
                 communityId: communityId,
+                unreadCount: unreadCount,
               ));
             }
           }
@@ -299,12 +312,36 @@ class _ChatListPageState extends State<ChatListPage> {
           Text(chat.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
       ),
-      trailing: Text(
-        _formatTimestamp(chat.lastMessageTime),
-        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            _formatTimestamp(chat.lastMessageTime),
+            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          ),
+          if (chat.unreadCount > 0)
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                chat.unreadCount.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
       ),
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        // Wait for the chat page to complete and then refresh
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => ChatPage(
@@ -318,6 +355,11 @@ class _ChatListPageState extends State<ChatListPage> {
             ),
           ),
         );
+
+        // Refresh the chat list after returning from chat page
+        if (mounted) {
+          _loadChats();
+        }
       },
     );
   }
@@ -350,6 +392,7 @@ class ChatInfo {
   final String itemTitle;
   final bool isSeller;
   final String communityId;
+  final int unreadCount;
 
   ChatInfo({
     required this.chatId,
@@ -363,5 +406,6 @@ class ChatInfo {
     required this.itemTitle,
     required this.isSeller,
     required this.communityId,
+    required this.unreadCount,
   });
 }
