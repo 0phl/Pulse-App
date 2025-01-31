@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../models/market_item.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import '../services/community_service.dart';
 
 class AddItemPage extends StatefulWidget {
   final Function(MarketItem) onItemAdded;
@@ -24,6 +25,45 @@ class _AddItemPageState extends State<AddItemPage> {
   final _descriptionController = TextEditingController();
   String? _selectedImagePath;
   final _picker = ImagePicker();
+  final _communityService = CommunityService();
+  String? _communityId;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserCommunity();
+  }
+
+  Future<void> _loadUserCommunity() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        final community = await _communityService.getUserCommunity(currentUser.uid);
+        if (community != null) {
+          setState(() {
+            _communityId = community.id;
+            _isLoading = false;
+          });
+        } else {
+          _showError('User is not associated with any community');
+        }
+      } else {
+        _showError('Please sign in to add items');
+      }
+    } catch (e) {
+      _showError('Error loading community information');
+    }
+  }
+
+  void _showError(String message) {
+    setState(() {
+      _isLoading = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   @override
   void dispose() {
@@ -43,26 +83,26 @@ class _AddItemPageState extends State<AddItemPage> {
   }
 
   Future<void> _submitForm() async {
-    if (_formKey.currentState!.validate() && _selectedImagePath != null) {
-      final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getString('userId') ?? 'user1';
-      final userName = prefs.getString('userName') ?? 'John Doe';
-      
+    if (_formKey.currentState!.validate() && _selectedImagePath != null && _communityId != null) {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please sign in to add items')),
+        );
+        return;
+      }
+
       // Create a new item
       final newItem = MarketItem(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         title: _titleController.text,
         price: double.parse(_priceController.text),
         description: _descriptionController.text,
-        sellerId: userId,
-        sellerName: userName,
+        sellerId: currentUser.uid,
+        sellerName: '',  // This will be set by the market page
         imageUrl: _selectedImagePath!,
+        communityId: _communityId!,
       );
-
-      // Add to local storage
-      final items = prefs.getStringList('userItems') ?? [];
-      items.add(json.encode(newItem.toJson()));
-      await prefs.setStringList('userItems', items);
 
       widget.onItemAdded(newItem);
       Navigator.pop(context);
@@ -70,11 +110,26 @@ class _AddItemPageState extends State<AddItemPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select an image')),
       );
+    } else if (_communityId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Community not loaded. Please try again.')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Add New Item'),
+          backgroundColor: const Color(0xFF00C49A),
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add New Item'),

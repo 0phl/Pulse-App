@@ -54,6 +54,7 @@ class AuthService {
     required DateTime birthDate,
     required String address,
     required Map<String, String> location,
+    required String communityId,
   }) async {
     try {
       // Create user with email and password
@@ -71,6 +72,8 @@ class AuthService {
         'birthDate': DateFormat('MM/dd/yyyy').format(birthDate),
         'address': address,
         'location': location,
+        'communityId': communityId,
+        'role': 'member',
         'createdAt': ServerValue.timestamp,
       });
 

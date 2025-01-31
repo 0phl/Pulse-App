@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import '../services/community_service.dart';
 
 class ChatPage extends StatefulWidget {
   final String itemId;
@@ -9,6 +10,7 @@ class ChatPage extends StatefulWidget {
   final String itemTitle;
   final bool isSeller;
   final String? buyerId;
+  final String communityId;
 
   const ChatPage({
     super.key,
@@ -16,6 +18,7 @@ class ChatPage extends StatefulWidget {
     required this.sellerId,
     required this.sellerName,
     required this.itemTitle,
+    required this.communityId,
     this.isSeller = false,
     this.buyerId,
   });
@@ -30,12 +33,14 @@ class _ChatPageState extends State<ChatPage> {
   late DatabaseReference _chatRef;
   late DatabaseReference _userRef;
   final _auth = FirebaseAuth.instance;
+  final _communityService = CommunityService();
   late String _currentUserId;
   late String _chatId;
   bool _isLoading = true;
   String? _error;
   Map<String, String> _userNames = {};
   String _displayName = '';
+  String? _currentUserCommunityId;
 
   @override
   void initState() {
@@ -77,6 +82,17 @@ class _ChatPageState extends State<ChatPage> {
       _currentUserId = currentUser.uid;
       _userRef = FirebaseDatabase.instance.ref('users');
 
+      // Verify user's community
+      final userCommunity = await _communityService.getUserCommunity(_currentUserId);
+      if (userCommunity == null || userCommunity.id != widget.communityId) {
+        setState(() {
+          _error = 'You can only chat with users in your community';
+          _isLoading = false;
+        });
+        return;
+      }
+      _currentUserCommunityId = userCommunity.id;
+
       // Get the names for both users
       final currentUserName = await _getUserName(_currentUserId);
       _userNames[_currentUserId] = currentUserName;
@@ -104,18 +120,26 @@ class _ChatPageState extends State<ChatPage> {
         });
       }
 
-      // Format: itemId_buyerId_sellerId
+      // Format: itemId_communityId_buyerId_sellerId
       if (widget.isSeller) {
-        _chatId = '${widget.itemId}_${widget.buyerId}_${_currentUserId}';
+        _chatId = '${widget.itemId}_${widget.communityId}_${widget.buyerId}_${widget.sellerId}';
       } else {
-        _chatId = '${widget.itemId}_${_currentUserId}_${widget.sellerId}';
+        _chatId = '${widget.itemId}_${widget.communityId}_${_currentUserId}_${widget.sellerId}';
       }
 
       _chatRef = FirebaseDatabase.instance.ref('chats/$_chatId');
 
-      // Test database access
+      // Initialize chat with required communityId
       try {
-        await _chatRef.get();
+        final chatSnapshot = await _chatRef.get();
+        if (!chatSnapshot.exists) {
+          // Set the communityId at chat root level to satisfy security rules
+          await _chatRef.set({
+            'communityId': widget.communityId,
+            'itemId': widget.itemId,
+            'sellerId': widget.sellerId,
+          });
+        }
       } catch (e) {
         print('Database access error: $e');
         setState(() {
@@ -215,8 +239,9 @@ class _ChatPageState extends State<ChatPage> {
 
   void _sendInitialMessage() async {
     try {
-      final snapshot = await _chatRef.child('messages').get();
-      if (!snapshot.exists) {
+      final messagesSnapshot = await _chatRef.child('messages').get();
+      if (!messagesSnapshot.exists) {
+        // Send the first message
         _sendMessage(
           message: 'Hi, I\'m interested in your ${widget.itemTitle}',
           isInitial: true,
@@ -258,6 +283,7 @@ class _ChatPageState extends State<ChatPage> {
         senderId: currentUser.uid,
         senderName: _userNames[currentUser.uid] ?? 'User',
         timestamp: DateTime.now(),
+        isInitialMessage: isInitial,
       );
 
       await _chatRef.child('messages').push().set(newMessage.toJson());
@@ -404,21 +430,27 @@ class ChatMessage {
   final String senderId;
   String senderName;
   final DateTime timestamp;
+  final bool isInitialMessage;
 
   ChatMessage({
     required this.message,
     required this.senderId,
     required this.senderName,
     required this.timestamp,
+    this.isInitialMessage = false,
   });
 
   Map<String, dynamic> toJson() {
-    return {
+    final json = {
       'message': message,
       'senderId': senderId,
       'senderName': senderName,
       'timestamp': timestamp.millisecondsSinceEpoch,
     };
+    if (isInitialMessage) {
+      json['isInitialMessage'] = true;
+    }
+    return json;
   }
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -427,6 +459,7 @@ class ChatMessage {
       senderId: json['senderId'],
       senderName: json['senderName'],
       timestamp: DateTime.fromMillisecondsSinceEpoch(json['timestamp']),
+      isInitialMessage: json['isInitialMessage'] ?? false,
     );
   }
 }

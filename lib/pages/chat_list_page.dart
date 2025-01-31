@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'chat_page.dart';
+import '../services/community_service.dart';
 
 class ChatListPage extends StatefulWidget {
   const ChatListPage({super.key});
@@ -15,16 +16,53 @@ class _ChatListPageState extends State<ChatListPage> {
   final _auth = FirebaseAuth.instance;
   final _database = FirebaseDatabase.instance;
   final _firestore = FirebaseFirestore.instance;
+  final _communityService = CommunityService();
   bool _isLoading = true;
   List<ChatInfo> _chats = [];
   String? _error;
   Map<String, String> _userNames = {};
   Map<String, dynamic> _itemDetails = {};
+  String? _currentUserCommunityId;
 
   @override
   void initState() {
     super.initState();
-    _loadChats();
+    _loadUserCommunityAndChats();
+  }
+
+  void _loadUserCommunityAndChats() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        setState(() {
+          _error = 'Please sign in to view chats';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final userCommunity =
+          await _communityService.getUserCommunity(currentUser.uid);
+      if (userCommunity == null) {
+        setState(() {
+          _error = 'User is not associated with any community';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _currentUserCommunityId = userCommunity.id;
+      });
+
+      _loadChats();
+    } catch (e) {
+      print('Error loading user community: $e');
+      setState(() {
+        _error = 'Error loading community information';
+        _isLoading = false;
+      });
+    }
   }
 
   Future<String> _getUserName(String userId) async {
@@ -52,115 +90,147 @@ class _ChatListPageState extends State<ChatListPage> {
     }
 
     try {
-      final itemDoc = await _firestore.collection('market_items').doc(itemId).get();
-      if (itemDoc.exists) {
-        final data = itemDoc.data();
-        if (data != null) {
+      // First try getting from Realtime Database
+      var snapshot = await _database.ref('marketItems').child(itemId).get();
+
+      if (!snapshot.exists) {
+        // If not found in Realtime Database, try Firestore
+        final firestoreDoc =
+            await _firestore.collection('market_items').doc(itemId).get();
+        if (firestoreDoc.exists) {
+          final data = firestoreDoc.data()!;
           _itemDetails[itemId] = data;
           return data;
         }
+      } else {
+        final data = snapshot.value as Map<dynamic, dynamic>;
+        final convertedData = Map<String, dynamic>.from(data);
+        _itemDetails[itemId] = convertedData;
+        return convertedData;
       }
+
+      print('No item details found for ID: $itemId');
+      return {'title': 'Unknown Item'}; // Return default data instead of null
     } catch (e) {
       print('Error getting item details: $e');
+      return {'title': 'Unknown Item'}; // Return default data on error
     }
-    return null;
   }
 
-  void _loadChats() async {
+  void _loadChats() {
+    if (_currentUserCommunityId == null) {
+      print('No community ID found');
+      return;
+    }
+
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        setState(() {
-          _error = 'Please sign in to view chats';
-          _isLoading = false;
-        });
+        print('No current user found');
         return;
       }
 
-      // Listen to all chats
+      print(
+          'Loading chats for user ${currentUser.uid} in community $_currentUserCommunityId');
+
       _database.ref('chats').onValue.listen((event) async {
         if (!mounted) return;
 
         try {
           final chats = <ChatInfo>[];
           final chatData = event.snapshot.value as Map<dynamic, dynamic>?;
-          
+
           if (chatData != null) {
             for (var entry in chatData.entries) {
-              final chatId = entry.key.toString();
-              final chatValue = entry.value;
-              
-              // Parse chat ID parts (itemId_buyerId_sellerId)
-              final parts = chatId.split('_');
-              if (parts.length == 3) {
-                final itemId = parts[0];
-                final buyerId = parts[1];
-                final sellerId = parts[2];
+              final chatId = entry.key as String;
+              final chatInfo = entry.value as Map<dynamic, dynamic>;
 
-                // Include chats where user is either buyer or seller
-                if (buyerId == currentUser.uid || sellerId == currentUser.uid) {
-                  final messages = (chatValue['messages'] as Map<dynamic, dynamic>?)?.values.toList() ?? [];
-                  if (messages.isNotEmpty) {
-                    // Get the last message
-                    final lastMessage = messages.reduce((a, b) {
-                      final aTime = a['timestamp'] as int;
-                      final bTime = b['timestamp'] as int;
-                      return aTime > bTime ? a : b;
-                    });
+              // Get chat details
+              final communityId = chatInfo['communityId'] as String?;
+              final itemId = chatInfo['itemId'] as String?;
+              final sellerId = chatInfo['sellerId'] as String?;
+              final messagesMap =
+                  chatInfo['messages'] as Map<dynamic, dynamic>?;
 
-                    // Get item details and names
-                    final itemDetails = await _getItemDetails(itemId);
-                    if (itemDetails != null) {
-                      final isSeller = sellerId == currentUser.uid;
-                      final otherUserId = isSeller ? buyerId : sellerId;
-                      final otherUserName = await _getUserName(otherUserId);
-                      
-                      chats.add(ChatInfo(
-                        chatId: chatId,
-                        itemId: itemId,
-                        buyerId: buyerId,
-                        sellerId: sellerId,
-                        sellerName: itemDetails['sellerName'] ?? 'Unknown Seller',
-                        otherUserName: otherUserName,
-                        lastMessage: lastMessage['message'].toString(),
-                        lastMessageTime: DateTime.fromMillisecondsSinceEpoch(lastMessage['timestamp'] as int),
-                        itemTitle: itemDetails['title'] ?? 'Unknown Item',
-                        isSeller: isSeller,
-                      ));
-                    }
-                  }
-                }
+              if (communityId == null ||
+                  itemId == null ||
+                  sellerId == null ||
+                  messagesMap == null) {
+                print('Missing required chat info fields');
+                continue;
               }
+
+              // Skip if not in user's community
+              if (communityId != _currentUserCommunityId) {
+                continue;
+              }
+
+              // Skip if user is not part of this chat
+              final buyerId = messagesMap.values.first['senderId'] as String;
+              if (currentUser.uid != sellerId && currentUser.uid != buyerId) {
+                continue;
+              }
+
+              // Get item details (with fallback)
+              final itemDetails =
+                  await _getItemDetails(itemId) ?? {'title': 'Unknown Item'};
+
+              final messages = messagesMap.values.toList();
+              messages.sort((a, b) =>
+                  (b['timestamp'] as int).compareTo(a['timestamp'] as int));
+              final lastMessage = messages[0] as Map<dynamic, dynamic>;
+
+              final isSeller = sellerId == currentUser.uid;
+              final otherUserId = isSeller ? buyerId : sellerId;
+              final otherUserName =
+                  await _getUserName(otherUserId) ?? 'Unknown User';
+
+              chats.add(ChatInfo(
+                chatId: chatId,
+                itemId: itemId,
+                buyerId: buyerId,
+                sellerId: sellerId,
+                sellerName: itemDetails['sellerName'] ??
+                    await _getUserName(sellerId) ??
+                    'Unknown Seller',
+                otherUserName: otherUserName,
+                lastMessage: lastMessage['message'] as String,
+                lastMessageTime: DateTime.fromMillisecondsSinceEpoch(
+                    lastMessage['timestamp'] as int),
+                itemTitle: itemDetails['title'] ?? 'Unknown Item',
+                isSeller: isSeller,
+                communityId: communityId,
+              ));
             }
           }
 
-          // Sort chats by most recent message
-          chats.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+          if (mounted) {
+            setState(() {
+              _chats = chats;
+              _isLoading = false;
+            });
+          }
 
-          setState(() {
-            _chats = chats;
-            _isLoading = false;
-          });
-        } catch (e) {
+          print('Total chats loaded: ${chats.length}');
+        } catch (e, stack) {
           print('Error processing chats: $e');
-          setState(() {
-            _error = 'Error loading chats';
-            _isLoading = false;
-          });
+          print('Stack trace: $stack');
+          if (mounted) {
+            setState(() {
+              _error = 'Error loading chats';
+              _isLoading = false;
+            });
+          }
         }
-      }, onError: (error) {
-        print('Database error: $error');
+      });
+    } catch (e) {
+      print('Error setting up chat listener: $e');
+      if (mounted) {
         setState(() {
           _error = 'Error loading chats';
           _isLoading = false;
         });
-      });
-    } catch (e) {
-      print('Error setting up chat listener: $e');
-      setState(() {
-        _error = 'Error loading chats';
-        _isLoading = false;
-      });
+      }
     }
   }
 
@@ -172,7 +242,7 @@ class _ChatListPageState extends State<ChatListPage> {
         backgroundColor: const Color(0xFF00C49A),
         foregroundColor: Colors.white,
       ),
-      body: _isLoading 
+      body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(child: Text(_error!))
@@ -224,7 +294,8 @@ class _ChatListPageState extends State<ChatListPage> {
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(chat.itemTitle, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+          Text(chat.itemTitle,
+              style: TextStyle(color: Colors.grey[600], fontSize: 12)),
           Text(chat.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
       ),
@@ -241,6 +312,7 @@ class _ChatListPageState extends State<ChatListPage> {
               sellerId: chat.sellerId,
               sellerName: chat.isSeller ? chat.otherUserName : chat.sellerName,
               itemTitle: chat.itemTitle,
+              communityId: chat.communityId,
               isSeller: chat.isSeller,
               buyerId: chat.buyerId,
             ),
@@ -277,6 +349,7 @@ class ChatInfo {
   final DateTime lastMessageTime;
   final String itemTitle;
   final bool isSeller;
+  final String communityId;
 
   ChatInfo({
     required this.chatId,
@@ -289,5 +362,6 @@ class ChatInfo {
     required this.lastMessageTime,
     required this.itemTitle,
     required this.isSeller,
+    required this.communityId,
   });
 }

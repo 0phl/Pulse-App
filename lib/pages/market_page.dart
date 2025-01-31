@@ -12,6 +12,7 @@ import 'package:firebase_database/firebase_database.dart';
 import '../widgets/image_viewer_page.dart';
 import 'edit_item_page.dart';
 import 'chat_list_page.dart';
+import '../services/community_service.dart';
 
 class MarketPage extends StatefulWidget {
   const MarketPage({super.key});
@@ -30,6 +31,8 @@ class _MarketPageState extends State<MarketPage>
   Stream<List<MarketItem>>? _userItemsStream;
   bool _isAddingItem = false;
   int _unreadChats = 0;
+  final CommunityService _communityService = CommunityService();
+  String? _currentUserCommunityId;
 
   @override
   void initState() {
@@ -38,8 +41,22 @@ class _MarketPageState extends State<MarketPage>
       ..addListener(() {
         setState(() {});
       });
-    _initializeStreams();
+    _loadUserCommunity();
     _setupChatListener();
+  }
+
+  Future<void> _loadUserCommunity() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser != null) {
+      final community =
+          await _communityService.getUserCommunity(currentUser.uid);
+      if (community != null) {
+        setState(() {
+          _currentUserCommunityId = community.id;
+          _initializeStreams();
+        });
+      }
+    }
   }
 
   void _setupChatListener() {
@@ -56,14 +73,17 @@ class _MarketPageState extends State<MarketPage>
         if (chatData != null) {
           chatData.forEach((chatId, chatValue) {
             if (chatValue is Map && chatValue.containsKey('messages')) {
-              // Parse chat ID parts (itemId_buyerId_sellerId)
+              // Parse chat ID parts (communityId_itemId_buyerId_sellerId)
               final parts = chatId.toString().split('_');
-              if (parts.length == 3) {
-                final buyerId = parts[1];
-                final sellerId = parts[2];
+              if (parts.length == 4) {
+                final communityId = parts[0];
+                final buyerId = parts[2];
+                final sellerId = parts[3];
 
-                // Count unread messages for chats where we are either buyer or seller
-                if (buyerId == currentUser.uid || sellerId == currentUser.uid) {
+                // Only count messages from the same community
+                if (communityId == _currentUserCommunityId &&
+                    (buyerId == currentUser.uid ||
+                        sellerId == currentUser.uid)) {
                   final messages =
                       (chatValue['messages'] as Map<dynamic, dynamic>)
                           .values
@@ -94,9 +114,12 @@ class _MarketPageState extends State<MarketPage>
   }
 
   void _initializeStreams() {
-    // Stream for all items
+    if (_currentUserCommunityId == null) return;
+
+    // Stream for all items in user's community
     _allItemsStream = _firestore
         .collection('market_items')
+        .where('communityId', isEqualTo: _currentUserCommunityId)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) =>
@@ -107,6 +130,7 @@ class _MarketPageState extends State<MarketPage>
     if (currentUser != null) {
       _userItemsStream = _firestore
           .collection('market_items')
+          .where('communityId', isEqualTo: _currentUserCommunityId)
           .where('sellerId', isEqualTo: currentUser.uid)
           .orderBy('createdAt', descending: true)
           .snapshots()
@@ -139,26 +163,29 @@ class _MarketPageState extends State<MarketPage>
       final userData = userSnapshot.value as Map<dynamic, dynamic>;
 
       // Upload image to Imgur and get the download URL
-      String downloadUrl =
-          await _uploadImage(item.imageUrl); // Assuming item.imageUrl is a File
+      String downloadUrl = await _uploadImage(item.imageUrl);
 
-      // Create new item document in Firestore
-      await _firestore.collection('market_items').add({
+      // Create new item document in Firestore using the item's ID
+      await _firestore.collection('market_items').doc(item.id).set({
         'title': item.title,
         'price': item.price,
         'description': item.description,
         'sellerId': currentUser.uid,
         'sellerName':
             userData['fullName'] ?? userData['username'] ?? 'Unknown User',
-        'imageUrl': downloadUrl, // Use the download URL
+        'imageUrl': downloadUrl,
+        'communityId': _currentUserCommunityId,
         'createdAt': FieldValue.serverTimestamp(),
+      }).catchError((error) {
+        print('Firestore error details: $error');
+        throw error;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Item added successfully!')),
       );
     } catch (e) {
-      print('Error adding item: $e');
+      print('Detailed error adding item: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error adding item: $e')),
       );
@@ -295,7 +322,7 @@ class _MarketPageState extends State<MarketPage>
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _isAddingItem
+        onPressed: _isAddingItem || _currentUserCommunityId == null
             ? null
             : () {
                 Navigator.push(
@@ -377,6 +404,7 @@ class _MarketPageState extends State<MarketPage>
         'price': updatedItem.price,
         'description': updatedItem.description,
         'imageUrl': imageUrl,
+        'communityId': updatedItem.communityId,
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -395,6 +423,8 @@ class _MarketPageState extends State<MarketPage>
   }
 
   void _handleInterested(BuildContext context, MarketItem item) {
+    if (_currentUserCommunityId == null) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -403,6 +433,7 @@ class _MarketPageState extends State<MarketPage>
           sellerId: item.sellerId,
           sellerName: item.sellerName,
           itemTitle: item.title,
+          communityId: _currentUserCommunityId!,
         ),
       ),
     );

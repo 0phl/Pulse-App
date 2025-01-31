@@ -63,6 +63,7 @@ class _EditItemPageState extends State<EditItemPage> {
         imageUrl: _currentImageUrl!, // This will be updated in MarketPage if new image
         sellerId: widget.item.sellerId,
         sellerName: widget.item.sellerName,
+        communityId: widget.item.communityId,
       );
 
       widget.onItemUpdated(updatedItem, _newImagePath);
@@ -169,4 +170,4 @@ class _EditItemPageState extends State<EditItemPage> {
       ),
     );
   }
-} 
+}

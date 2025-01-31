@@ -8,6 +8,7 @@ class MarketItem {
   final String sellerId;
   final String sellerName;
   final String imageUrl;
+  final String communityId;
   final DateTime? createdAt;
 
   MarketItem({
@@ -18,6 +19,7 @@ class MarketItem {
     required this.sellerId,
     required this.sellerName,
     required this.imageUrl,
+    required this.communityId,
     this.createdAt,
   });
 
@@ -31,6 +33,7 @@ class MarketItem {
       sellerId: data['sellerId'] ?? '',
       sellerName: data['sellerName'] ?? '',
       imageUrl: data['imageUrl'] ?? '',
+      communityId: data['communityId'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -43,6 +46,7 @@ class MarketItem {
       'sellerId': sellerId,
       'sellerName': sellerName,
       'imageUrl': imageUrl,
+      'communityId': communityId,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
     };
   }
@@ -56,6 +60,7 @@ class MarketItem {
       'sellerId': sellerId,
       'sellerName': sellerName,
       'imageUrl': imageUrl,
+      'communityId': communityId,
     };
   }
 
@@ -68,6 +73,7 @@ class MarketItem {
       sellerId: json['sellerId'] as String,
       sellerName: json['sellerName'] as String,
       imageUrl: json['imageUrl'] as String,
+      communityId: json['communityId'] as String,
     );
   }
 }
