@@ -30,6 +30,24 @@ service cloud.firestore {
                    resource.data.sellerId == request.auth.uid;
     }
 
+    // Volunteer posts collection rules
+    match /volunteer_posts/{postId} {
+      // Allow reading and querying if authenticated
+      allow read, list: if request.auth != null;
+      
+      // Allow create if authenticated and userId matches creator's ID
+      allow create: if request.auth != null && 
+                   request.resource.data.userId == request.auth.uid;
+      
+      // Allow update if user is the creator
+      allow update: if request.auth != null && 
+                   resource.data.userId == request.auth.uid;
+      
+      // Allow delete if user is the creator
+      allow delete: if request.auth != null && 
+                   resource.data.userId == request.auth.uid;
+    }
+
     // Deny access to other collections by default
     match /{document=**} {
       allow read, write: if false;

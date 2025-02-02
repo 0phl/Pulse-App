@@ -153,14 +153,31 @@ class _ChatListPageState extends State<ChatListPage> {
               final communityId = chatInfo['communityId'] as String?;
               final itemId = chatInfo['itemId'] as String?;
               final sellerId = chatInfo['sellerId'] as String?;
-              final messagesMap =
-                  chatInfo['messages'] as Map<dynamic, dynamic>?;
+              final messagesMap = chatInfo['messages'] as Map<dynamic, dynamic>?;
 
-              if (communityId == null ||
-                  itemId == null ||
-                  sellerId == null ||
-                  messagesMap == null) {
-                print('Missing required chat info fields');
+              // Ensure messages map exists with data
+              if (messagesMap == null || messagesMap.isEmpty) {
+                print('Chat $chatId has no messages or invalid messages format');
+                // Create empty messages map if it's missing
+                await _database.ref('chats/$chatId/messages').set({});
+                continue;
+              }
+
+              // Check each required field individually for better error logging
+              if (communityId == null) {
+                print('Missing communityId for chat: $chatId');
+                continue;
+              }
+              if (itemId == null) {
+                print('Missing itemId for chat: $chatId');
+                continue;
+              }
+              if (sellerId == null) {
+                print('Missing sellerId for chat: $chatId');
+                continue;
+              }
+              if (messagesMap == null || messagesMap.isEmpty) {
+                print('Missing or empty messages for chat: $chatId');
                 continue;
               }
 
@@ -169,8 +186,23 @@ class _ChatListPageState extends State<ChatListPage> {
                 continue;
               }
 
+              // Determine buyerId from chat info or first message
+              String? buyerId = chatInfo['buyerId'] as String?;
+              if (buyerId == null) {
+                // If buyerId is not stored at chat level, try to determine from first message
+                final firstMessage = messagesMap.values.first;
+                final firstSenderId = firstMessage['senderId'] as String;
+                // If first message is from seller, this must be stored at chat level
+                if (firstSenderId == sellerId) {
+                  print('Unable to determine buyerId for chat: $chatId');
+                  continue;
+                }
+                buyerId = firstSenderId;
+                // Store buyerId at chat level for future reference
+                await _database.ref('chats/$chatId').update({'buyerId': buyerId});
+              }
+
               // Skip if user is not part of this chat
-              final buyerId = messagesMap.values.first['senderId'] as String;
               if (currentUser.uid != sellerId && currentUser.uid != buyerId) {
                 continue;
               }

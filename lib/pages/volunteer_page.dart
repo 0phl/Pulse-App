@@ -28,29 +28,56 @@ class _VolunteerPageState extends State<VolunteerPage> {
   }
 
   Future<void> _loadUserCommunity() async {
-    final currentUser = _auth.currentUser;
-    if (currentUser != null) {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        print("No authenticated user found");
+        return;
+      }
+
+      // Wait for user to be fully authenticated
+      await Future.delayed(const Duration(milliseconds: 500));
+      
       final community = await _communityService.getUserCommunity(currentUser.uid);
-      if (community != null) {
+      if (community != null && mounted) {
         setState(() {
           _currentUserCommunityId = community.id;
-          _initializeStream();
         });
+        _initializeStream();
+      } else {
+        print("No community found for user");
       }
+    } catch (e) {
+      print("Error loading user community: $e");
     }
   }
 
   void _initializeStream() {
-    if (_currentUserCommunityId == null) return;
+    if (_currentUserCommunityId == null) {
+      print("Cannot initialize stream - no community ID");
+      return;
+    }
 
-    _postsStream = _firestore
-        .collection('volunteer_posts')
-        .where('communityId', isEqualTo: _currentUserCommunityId)
-        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime.now()))
-        .orderBy('date', descending: false)
-        .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => VolunteerPost.fromFirestore(doc)).toList());
+    try {
+      final query = _firestore
+          .collection('volunteer_posts')
+          .where('communityId', isEqualTo: _currentUserCommunityId);
+
+      // Create the stream
+      _postsStream = query
+          .snapshots()
+          .map((snapshot) {
+            return snapshot.docs
+                .map((doc) => VolunteerPost.fromFirestore(doc))
+                .where((post) => post.date.isAfter(DateTime.now()))
+                .toList()
+              ..sort((a, b) => a.date.compareTo(b.date));
+          });
+
+      print("Stream initialized successfully");
+    } catch (e) {
+      print("Error initializing stream: $e");
+    }
   }
 
   Future<void> _handleNewPost(VolunteerPost post) async {

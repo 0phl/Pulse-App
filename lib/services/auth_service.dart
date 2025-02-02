@@ -105,4 +105,12 @@ class AuthService {
         return 'An error occurred. Please try again.';
     }
   }
+
+  Future<void> updateUserCommunity(String uid, String communityId) async {
+    await FirebaseDatabase.instance
+        .ref()
+        .child('users')
+        .child(uid)
+        .update({'communityId': communityId});
+  }
 }

@@ -98,6 +98,10 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      // Wait for the server timestamp to be set
+      final docSnapshot = await docRef.get();
+      final docData = docSnapshot.data() as Map<String, dynamic>;
+      
       // Create VolunteerPost object with the new data
       final post = VolunteerPost(
         id: docRef.id,
@@ -110,7 +114,7 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
         userId: currentUser.uid,
         userName: userData['fullName'] ?? userData['username'] ?? 'Unknown User',
         communityId: communityId,
-        createdAt: DateTime.now(),
+        createdAt: (docData['createdAt'] as Timestamp).toDate(),
       );
 
       widget.onPostAdded(post);

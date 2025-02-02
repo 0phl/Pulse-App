@@ -207,20 +207,6 @@ class _RegisterPageState extends State<RegisterPage> {
           },
         ),
         const SizedBox(height: 16),
-        TextFormField(
-          controller: _addressController,
-          decoration: const InputDecoration(
-            labelText: 'Address',
-            border: OutlineInputBorder(),
-          ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter your address';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
         GestureDetector(
           onTap: () => _selectDate(context),
           child: AbsorbPointer(
@@ -308,13 +294,13 @@ class _RegisterPageState extends State<RegisterPage> {
           selectedItem: _selectedMunicipality,
           dropdownDecoratorProps: const DropDownDecoratorProps(
             dropdownSearchDecoration: InputDecoration(
-              labelText: 'City/Municipality',
+              labelText: 'City /Municipality',
               border: OutlineInputBorder(),
             ),
           ),
           validator: (value) {
             if (value == null) {
-              return 'Please select a city/municipality';
+              return 'Please select a city / municipality';
             }
             return null;
           },
@@ -339,6 +325,20 @@ class _RegisterPageState extends State<RegisterPage> {
           validator: (value) {
             if (value == null) {
               return 'Please select a barangay';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _addressController,
+          decoration: const InputDecoration(
+            labelText: 'Address / Street No.',
+            border: OutlineInputBorder(),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter your address';
             }
             return null;
           },
@@ -458,11 +458,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                 'barangay': _selectedBarangay!.name,
                               };
 
-                              // Get or create community based on barangay
-                              final communityId = await _getOrCreateCommunity();
-
-                              // Register user with the community
-                              await _authService.registerWithEmailAndPassword(
+                              // Register user first with empty community ID
+                              final userCredential = await _authService.registerWithEmailAndPassword(
                                 email: _emailController.text.trim(),
                                 password: _passwordController.text,
                                 fullName: _nameController.text.trim(),
@@ -471,7 +468,16 @@ class _RegisterPageState extends State<RegisterPage> {
                                 birthDate: _selectedDate!,
                                 address: _addressController.text.trim(),
                                 location: location,
-                                communityId: communityId,
+                                communityId: '', // Temporary empty community ID
+                              );
+
+                              // Now that user is authenticated, get or create community
+                              final communityId = await _getOrCreateCommunity();
+                              
+                              // Update user's community ID
+                              await _authService.updateUserCommunity(
+                                userCredential!.user!.uid,
+                                communityId,
                               );
 
                               if (mounted) {

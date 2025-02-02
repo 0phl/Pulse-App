@@ -141,6 +141,7 @@ class _ChatPageState extends State<ChatPage> {
             'communityId': widget.communityId,
             'itemId': widget.itemId,
             'sellerId': widget.sellerId,
+            'messages': {} // Initialize with empty messages map
           });
         }
       } catch (e) {
