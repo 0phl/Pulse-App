@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/community_service.dart';
 import '../models/community.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'dart:math';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -15,12 +16,13 @@ class RegisterPage extends StatefulWidget {
   State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderStateMixin {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
   final TextEditingController _mobileController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _birthDateController = TextEditingController();
@@ -45,20 +47,63 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isLoading = false;
   final AuthService _authService = AuthService();
   final CommunityService _communityService = CommunityService();
+  late AnimationController _shakeController;
+  final ScrollController _scrollController = ScrollController();
+
+  Future<void> _showVerificationDialog() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Verify Your Email'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'A verification link has been sent to your email address. Please check your inbox and click the link to verify your account.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'After verification, you can log in to access your account.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: const Text('OK'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
     super.initState();
     _loadRegions();
+    
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
   }
 
   @override
   void dispose() {
+    _shakeController.dispose();
+    _scrollController.dispose();
     _birthDateController.dispose();
     _nameController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _mobileController.dispose();
     _addressController.dispose();
     super.dispose();
@@ -194,14 +239,20 @@ class _RegisterPageState extends State<RegisterPage> {
         const SizedBox(height: 16),
         TextFormField(
           controller: _mobileController,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          keyboardType: TextInputType.phone,
           decoration: const InputDecoration(
             labelText: 'Mobile Number',
             border: OutlineInputBorder(),
+            prefixText: '+63 ',
           ),
-          keyboardType: TextInputType.phone,
           validator: (value) {
             if (value == null || value.isEmpty) {
               return 'Please enter your mobile number';
+            }
+            // Validate 10 digits after +63
+            if (!RegExp(r'^\d{10}$').hasMatch(value)) {
+              return 'Please enter 10 digits for mobile number';
             }
             return null;
           },
@@ -212,6 +263,7 @@ class _RegisterPageState extends State<RegisterPage> {
           child: AbsorbPointer(
             child: TextFormField(
               controller: _birthDateController,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               decoration: const InputDecoration(
                 labelText: 'Birth Date',
                 border: OutlineInputBorder(),
@@ -253,6 +305,7 @@ class _RegisterPageState extends State<RegisterPage> {
         const SizedBox(height: 16),
         DropdownSearch<Province>(
           key: _provinceDropdownKey,
+          enabled: _selectedRegion != null,
           items: _provinces,
           itemAsString: (Province? province) => province?.name ?? '',
           onChanged: (Province? province) {
@@ -280,6 +333,7 @@ class _RegisterPageState extends State<RegisterPage> {
         const SizedBox(height: 16),
         DropdownSearch<Municipality>(
           key: _municipalityDropdownKey,
+          enabled: _selectedProvince != null,
           items: _municipalities,
           itemAsString: (Municipality? municipality) =>
               municipality?.name ?? '',
@@ -308,6 +362,7 @@ class _RegisterPageState extends State<RegisterPage> {
         const SizedBox(height: 16),
         DropdownSearch<Barangay>(
           key: _barangayDropdownKey,
+          enabled: _selectedMunicipality != null,
           items: _barangays,
           itemAsString: (Barangay? barangay) => barangay?.name ?? '',
           onChanged: (Barangay? barangay) {
@@ -333,18 +388,23 @@ class _RegisterPageState extends State<RegisterPage> {
         TextFormField(
           controller: _addressController,
           decoration: const InputDecoration(
-            labelText: 'Address / Street No.',
+            labelText: 'Address / Street No. (Optional)',
             border: OutlineInputBorder(),
           ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter your address';
-            }
-            return null;
-          },
         ),
       ],
     );
+  }
+
+  void _scrollToField(GlobalKey fieldKey) {
+    final context = fieldKey.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   @override
@@ -354,6 +414,7 @@ class _RegisterPageState extends State<RegisterPage> {
         title: const Text('Register'),
       ),
       body: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
@@ -365,6 +426,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   labelText: 'Full Name',
                   border: OutlineInputBorder(),
                 ),
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your full name';
@@ -379,6 +441,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   labelText: 'Username',
                   border: OutlineInputBorder(),
                 ),
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your username';
@@ -393,9 +456,13 @@ class _RegisterPageState extends State<RegisterPage> {
                   labelText: 'Email',
                   border: OutlineInputBorder(),
                 ),
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your email';
+                  }
+                  if (!value.contains('@') || !value.contains('.com')) {
+                    return 'Please enter a valid email address';
                   }
                   return null;
                 },
@@ -403,6 +470,7 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _passwordController,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 decoration: InputDecoration(
                   labelText: 'Password',
                   border: const OutlineInputBorder(),
@@ -430,101 +498,173 @@ class _RegisterPageState extends State<RegisterPage> {
                   return null;
                 },
               ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _confirmPasswordController,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                decoration: InputDecoration(
+                  labelText: 'Confirm Password',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                ),
+                obscureText: _obscurePassword,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please confirm your password';
+                  }
+                  if (value != _passwordController.text) {
+                    return 'Passwords do not match';
+                  }
+                  return null;
+                },
+              ),
               _buildNewFields(),
               const SizedBox(height: 24),
               Container(
                 width: double.infinity,
                 height: 50,
                 margin: const EdgeInsets.symmetric(vertical: 16),
-                child: ElevatedButton(
-                  onPressed: _isLoading
-                      ? null
-                      : () async {
-                          if (_formKey.currentState!.validate() &&
-                              _selectedDate != null &&
-                              _selectedRegion != null &&
-                              _selectedProvince != null &&
-                              _selectedMunicipality != null &&
-                              _selectedBarangay != null) {
-                            setState(() {
-                              _isLoading = true;
-                            });
+                child: AnimatedBuilder(
+                  animation: _shakeController,
+                  builder: (context, child) {
+                    return Transform.translate(
+                      offset: Offset(
+                        sin(_shakeController.value * 2 * pi) * 10,
+                        0,
+                      ),
+                      child: child,
+                    );
+                  },
+                  child: ElevatedButton(
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            if (_formKey.currentState!.validate() &&
+                                _selectedDate != null &&
+                                _selectedRegion != null &&
+                                _selectedProvince != null &&
+                                _selectedMunicipality != null &&
+                                _selectedBarangay != null) {
+                              setState(() {
+                                _isLoading = true;
+                              });
 
-                            try {
-                              Map<String, String> location = {
-                                'region': _selectedRegion!.name,
-                                'province': _selectedProvince!.name,
-                                'municipality': _selectedMunicipality!.name,
-                                'barangay': _selectedBarangay!.name,
-                              };
+                              try {
+                                Map<String, String> location = {
+                                  'region': _selectedRegion!.name,
+                                  'province': _selectedProvince!.name,
+                                  'municipality': _selectedMunicipality!.name,
+                                  'barangay': _selectedBarangay!.name,
+                                };
 
-                              // Register user first with empty community ID
-                              final userCredential = await _authService.registerWithEmailAndPassword(
-                                email: _emailController.text.trim(),
-                                password: _passwordController.text,
-                                fullName: _nameController.text.trim(),
-                                username: _usernameController.text.trim(),
-                                mobile: _mobileController.text.trim(),
-                                birthDate: _selectedDate!,
-                                address: _addressController.text.trim(),
-                                location: location,
-                                communityId: '', // Temporary empty community ID
-                              );
+                                // Register user first with empty community ID
+                                final userCredential = await _authService.registerWithEmailAndPassword(
+                                  email: _emailController.text.trim(),
+                                  password: _passwordController.text,
+                                  fullName: _nameController.text.trim(),
+                                  username: _usernameController.text.trim(),
+                                  mobile: '+63${_mobileController.text.trim()}',
+                                  birthDate: _selectedDate!,
+                                  address: _addressController.text.trim(),
+                                  location: location,
+                                  communityId: '', // Temporary empty community ID
+                                );
 
-                              // Now that user is authenticated, get or create community
-                              final communityId = await _getOrCreateCommunity();
+                                // Now that user is authenticated, get or create community
+                                final communityId = await _getOrCreateCommunity();
+                                
+                                // Update user's community ID
+                                await _authService.updateUserCommunity(
+                                  userCredential!.user!.uid,
+                                  communityId,
+                                );
+
+                                // Send verification email
+                                await _authService.sendEmailVerification();
+                                
+                                if (mounted) {
+                                  await _showVerificationDialog();
+                                  Navigator.pop(context); // Return to login page
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(e.toString()),
+                                      backgroundColor:
+                                          const Color.fromARGB(255, 90, 90, 90),
+                                    ),
+                                  );
+                                }
+                              } finally {
+                                if (mounted) {
+                                  setState(() {
+                                    _isLoading = false;
+                                  });
+                                }
+                              }
+                            } else {
+                              // Shake the button
+                              _shakeController.forward(from: 0);
                               
-                              // Update user's community ID
-                              await _authService.updateUserCommunity(
-                                userCredential!.user!.uid,
-                                communityId,
-                              );
-
-                              if (mounted) {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const MainScreen(isLoggedIn: true),
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(e.toString()),
-                                    backgroundColor:
-                                        const Color.fromARGB(255, 90, 90, 90),
-                                  ),
-                                );
-                              }
-                            } finally {
-                              if (mounted) {
-                                setState(() {
-                                  _isLoading = false;
-                                });
+                              // Find and scroll to the first invalid field
+                              if (_nameController.text.isEmpty) {
+                                _scrollToField(_formKey);
+                              } else if (_usernameController.text.isEmpty) {
+                                _scrollToField(_formKey);
+                              } else if (_emailController.text.isEmpty) {
+                                _scrollToField(_formKey);
+                              } else if (_passwordController.text.isEmpty || 
+                                       _passwordController.text.length < 6) {
+                                _scrollToField(_formKey);
+                              } else if (_confirmPasswordController.text.isEmpty || 
+                                       _confirmPasswordController.text != _passwordController.text) {
+                                _scrollToField(_formKey);
+                              } else if (_mobileController.text.isEmpty || 
+                                       !RegExp(r'^\d{10}$').hasMatch(_mobileController.text)) {
+                                _scrollToField(_formKey);
+                              } else if (_selectedDate == null) {
+                                _scrollToField(_formKey);
+                              } else if (_selectedRegion == null) {
+                                _scrollToField(_regionDropdownKey);
+                              } else if (_selectedProvince == null) {
+                                _scrollToField(_provinceDropdownKey);
+                              } else if (_selectedMunicipality == null) {
+                                _scrollToField(_municipalityDropdownKey);
+                              } else if (_selectedBarangay == null) {
+                                _scrollToField(_barangayDropdownKey);
                               }
                             }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 2,
                     ),
-                    elevation: 2,
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'Register',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            'Register',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
+                  ),
                 ),
               ),
             ],

@@ -1,11 +1,11 @@
 {
-    "name": "basic_flutter_app",
-    "short_name": "basic_flutter_app",
+    "name": "PULSE",
+    "short_name": "PULSE",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "A community engagement mobile application.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
-
   // Modified sign in method
   Future<UserCredential?> signInWithEmailOrUsername(
       String emailOrUsername, String password) async {
@@ -86,6 +85,19 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  // Email verification methods
+  Future<void> sendEmailVerification() async {
+    User? user = _auth.currentUser;
+    if (user != null && !user.emailVerified) {
+      await user.sendEmailVerification();
+    }
+  }
+
+  Future<bool> checkEmailVerified() async {
+    await _auth.currentUser?.reload();
+    return _auth.currentUser?.emailVerified ?? false;
   }
 
   // Handle Firebase Auth Exceptions

@@ -96,6 +96,7 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
         'userName': userData['fullName'] ?? userData['username'] ?? 'Unknown User',
         'communityId': communityId,
         'createdAt': FieldValue.serverTimestamp(),
+        'participants': [],
       });
 
       // Wait for the server timestamp to be set
@@ -115,6 +116,7 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
         userName: userData['fullName'] ?? userData['username'] ?? 'Unknown User',
         communityId: communityId,
         createdAt: (docData['createdAt'] as Timestamp).toDate(),
+        participants: [],
       );
 
       widget.onPostAdded(post);

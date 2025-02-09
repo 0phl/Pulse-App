@@ -12,6 +12,7 @@ class VolunteerPost {
   final String userName;
   final String communityId;
   final DateTime createdAt;
+  final List<String> participants;
 
   VolunteerPost({
     required this.id,
@@ -25,6 +26,7 @@ class VolunteerPost {
     required this.userName,
     required this.communityId,
     required this.createdAt,
+    this.participants = const [],
   });
 
   factory VolunteerPost.fromFirestore(DocumentSnapshot doc) {
@@ -41,6 +43,7 @@ class VolunteerPost {
       userName: data['userName'] ?? '',
       communityId: data['communityId'] ?? '',
       createdAt: (data['createdAt'] as Timestamp).toDate(),
+      participants: List<String>.from(data['participants'] ?? []),
     );
   }
 
@@ -56,6 +59,7 @@ class VolunteerPost {
       'userName': userName,
       'communityId': communityId,
       'createdAt': Timestamp.fromDate(createdAt),
+      'participants': participants,
     };
   }
 
@@ -81,6 +85,7 @@ class VolunteerPost {
     DateTime? date,
     int? spotLimit,
     int? spotsLeft,
+    List<String>? participants,
   }) {
     return VolunteerPost(
       id: id,
@@ -94,6 +99,11 @@ class VolunteerPost {
       userName: userName,
       communityId: communityId,
       createdAt: createdAt,
+      participants: participants ?? this.participants,
     );
+  }
+
+  bool hasParticipant(String userId) {
+    return participants.contains(userId);
   }
 }

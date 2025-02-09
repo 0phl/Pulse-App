@@ -80,40 +80,42 @@ class _VolunteerPageState extends State<VolunteerPage> {
     }
   }
 
-  Future<void> _handleNewPost(VolunteerPost post) async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await _firestore.collection('volunteer_posts').add(post.toMap());
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Post created successfully!')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error creating post: $e')),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+  // Post is already created in AddVolunteerPostPage
+  void _handleNewPost(VolunteerPost post) {
+    // Only show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Post created successfully!')),
+    );
   }
 
   Future<void> _signUpForVolunteer(VolunteerPost post) async {
     if (_currentUserCommunityId == null) return;
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
 
     try {
       final docRef = _firestore.collection('volunteer_posts').doc(post.id);
       
       await _firestore.runTransaction((transaction) async {
         final snapshot = await transaction.get(docRef);
-        final currentSpotsLeft = snapshot.data()?['spotsLeft'] as int;
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        final currentSpotsLeft = data['spotsLeft'] as int;
+        final participants = List<String>.from(data['participants'] ?? []);
         
+        if (participants.contains(currentUser.uid)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You are already signed up!')),
+          );
+          return;
+        }
+
         if (currentSpotsLeft > 0) {
+          participants.add(currentUser.uid);
           transaction.update(docRef, {
             'spotsLeft': currentSpotsLeft - 1,
+            'participants': participants,
           });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Successfully signed up!')),
@@ -127,6 +129,45 @@ class _VolunteerPageState extends State<VolunteerPage> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error signing up: $e')),
+      );
+    }
+  }
+
+  Future<void> _cancelVolunteerSignup(VolunteerPost post) async {
+    if (_currentUserCommunityId == null) return;
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      final docRef = _firestore.collection('volunteer_posts').doc(post.id);
+      
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        final currentSpotsLeft = data['spotsLeft'] as int;
+        final participants = List<String>.from(data['participants'] ?? []);
+        
+        if (!participants.contains(currentUser.uid)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You are not signed up for this event!')),
+          );
+          return;
+        }
+
+        participants.remove(currentUser.uid);
+        transaction.update(docRef, {
+          'spotsLeft': currentSpotsLeft + 1,
+          'participants': participants,
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Successfully cancelled signup!')),
+        );
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error cancelling signup: $e')),
       );
     }
   }
@@ -200,18 +241,54 @@ class _VolunteerPageState extends State<VolunteerPage> {
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                onPressed: post.spotsLeft > 0
-                    ? () => _signUpForVolunteer(post)
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00C49A),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('Sign Up to Volunteer'),
+              child: StreamBuilder<User?>(
+                stream: _auth.authStateChanges(),
+                builder: (context, snapshot) {
+                  final currentUser = snapshot.data;
+                  if (currentUser == null) {
+                    return ElevatedButton(
+                      onPressed: null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00C49A),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text('Sign in to Volunteer'),
+                    );
+                  }
+
+                  final isParticipant = post.hasParticipant(currentUser.uid);
+                  
+                  if (isParticipant) {
+                    return ElevatedButton(
+                      onPressed: () => _cancelVolunteerSignup(post),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text('Cancel Signup'),
+                    );
+                  }
+
+                  return ElevatedButton(
+                    onPressed: post.spotsLeft > 0
+                        ? () => _signUpForVolunteer(post)
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00C49A),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Sign Up to Volunteer'),
+                  );
+                },
               ),
             ),
           ],
