@@ -87,19 +87,6 @@ class AuthService {
     await _auth.signOut();
   }
 
-  // Email verification methods
-  Future<void> sendEmailVerification() async {
-    User? user = _auth.currentUser;
-    if (user != null && !user.emailVerified) {
-      await user.sendEmailVerification();
-    }
-  }
-
-  Future<bool> checkEmailVerified() async {
-    await _auth.currentUser?.reload();
-    return _auth.currentUser?.emailVerified ?? false;
-  }
-
   // Handle Firebase Auth Exceptions
   String _handleAuthException(FirebaseAuthException e) {
     switch (e.code) {
@@ -124,5 +111,41 @@ class AuthService {
         .child('users')
         .child(uid)
         .update({'communityId': communityId});
+  }
+
+  Future<String> getOrCreateCommunity({
+    required String barangayName,
+    required String municipalityName,
+  }) async {
+    final communityName = 'Barangay $barangayName';
+
+    try {
+      final communitiesRef = FirebaseDatabase.instance.ref().child('communities');
+
+      // Query existing communities
+      final snapshot = await communitiesRef
+          .orderByChild('name')
+          .equalTo(communityName)
+          .get();
+
+      if (snapshot.exists) {
+        // Return existing community ID
+        final Map<dynamic, dynamic> communities =
+            snapshot.value as Map<dynamic, dynamic>;
+        return communities.keys.first;
+      }
+
+      // Create new community
+      final newCommunityRef = communitiesRef.push();
+      await newCommunityRef.set({
+        'name': communityName,
+        'description': 'Community for $barangayName, $municipalityName',
+        'createdAt': ServerValue.timestamp,
+      });
+
+      return newCommunityRef.key!;
+    } catch (e) {
+      throw Exception('Error getting/creating community: $e');
+    }
   }
 }

@@ -1,5 +1,15 @@
 {
   "rules": {
+    "otps": {
+      ".read": true,
+      ".write": true,
+      "$email": {
+        ".validate": "newData.hasChildren(['hash', 'expiresAt', 'attempts'])",
+        "hash": { ".validate": "newData.isString()" },
+        "expiresAt": { ".validate": "newData.isNumber()" },
+        "attempts": { ".validate": "newData.isNumber() && newData.val() <= 3" }
+      }
+    },
     "users": {
       ".read": "auth != null",
       ".indexOn": ["username", "email", "communityId"],

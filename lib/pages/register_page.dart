@@ -6,6 +6,8 @@ import '../services/location_service.dart';
 import '../services/auth_service.dart';
 import '../services/community_service.dart';
 import '../models/community.dart';
+import '../models/registration_data.dart';
+import 'otp_verification_page.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'dart:math';
 
@@ -560,43 +562,35 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
                                 _isLoading = true;
                               });
 
+                              Map<String, String> location = {
+                                'region': _selectedRegion!.name,
+                                'province': _selectedProvince!.name,
+                                'municipality': _selectedMunicipality!.name,
+                                'barangay': _selectedBarangay!.name,
+                              };
+
+                              // Create registration data
+                              final registrationData = RegistrationData(
+                                email: _emailController.text.trim(),
+                                password: _passwordController.text,
+                                fullName: _nameController.text.trim(),
+                                username: _usernameController.text.trim(),
+                                mobile: '+63${_mobileController.text.trim()}',
+                                birthDate: _selectedDate!,
+                                address: _addressController.text.trim(),
+                                location: location,
+                              );
+
+                              // Navigate to OTP verification page
                               try {
-                                Map<String, String> location = {
-                                  'region': _selectedRegion!.name,
-                                  'province': _selectedProvince!.name,
-                                  'municipality': _selectedMunicipality!.name,
-                                  'barangay': _selectedBarangay!.name,
-                                };
-
-                                // Register user first with empty community ID
-                                final userCredential = await _authService.registerWithEmailAndPassword(
-                                  email: _emailController.text.trim(),
-                                  password: _passwordController.text,
-                                  fullName: _nameController.text.trim(),
-                                  username: _usernameController.text.trim(),
-                                  mobile: '+63${_mobileController.text.trim()}',
-                                  birthDate: _selectedDate!,
-                                  address: _addressController.text.trim(),
-                                  location: location,
-                                  communityId: '', // Temporary empty community ID
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => OTPVerificationPage(
+                                      registrationData: registrationData,
+                                    ),
+                                  ),
                                 );
-
-                                // Now that user is authenticated, get or create community
-                                final communityId = await _getOrCreateCommunity();
-                                
-                                // Update user's community ID
-                                await _authService.updateUserCommunity(
-                                  userCredential!.user!.uid,
-                                  communityId,
-                                );
-
-                                // Send verification email
-                                await _authService.sendEmailVerification();
-                                
-                                if (mounted) {
-                                  await _showVerificationDialog();
-                                  Navigator.pop(context); // Return to login page
-                                }
                               } catch (e) {
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
