@@ -463,7 +463,7 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
                   if (value == null || value.isEmpty) {
                     return 'Please enter your email';
                   }
-                  if (!value.contains('@') || !value.contains('.com')) {
+                  if (!value.contains('@') || !value.contains('.')) {
                     return 'Please enter a valid email address';
                   }
                   return null;
