@@ -263,24 +263,10 @@ class _ChatPageState extends State<ChatPage> {
         currentUser.uid: ServerValue.timestamp,
       });
 
-      // Update unread status in market_items collection
-      try {
-        final itemDoc = await _firestore.collection('market_items').doc(widget.itemId).get();
-        if (!itemDoc.exists) return;
-
-        final updates = <String, dynamic>{
-          widget.isSeller ? 'sellerUnreadCount' : 'buyerUnreadCount': 0,
-        };
-
-        // Make sure to await this operation
-        await _firestore
-            .collection('market_items')
-            .doc(widget.itemId)
-            .update(updates);
-
-      } catch (e) {
-        print('Error updating unread count in Firestore: $e');
-      }
+      // Update unread count at chat level
+      await _chatRef.child('unreadCount').update({
+        currentUser.uid: 0,
+      });
     } catch (e) {
       print('Error marking messages as read: $e');
     }
@@ -312,25 +298,20 @@ class _ChatPageState extends State<ChatPage> {
         }
       }
 
-      // Update unread count for the recipient
-      try {
-        final recipientField = widget.isSeller ? 'buyerUnreadCount' : 'sellerUnreadCount';
-        
-        final updates = <String, dynamic>{
-          recipientField: FieldValue.increment(1),
-        };
+      // Update unread count for the recipient at chat level
+      final recipientId = widget.isSeller ? widget.buyerId! : widget.sellerId;
+      final unreadSnapshot = await _chatRef.child('unreadCount').child(recipientId).get();
+      final currentUnreadCount = (unreadSnapshot.value as int?) ?? 0;
+      
+      await _chatRef.child('unreadCount').update({
+        recipientId: currentUnreadCount + 1
+      });
 
-        // Always include buyerId when sending a message
-        if (!widget.isSeller) {
-          updates['buyerId'] = currentUser.uid;
-        }
-
-        await _firestore
-            .collection('market_items')
-            .doc(widget.itemId)
-            .update(updates);
-      } catch (e) {
-        print('Error updating unread count: $e');
+      // Always include buyerId when sending a message
+      if (!widget.isSeller) {
+        await _chatRef.update({
+          'buyerId': currentUser.uid
+        });
       }
     } catch (e) {
       print('Error sending message: $e');

@@ -1,9 +1,10 @@
 {
   "rules": {
     "otps": {
-      ".read": true,
-      ".write": true,
+      ".read": "auth != null",  
+      ".write": true, 
       "$email": {
+        ".read": "auth != null && $email === auth.token.email.replace('.', '_')",
         ".validate": "newData.hasChildren(['hash', 'expiresAt', 'attempts'])",
         "hash": { ".validate": "newData.isString()" },
         "expiresAt": { ".validate": "newData.isNumber()" },
@@ -12,26 +13,28 @@
     },
     "users": {
       ".read": "auth != null",
-      ".indexOn": ["username", "email", "communityId"],
+      ".indexOn": ["email", "role", "communityId", "username"],
       "$uid": {
-        ".write": "auth != null && (auth.uid === $uid || !data.exists())",
-        ".read": "auth != null",
-        ".validate": "newData.hasChildren(['communityId'])"
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['email', 'role', 'communityId', 'username'])",
+        "email": { ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$/)" },
+        "username": { ".validate": "newData.isString() && newData.val().length >= 3" },
+        "role": { ".validate": "newData.isString() && (newData.val() === 'member' || newData.val() === 'admin' || newData.val() === 'community_admin')" },
+        "communityId": { ".validate": "newData.isString() || newData.val() === null" }
       }
     },
     "communities": {
       ".read": "auth != null",
-      ".indexOn": ["name"],
       ".write": "auth != null",
+      ".indexOn": ["name", "status", "adminId"],
       "$communityId": {
-        ".validate": "newData.hasChildren(['name', 'description', 'createdAt'])"
+        ".validate": "newData.hasChildren(['name', 'adminId', 'status'])"
       }
     },
     "marketItems": {
       ".read": "auth != null",
       ".indexOn": ["communityId", "userId"],
       "$itemId": {
-        ".read": "auth != null",
         ".write": "auth != null && (!data.exists() || data.child('userId').val() === auth.uid)",
         ".validate": "newData.hasChildren(['title', 'description', 'price', 'userId', 'communityId'])",
         "communityId": {
@@ -69,9 +72,22 @@
             ".validate": "newData.isNumber()"
           }
         },
-        "communityId": {
-          ".validate": "newData.isString() && newData.val() === root.child('users').child(auth.uid).child('communityId').val()"
+        "deletedTimestamps": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.isNumber()"
+          }
         }
+      }
+    },
+    "admin_applications": {
+      ".read": "auth != null",
+      ".write": true,
+      ".indexOn": ["status", "communityId", "createdAt"],
+      "$applicationId": {
+        ".write": "!data.exists() || auth != null",
+        ".validate": "newData.hasChildren(['fullName', 'email', 'status', 'createdAt']) && (!data.exists() || auth != null)"
       }
     }
   }

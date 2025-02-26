@@ -16,7 +16,7 @@ class AuthService {
           password: password,
         );
       }
-      
+
       // If not email, search for user by username
       final snapshot = await _database
           .child('users')
@@ -27,13 +27,13 @@ class AuthService {
       if (snapshot.snapshot.value != null) {
         final userData = (snapshot.snapshot.value as Map).values.first as Map;
         final email = userData['email'] as String;
-        
+
         return await _auth.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
       }
-      
+
       throw FirebaseAuthException(
         code: 'user-not-found',
         message: 'No user found with this username or email.',
@@ -56,8 +56,15 @@ class AuthService {
     required String communityId,
   }) async {
     try {
+      // Check if community is active (has approved admin)
+      final isActive = await isCommunityActive(communityId);
+      if (!isActive) {
+        throw 'Registration is not available for this community yet. Please wait for an admin to be approved.';
+      }
+
       // Create user with email and password
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+      UserCredential userCredential =
+          await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
@@ -117,10 +124,11 @@ class AuthService {
     required String barangayName,
     required String municipalityName,
   }) async {
-    final communityName = 'Barangay $barangayName';
+    final communityName = 'Barangay $barangayName - $municipalityName';
 
     try {
-      final communitiesRef = FirebaseDatabase.instance.ref().child('communities');
+      final communitiesRef =
+          FirebaseDatabase.instance.ref().child('communities');
 
       // Query existing communities
       final snapshot = await communitiesRef
@@ -140,12 +148,38 @@ class AuthService {
       await newCommunityRef.set({
         'name': communityName,
         'description': 'Community for $barangayName, $municipalityName',
+        'status': 'pending',
+        'adminId': null, // Will be set by super admin later
         'createdAt': ServerValue.timestamp,
+        'updatedAt': ServerValue.timestamp,
+        'location': {
+          'barangay': barangayName,
+          'municipality': municipalityName,
+        }
       });
 
       return newCommunityRef.key!;
     } catch (e) {
       throw Exception('Error getting/creating community: $e');
+    }
+  }
+
+  Future<bool> isCommunityActive(String communityId) async {
+    final snapshot =
+        await _database.child('communities').child(communityId).get();
+    if (snapshot.exists) {
+      final data = snapshot.value as Map<dynamic, dynamic>;
+      return data['status'] == 'active'; // Only check status
+    }
+    return false;
+  }
+
+  // Reset password
+  Future<void> resetPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
     }
   }
 }

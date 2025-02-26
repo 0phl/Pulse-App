@@ -7,7 +7,7 @@ class LocationService {
   // Get all regions
   Future<List<Region>> getRegions() async {
     List<Region> regions = [];
-    
+
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/regions'),
@@ -30,14 +30,17 @@ class LocationService {
     if (regions.isEmpty) {
       regions.addAll(_getLocalRegions());
     }
-    
+
     // Remove duplicates based on code
-    final uniqueRegions = regions.fold<Map<String, Region>>({}, (map, region) {
-      if (region.code.isNotEmpty && region.name.isNotEmpty) {
-        map[region.code] = region;
-      }
-      return map;
-    }).values.toList();
+    final uniqueRegions = regions
+        .fold<Map<String, Region>>({}, (map, region) {
+          if (region.code.isNotEmpty && region.name.isNotEmpty) {
+            map[region.code] = region;
+          }
+          return map;
+        })
+        .values
+        .toList();
 
     if (uniqueRegions.isEmpty) {
       print('Warning: No regions found after processing');
@@ -49,13 +52,13 @@ class LocationService {
   // Get provinces by region code
   Future<List<Province>> getProvinces(String regionCode) async {
     List<Province> provinces = [];
-    
+
     try {
       // Special handling for NCR
-      final String endpoint = regionCode == '13' || regionCode == '130000000' 
-          ? '$baseUrl/regions/130000000/districts'  // Use districts endpoint for NCR
+      final String endpoint = regionCode == '13' || regionCode == '130000000'
+          ? '$baseUrl/regions/130000000/districts' // Use districts endpoint for NCR
           : '$baseUrl/regions/$regionCode/provinces';
-      
+
       final response = await http.get(
         Uri.parse(endpoint),
         headers: {'Accept': 'application/json'},
@@ -65,15 +68,19 @@ class LocationService {
         List<dynamic> data = json.decode(response.body);
         if (regionCode == '13' || regionCode == '130000000') {
           // Convert districts to provinces for NCR
-          provinces = data.map((json) => Province(
-            code: json['code'] ?? json['district_code'] ?? '',
-            name: (json['name'] ?? json['district_name'] ?? '').toUpperCase(),
-          )).toList();
+          provinces = data
+              .map((json) => Province(
+                    code: json['code'] ?? json['district_code'] ?? '',
+                    name: (json['name'] ?? json['district_name'] ?? '')
+                        .toUpperCase(),
+                  ))
+              .toList();
         } else {
           provinces = data.map((json) => Province.fromJson(json)).toList();
         }
       } else {
-        print('Failed to load provinces/districts. Status code: ${response.statusCode}');
+        print(
+            'Failed to load provinces/districts. Status code: ${response.statusCode}');
         print('Response body: ${response.body}');
       }
     } catch (e, stackTrace) {
@@ -85,14 +92,17 @@ class LocationService {
     if (provinces.isEmpty) {
       provinces.addAll(_getLocalProvinces(regionCode));
     }
-    
+
     // Remove duplicates based on code
-    final uniqueProvinces = provinces.fold<Map<String, Province>>({}, (map, province) {
-      if (province.code.isNotEmpty && province.name.isNotEmpty) {
-        map[province.code] = province;
-      }
-      return map;
-    }).values.toList();
+    final uniqueProvinces = provinces
+        .fold<Map<String, Province>>({}, (map, province) {
+          if (province.code.isNotEmpty && province.name.isNotEmpty) {
+            map[province.code] = province;
+          }
+          return map;
+        })
+        .values
+        .toList();
 
     if (uniqueProvinces.isEmpty) {
       print('Warning: No provinces/districts found for region $regionCode');
@@ -104,7 +114,7 @@ class LocationService {
   // Get municipalities by province code
   Future<List<Municipality>> getMunicipalities(String provinceCode) async {
     List<Municipality> municipalities = [];
-    
+
     try {
       // For NCR districts, we need to use a different endpoint
       final bool isNCRDistrict = provinceCode.startsWith('13');
@@ -119,9 +129,11 @@ class LocationService {
 
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
-        municipalities = data.map((json) => Municipality.fromJson(json)).toList();
+        municipalities =
+            data.map((json) => Municipality.fromJson(json)).toList();
       } else {
-        print('Failed to load municipalities. Status code: ${response.statusCode}');
+        print(
+            'Failed to load municipalities. Status code: ${response.statusCode}');
         print('Response body: ${response.body}');
       }
     } catch (e, stackTrace) {
@@ -133,17 +145,21 @@ class LocationService {
     if (municipalities.isEmpty) {
       municipalities.addAll(_getLocalMunicipalities(provinceCode));
     }
-    
+
     // Remove duplicates based on code
-    final uniqueMunicipalities = municipalities.fold<Map<String, Municipality>>({}, (map, municipality) {
-      if (municipality.code.isNotEmpty && municipality.name.isNotEmpty) {
-        map[municipality.code] = municipality;
-      }
-      return map;
-    }).values.toList();
+    final uniqueMunicipalities = municipalities
+        .fold<Map<String, Municipality>>({}, (map, municipality) {
+          if (municipality.code.isNotEmpty && municipality.name.isNotEmpty) {
+            map[municipality.code] = municipality;
+          }
+          return map;
+        })
+        .values
+        .toList();
 
     if (uniqueMunicipalities.isEmpty) {
-      print('Warning: No municipalities found for province/district $provinceCode');
+      print(
+          'Warning: No municipalities found for province/district $provinceCode');
     }
 
     return uniqueMunicipalities..sort((a, b) => a.name.compareTo(b.name));
@@ -186,7 +202,8 @@ class LocationService {
   }
 
   List<Municipality> _getLocalMunicipalities(String provinceCode) {
-    if (provinceCode == "0421") { // Cavite
+    if (provinceCode == "0421") {
+      // Cavite
       return [
         Municipality(code: "042108", name: "CITY OF BACOOR", isCity: true),
       ];
@@ -195,7 +212,8 @@ class LocationService {
   }
 
   List<Barangay> _getLocalBarangays(String municipalityCode) {
-    if (municipalityCode == "042108") { // Bacoor
+    if (municipalityCode == "042108") {
+      // Bacoor
       return [
         Barangay(code: "042108001", name: "ALIMA"),
         Barangay(code: "042108002", name: "ANIBAN I"),
@@ -280,7 +298,7 @@ class Region {
     final code = json['code'] ?? json['region_code'] ?? '';
     return Region(
       code: code,
-      name: name.toUpperCase(),  // Ensure consistent casing
+      name: name.toUpperCase(), // Ensure consistent casing
     );
   }
 }
@@ -296,7 +314,7 @@ class Province {
     final code = json['code'] ?? json['province_code'] ?? '';
     return Province(
       code: code,
-      name: name.toUpperCase(),  // Ensure consistent casing
+      name: name.toUpperCase(), // Ensure consistent casing
     );
   }
 }
@@ -307,8 +325,8 @@ class Municipality {
   final bool isCity;
 
   Municipality({
-    required this.code, 
-    required this.name, 
+    required this.code,
+    required this.name,
     this.isCity = false,
   });
 
@@ -317,7 +335,7 @@ class Municipality {
     final code = json['code'] ?? json['city_municipality_code'] ?? '';
     return Municipality(
       code: code,
-      name: name.toUpperCase(),  // Ensure consistent casing
+      name: name.toUpperCase(), // Ensure consistent casing
       isCity: name.toUpperCase().contains('CITY'),
     );
   }
@@ -334,7 +352,7 @@ class Barangay {
     final code = json['code'] ?? json['barangay_code'] ?? '';
     return Barangay(
       code: code,
-      name: name.toUpperCase(),  // Ensure consistent casing
+      name: name.toUpperCase(), // Ensure consistent casing
     );
   }
-} 
+}

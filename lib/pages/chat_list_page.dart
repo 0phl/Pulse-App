@@ -117,6 +117,63 @@ class _ChatListPageState extends State<ChatListPage> {
     }
   }
 
+  Future<bool> _deleteChat(ChatInfo chat) async {
+    // Show confirmation dialog
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Chat'),
+          content: const Text(
+              'Are you sure you want to delete this conversation?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return false;
+
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return false;
+
+      // Store deletion timestamp for this user
+      await _database
+          .ref('chats/${chat.chatId}/deletedTimestamps')
+          .child(currentUser.uid)
+          .set(ServerValue.timestamp);
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chat deleted successfully')),
+        );
+      }
+      return true; // Return true to confirm the dismissal
+    } catch (e) {
+      print('Error deleting chat: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Error deleting chat. Please try again.')),
+        );
+      }
+      return false; // Return false if deletion failed
+    }
+  }
+
   void _loadChats() {
     if (_currentUserCommunityId == null) {
       print('No community ID found');
@@ -153,11 +210,13 @@ class _ChatListPageState extends State<ChatListPage> {
               final communityId = chatInfo['communityId'] as String?;
               final itemId = chatInfo['itemId'] as String?;
               final sellerId = chatInfo['sellerId'] as String?;
-              final messagesMap = chatInfo['messages'] as Map<dynamic, dynamic>?;
+              final messagesMap =
+                  chatInfo['messages'] as Map<dynamic, dynamic>?;
 
               // Ensure messages map exists with data
               if (messagesMap == null || messagesMap.isEmpty) {
-                print('Chat $chatId has no messages or invalid messages format');
+                print(
+                    'Chat $chatId has no messages or invalid messages format');
                 // Create empty messages map if it's missing
                 await _database.ref('chats/$chatId/messages').set({});
                 continue;
@@ -199,7 +258,9 @@ class _ChatListPageState extends State<ChatListPage> {
                 }
                 buyerId = firstSenderId;
                 // Store buyerId at chat level for future reference
-                await _database.ref('chats/$chatId').update({'buyerId': buyerId});
+                await _database
+                    .ref('chats/$chatId')
+                    .update({'buyerId': buyerId});
               }
 
               // Skip if user is not part of this chat
@@ -211,23 +272,39 @@ class _ChatListPageState extends State<ChatListPage> {
               final itemDetails =
                   await _getItemDetails(itemId) ?? {'title': 'Unknown Item'};
 
-              final messages = messagesMap.values.toList();
-              messages.sort((a, b) =>
-                  (b['timestamp'] as int).compareTo(a['timestamp'] as int));
-              final lastMessage = messages[0] as Map<dynamic, dynamic>;
+              // Get deletion timestamps
+              final deletedTimestamps =
+                  (chatInfo['deletedTimestamps'] as Map<dynamic, dynamic>?)
+                      ?.cast<String, int>();
+              final currentUserDeletedAt = deletedTimestamps?[currentUser.uid];
+
+              // Get messages after filtering out deleted ones
+              final validMessages = messagesMap.entries.where((msg) {
+                final timestamp = msg.value['timestamp'] as int;
+                // Include message if no deletion timestamp or message is newer
+                return currentUserDeletedAt == null ||
+                    timestamp > currentUserDeletedAt;
+              }).toList();
+
+              // Skip this chat if no valid messages
+              if (validMessages.isEmpty) continue;
+
+              // Sort messages by timestamp
+              validMessages.sort((a, b) => (b.value['timestamp'] as int)
+                  .compareTo(a.value['timestamp'] as int));
+              final lastMessage = validMessages[0].value;
 
               final isSeller = sellerId == currentUser.uid;
               final otherUserId = isSeller ? buyerId : sellerId;
               final otherUserName =
                   await _getUserName(otherUserId) ?? 'Unknown User';
 
-              // Get unread count from Firestore
-              final itemDoc =
-                  await _firestore.collection('market_items').doc(itemId).get();
-              final itemData = itemDoc.data();
-              final unreadCount = isSeller
-                  ? (itemData?['sellerUnreadCount'] ?? 0)
-                  : (itemData?['buyerUnreadCount'] ?? 0);
+              // Get unread count from chat level
+              final unreadSnapshot = await _database
+                  .ref('chats/$chatId/unreadCount')
+                  .child(currentUser.uid)
+                  .get();
+              final unreadCount = (unreadSnapshot.value as int?) ?? 0;
 
               chats.add(ChatInfo(
                 chatId: chatId,
@@ -245,9 +322,13 @@ class _ChatListPageState extends State<ChatListPage> {
                 isSeller: isSeller,
                 communityId: communityId,
                 unreadCount: unreadCount,
+                deletedTimestamps: deletedTimestamps,
               ));
             }
           }
+
+          // Sort chats by last message time before updating state
+          chats.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
 
           if (mounted) {
             setState(() {
@@ -315,99 +396,216 @@ class _ChatListPageState extends State<ChatListPage> {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return const SizedBox.shrink();
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: Colors.grey[300],
-        child: Text(
-          chat.otherUserName[0].toUpperCase(),
-          style: const TextStyle(color: Colors.black87),
+    final hasUnread = chat.unreadCount > 0;
+
+    return Dismissible(
+      key: Key(chat.chatId),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _deleteChat(chat),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20.0),
+        color: Colors.red,
+        child: const Icon(
+          Icons.delete,
+          color: Colors.white,
         ),
       ),
-      title: Row(
-        children: [
-          Expanded(child: Text(chat.otherUserName)),
-          Text(
-            chat.isSeller ? 'Buyer' : 'Seller',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-              fontStyle: FontStyle.italic,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: hasUnread ? const Color(0xFFF0F9F6) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
             ),
-          ),
-        ],
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(chat.itemTitle,
-              style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-          Text(chat.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis),
-        ],
-      ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            _formatTimestamp(chat.lastMessageTime),
-            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-          ),
-          if (chat.unreadCount > 0)
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                chat.unreadCount.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+          ],
+        ),
+        child: ListTile(
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          onTap: () async {
+            // Wait for the chat page to complete and then refresh
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ChatPage(
+                  itemId: chat.itemId,
+                  sellerId: chat.sellerId,
+                  sellerName:
+                      chat.isSeller ? chat.otherUserName : chat.sellerName,
+                  itemTitle: chat.itemTitle,
+                  communityId: chat.communityId,
+                  isSeller: chat.isSeller,
+                  buyerId: chat.buyerId,
                 ),
               ),
-            ),
-        ],
-      ),
-      onTap: () async {
-        // Wait for the chat page to complete and then refresh
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChatPage(
-              itemId: chat.itemId,
-              sellerId: chat.sellerId,
-              sellerName: chat.isSeller ? chat.otherUserName : chat.sellerName,
-              itemTitle: chat.itemTitle,
-              communityId: chat.communityId,
-              isSeller: chat.isSeller,
-              buyerId: chat.buyerId,
+            );
+
+            // Refresh the chat list after returning from chat page
+            if (mounted) {
+              _loadChats();
+            }
+          },
+          leading: Stack(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: const Color(0xFF00C49A).withOpacity(0.1),
+                child: Text(
+                  chat.otherUserName[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: Color(0xFF00C49A),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (hasUnread)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF00C49A),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        chat.unreadCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          title: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      chat.otherUserName,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight:
+                            hasUnread ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00C49A).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            chat.isSeller ? 'Buyer' : 'Seller',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF00C49A),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            chat.itemTitle,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                _formatTimestamp(chat.lastMessageTime),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: hasUnread ? const Color(0xFF00C49A) : Colors.grey[500],
+                  fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              chat.lastMessage,
+              style: TextStyle(
+                fontSize: 14,
+                color: hasUnread ? Colors.black87 : Colors.grey[600],
+                fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-        );
-
-        // Refresh the chat list after returning from chat page
-        if (mounted) {
-          _loadChats();
-        }
-      },
+        ),
+      ),
     );
   }
 
   String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
+    // Convert to Philippines timezone (UTC+8)
+    final philippinesTime = timestamp.toUtc().add(const Duration(hours: 8));
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final difference = now.difference(philippinesTime);
 
     if (difference.inDays == 0) {
-      return '${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
+      final hour = philippinesTime.hour > 12
+          ? philippinesTime.hour - 12
+          : philippinesTime.hour;
+      final period = philippinesTime.hour >= 12 ? 'PM' : 'AM';
+      // Handle 12 AM/PM case
+      final displayHour = hour == 0 ? 12 : hour;
+      return '$displayHour:${philippinesTime.minute.toString().padLeft(2, '0')} $period';
     } else if (difference.inDays == 1) {
       return 'Yesterday';
     } else if (difference.inDays < 7) {
       return '${difference.inDays}d ago';
     } else {
-      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+      // Format date with month/day/year
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+      ];
+      final month = months[philippinesTime.month - 1];
+      return '$month ${philippinesTime.day}, ${philippinesTime.year}';
     }
   }
 }
@@ -425,6 +623,7 @@ class ChatInfo {
   final bool isSeller;
   final String communityId;
   final int unreadCount;
+  final Map<String, int>? deletedTimestamps;
 
   ChatInfo({
     required this.chatId,
@@ -439,5 +638,6 @@ class ChatInfo {
     required this.isSeller,
     required this.communityId,
     required this.unreadCount,
+    this.deletedTimestamps,
   });
 }

@@ -18,13 +18,15 @@ class RegisterPage extends StatefulWidget {
   State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderStateMixin {
+class _RegisterPageState extends State<RegisterPage>
+    with SingleTickerProviderStateMixin {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   final TextEditingController _mobileController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _birthDateController = TextEditingController();
@@ -89,7 +91,7 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
   void initState() {
     super.initState();
     _loadRegions();
-    
+
     _shakeController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -182,11 +184,13 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
   }
 
   Future<String> _getOrCreateCommunity() async {
-    if (_selectedBarangay == null) {
-      throw Exception('No barangay selected');
+    if (_selectedBarangay == null || _selectedMunicipality == null) {
+      throw Exception('No barangay or municipality selected');
     }
 
-    final communityName = 'Barangay ${_selectedBarangay!.name}';
+    // Include municipality name to ensure uniqueness
+    final communityName =
+        'Barangay ${_selectedBarangay!.name} - ${_selectedMunicipality!.name}';
 
     try {
       final communitiesRef =
@@ -212,6 +216,11 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
         'description':
             'Community for ${_selectedBarangay!.name}, ${_selectedMunicipality!.name}',
         'createdAt': ServerValue.timestamp,
+        'status': 'pending',
+        'location': {
+          'barangay': _selectedBarangay!.name,
+          'municipality': _selectedMunicipality!.name,
+        }
       });
 
       return newCommunityRef.key!;
@@ -350,7 +359,7 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
           selectedItem: _selectedMunicipality,
           dropdownDecoratorProps: const DropDownDecoratorProps(
             dropdownSearchDecoration: InputDecoration(
-              labelText: 'City /Municipality',
+              labelText: 'City / Municipality',
               border: OutlineInputBorder(),
             ),
           ),
@@ -611,7 +620,7 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
                             } else {
                               // Shake the button
                               _shakeController.forward(from: 0);
-                              
+
                               // Find and scroll to the first invalid field
                               if (_nameController.text.isEmpty) {
                                 _scrollToField(_formKey);
@@ -619,14 +628,17 @@ class _RegisterPageState extends State<RegisterPage> with SingleTickerProviderSt
                                 _scrollToField(_formKey);
                               } else if (_emailController.text.isEmpty) {
                                 _scrollToField(_formKey);
-                              } else if (_passwordController.text.isEmpty || 
-                                       _passwordController.text.length < 6) {
+                              } else if (_passwordController.text.isEmpty ||
+                                  _passwordController.text.length < 6) {
                                 _scrollToField(_formKey);
-                              } else if (_confirmPasswordController.text.isEmpty || 
-                                       _confirmPasswordController.text != _passwordController.text) {
+                              } else if (_confirmPasswordController
+                                      .text.isEmpty ||
+                                  _confirmPasswordController.text !=
+                                      _passwordController.text) {
                                 _scrollToField(_formKey);
-                              } else if (_mobileController.text.isEmpty || 
-                                       !RegExp(r'^\d{10}$').hasMatch(_mobileController.text)) {
+                              } else if (_mobileController.text.isEmpty ||
+                                  !RegExp(r'^\d{10}$')
+                                      .hasMatch(_mobileController.text)) {
                                 _scrollToField(_formKey);
                               } else if (_selectedDate == null) {
                                 _scrollToField(_formKey);

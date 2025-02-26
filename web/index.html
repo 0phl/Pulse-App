@@ -39,6 +39,26 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
 </head>
 <body>
+  <!-- Add EmailJS SDK -->
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+  <script type="text/javascript">
+    (function() {
+      try {
+        // Initialize EmailJS with your public key
+        emailjs.init("LEGY3zCFy08HEgHUA");
+        
+        // Add a global error handler for EmailJS
+        window.addEventListener('emailjs-error', function(e) {
+          console.error('EmailJS Error:', e.detail);
+        });
+        
+        console.log('EmailJS initialized successfully');
+      } catch (error) {
+        console.error('EmailJS initialization error:', error);
+      }
+    })();
+  </script>
+  
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

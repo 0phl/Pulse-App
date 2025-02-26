@@ -101,7 +101,54 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
         throw Exception('Invalid OTP code');
       }
 
-      // If OTP is valid, create the account
+          String normalizeString(String input) {
+            // Convert to uppercase first since barangay names from LocationService are uppercase
+            var normalized = input.toUpperCase();
+            
+            // Remove 'BARANGAY' prefix
+            normalized = normalized.replaceAll(RegExp(r'BARANGAY\s+'), '');
+            
+            // Convert Roman numerals to numbers
+            normalized = normalized
+              .replaceAll('III', '3')
+              .replaceAll('II', '2');
+            
+            // Remove all spaces
+            normalized = normalized.replaceAll(RegExp(r'\s+'), '');
+            
+            return normalized;
+          }
+
+      // First list all communities and find the matching one
+      final communitiesRef = FirebaseDatabase.instance.ref().child('communities');
+      final snapshot = await communitiesRef.get();
+      
+      String? communityId;
+      final barangayName = widget.registrationData.location['barangay']!;
+      final normalizedBarangayName = normalizeString(barangayName);
+      if (snapshot.exists) {
+        final communities = snapshot.value as Map<dynamic, dynamic>;
+        
+        // Find community by name (case insensitive, with or without "Barangay" prefix)
+        for (var entry in communities.entries) {
+          final community = entry.value as Map<dynamic, dynamic>;
+          final communityName = community['name'] as String;
+          final status = community['status'] as String?;
+          
+          final normalizedCommunityName = normalizeString(communityName);
+
+          if (normalizedCommunityName == normalizedBarangayName && status == 'active') {
+            communityId = entry.key;
+            break;
+          }
+        }
+      }
+
+      if (communityId == null) {
+        throw 'Community not found. Please ensure your barangay has an active community.';
+      }
+
+      // Now register with the correct communityId
       final userCredential = await _authService.registerWithEmailAndPassword(
         email: widget.registrationData.email,
         password: widget.registrationData.password,
@@ -111,28 +158,16 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
         birthDate: widget.registrationData.birthDate,
         address: widget.registrationData.address,
         location: widget.registrationData.location,
-        communityId: '', // This will be updated after community creation
+        communityId: communityId,
       );
 
       if (mounted && userCredential != null) {
-        final communityId = await _authService.getOrCreateCommunity(
-          barangayName: widget.registrationData.location['barangay']!,
-          municipalityName: widget.registrationData.location['municipality']!,
+        // Clear navigation stack and go to main screen
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const MainScreen()),
+          (route) => false,
         );
-
-        await _authService.updateUserCommunity(
-          userCredential.user!.uid,
-          communityId,
-        );
-
-        if (mounted) {
-          // Clear navigation stack and go to main screen
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const MainScreen()),
-            (route) => false,
-          );
-        }
       }
     } catch (e) {
       if (mounted) {

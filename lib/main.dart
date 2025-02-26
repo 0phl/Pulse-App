@@ -8,6 +8,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'pages/volunteer_page.dart';
 import 'pages/report_page.dart';
+import 'pages/super_admin/dashboard_page.dart';
+import 'pages/super_admin/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,7 +51,11 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00C49A)),
         useMaterial3: true,
       ),
-      home: const LoginPage(),
+      home: kIsWeb ? const SuperAdminLoginPage() : const LoginPage(),
+      routes: {
+        '/super-admin': (context) => const SuperAdminDashboardPage(),
+        '/mobile-login': (context) => const LoginPage(),
+      },
     );
   }
 }

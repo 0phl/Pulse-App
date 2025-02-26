@@ -1,20 +1,55 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper functions
+    function isSuperAdmin(request) {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+    }
+    
+    function isCommunityAdmin(request) {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Admin requests collection
+    match /admin_requests/{requestId} {
+      allow read: if isSuperAdmin(request);
+      allow create: if request.auth != null;  // Anyone can submit a request
+      allow update, delete: if isSuperAdmin(request);
+    }
+
+    // Communities collection
+    match /communities/{communityId} {
+      allow read: if request.auth != null;
+      allow write: if isSuperAdmin(request) || 
+                  (isCommunityAdmin(request) && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.communityId == communityId);
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == userId || 
+        isSuperAdmin(request) || 
+        (isCommunityAdmin(request) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.communityId == 
+         get(/databases/$(database)/documents/users/$(userId)).data.communityId)
+      );
+      allow write: if isSuperAdmin(request) || (request.auth != null && request.auth.uid == userId);
+    }
+
     // Market items collection rules
     match /market_items/{itemId} {
-      // Allow reading if authenticated
       allow read: if request.auth != null;
       
-      // Allow create if authenticated and sellerId matches user's ID
       allow create: if request.auth != null && 
                    request.resource.data.sellerId == request.auth.uid;
       
-      // Allow update if user is seller or buyer
       allow update: if request.auth != null && (
-        // Allow seller to update their own items
         resource.data.sellerId == request.auth.uid ||
-        // Allow buyer to update when they're the buyer or becoming the buyer
         (
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['buyerUnreadCount', 'sellerUnreadCount', 'buyerId']) &&
@@ -32,18 +67,14 @@ service cloud.firestore {
 
     // Volunteer posts collection rules
     match /volunteer_posts/{postId} {
-      // Allow reading and querying if authenticated
       allow read, list: if request.auth != null;
       
-      // Allow create if authenticated and userId matches creator's ID
       allow create: if request.auth != null && 
                    request.resource.data.userId == request.auth.uid;
       
-      // Allow update if user is the creator
       allow update: if request.auth != null && 
                    resource.data.userId == request.auth.uid;
       
-      // Allow delete if user is the creator
       allow delete: if request.auth != null && 
                    resource.data.userId == request.auth.uid;
     }
