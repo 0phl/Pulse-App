@@ -19,7 +19,7 @@ dependencies:
   firebase_auth: ^4.17.5
   cloud_firestore: ^4.15.5
   firebase_database: ^10.4.6
-  firebase_storage: ^11.6.6
+  firebase_storage: ^11.7.7
   path: ^1.8.0
   flutter_web_plugins:
     sdk: flutter
@@ -29,6 +29,8 @@ dependencies:
   crypto: ^3.0.3
   cloud_functions: ^4.7.6
   js: ^0.7.1
+  file_picker: ^8.0.7
+  cloudinary_public: ^0.23.1
 
 dev_dependencies:
   flutter_test:

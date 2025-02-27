@@ -244,169 +244,6 @@ class _RegisterPageState extends State<RegisterPage>
     }
   }
 
-  Widget _buildNewFields() {
-    return Column(
-      children: [
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _mobileController,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-          keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(
-            labelText: 'Mobile Number',
-            border: OutlineInputBorder(),
-            prefixText: '+63 ',
-          ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter your mobile number';
-            }
-            // Validate 10 digits after +63
-            if (!RegExp(r'^\d{10}$').hasMatch(value)) {
-              return 'Please enter 10 digits for mobile number';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        GestureDetector(
-          onTap: () => _selectDate(context),
-          child: AbsorbPointer(
-            child: TextFormField(
-              controller: _birthDateController,
-              autovalidateMode: AutovalidateMode.onUserInteraction,
-              decoration: const InputDecoration(
-                labelText: 'Birth Date',
-                border: OutlineInputBorder(),
-                suffixIcon: Icon(Icons.calendar_today),
-              ),
-              validator: (_) => _selectedDate == null
-                  ? 'Please select your birth date'
-                  : null,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        DropdownSearch<Region>(
-          key: _regionDropdownKey,
-          items: _regions,
-          itemAsString: (Region? region) => region?.name ?? '',
-          onChanged: (Region? region) {
-            setState(() {
-              _selectedRegion = region;
-              if (region != null) {
-                _loadProvinces(region.code);
-              }
-            });
-          },
-          selectedItem: _selectedRegion,
-          dropdownDecoratorProps: const DropDownDecoratorProps(
-            dropdownSearchDecoration: InputDecoration(
-              labelText: 'Region',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          validator: (value) {
-            if (value == null) {
-              return 'Please select a region';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        DropdownSearch<Province>(
-          key: _provinceDropdownKey,
-          enabled: _selectedRegion != null,
-          items: _provinces,
-          itemAsString: (Province? province) => province?.name ?? '',
-          onChanged: (Province? province) {
-            setState(() {
-              _selectedProvince = province;
-              if (province != null) {
-                _loadMunicipalities(province.code);
-              }
-            });
-          },
-          selectedItem: _selectedProvince,
-          dropdownDecoratorProps: const DropDownDecoratorProps(
-            dropdownSearchDecoration: InputDecoration(
-              labelText: 'Province',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          validator: (value) {
-            if (value == null) {
-              return 'Please select a province';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        DropdownSearch<Municipality>(
-          key: _municipalityDropdownKey,
-          enabled: _selectedProvince != null,
-          items: _municipalities,
-          itemAsString: (Municipality? municipality) =>
-              municipality?.name ?? '',
-          onChanged: (Municipality? municipality) {
-            setState(() {
-              _selectedMunicipality = municipality;
-              if (municipality != null) {
-                _loadBarangays(municipality.code);
-              }
-            });
-          },
-          selectedItem: _selectedMunicipality,
-          dropdownDecoratorProps: const DropDownDecoratorProps(
-            dropdownSearchDecoration: InputDecoration(
-              labelText: 'City / Municipality',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          validator: (value) {
-            if (value == null) {
-              return 'Please select a city / municipality';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        DropdownSearch<Barangay>(
-          key: _barangayDropdownKey,
-          enabled: _selectedMunicipality != null,
-          items: _barangays,
-          itemAsString: (Barangay? barangay) => barangay?.name ?? '',
-          onChanged: (Barangay? barangay) {
-            setState(() {
-              _selectedBarangay = barangay;
-            });
-          },
-          selectedItem: _selectedBarangay,
-          dropdownDecoratorProps: const DropDownDecoratorProps(
-            dropdownSearchDecoration: InputDecoration(
-              labelText: 'Barangay',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          validator: (value) {
-            if (value == null) {
-              return 'Please select a barangay';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _addressController,
-          decoration: const InputDecoration(
-            labelText: 'Address / Street No. (Optional)',
-            border: OutlineInputBorder(),
-          ),
-        ),
-      ],
-    );
-  }
-
   void _scrollToField(GlobalKey fieldKey) {
     final context = fieldKey.currentContext;
     if (context != null) {
@@ -421,262 +258,633 @@ class _RegisterPageState extends State<RegisterPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Register'),
+      body: Container(
+        color: const Color(0xFFF5FBF9),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  const SizedBox(height: 20),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00C49A),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.person_add_outlined,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Create Account',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00C49A),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Fill in your details to get started',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: 'Full Name',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF00C49A)),
+                      ),
+                      prefixIcon: const Icon(Icons.person_outline),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                    ),
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your full name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _usernameController,
+                    decoration: InputDecoration(
+                      labelText: 'Username',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF00C49A)),
+                      ),
+                      prefixIcon: const Icon(Icons.alternate_email),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                    ),
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your username';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF00C49A)),
+                      ),
+                      prefixIcon: const Icon(Icons.mail_outline),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                    ),
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your email';
+                      }
+                      if (!value.contains('@') || !value.contains('.')) {
+                        return 'Please enter a valid email address';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _passwordController,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF00C49A)),
+                      ),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                    ),
+                    obscureText: _obscurePassword,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your password';
+                      }
+                      if (value.length < 6) {
+                        return 'Password must be at least 6 characters';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm Password',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF00C49A)),
+                      ),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                    ),
+                    obscureText: _obscurePassword,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please confirm your password';
+                      }
+                      if (value != _passwordController.text) {
+                        return 'Passwords do not match';
+                      }
+                      return null;
+                    },
+                  ),
+                  _buildNewFields(),
+                  const SizedBox(height: 24),
+                  Container(
+                    width: double.infinity,
+                    height: 50,
+                    margin: const EdgeInsets.symmetric(vertical: 16),
+                    child: AnimatedBuilder(
+                      animation: _shakeController,
+                      builder: (context, child) {
+                        return Transform.translate(
+                          offset: Offset(
+                            sin(_shakeController.value * 2 * pi) * 10,
+                            0,
+                          ),
+                          child: child,
+                        );
+                      },
+                      child: ElevatedButton(
+                        onPressed: _isLoading || !_isFormValid()
+                            ? null
+                            : () async {
+                                if (_formKey.currentState!.validate() &&
+                                    _selectedDate != null &&
+                                    _selectedRegion != null &&
+                                    _selectedProvince != null &&
+                                    _selectedMunicipality != null &&
+                                    _selectedBarangay != null) {
+                                  setState(() {
+                                    _isLoading = true;
+                                  });
+
+                                  Map<String, String> location = {
+                                    'region': _selectedRegion!.name,
+                                    'province': _selectedProvince!.name,
+                                    'municipality': _selectedMunicipality!.name,
+                                    'barangay': _selectedBarangay!.name,
+                                  };
+
+                                  // Create registration data
+                                  final registrationData = RegistrationData(
+                                    email: _emailController.text.trim(),
+                                    password: _passwordController.text,
+                                    fullName: _nameController.text.trim(),
+                                    username: _usernameController.text.trim(),
+                                    mobile:
+                                        '+63${_mobileController.text.trim()}',
+                                    birthDate: _selectedDate!,
+                                    address: _addressController.text.trim(),
+                                    location: location,
+                                  );
+
+                                  // Navigate to OTP verification page
+                                  try {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            OTPVerificationPage(
+                                          registrationData: registrationData,
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(e.toString()),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() {
+                                        _isLoading = false;
+                                      });
+                                    }
+                                  }
+                                } else {
+                                  // Shake the button
+                                  _shakeController.forward(from: 0);
+
+                                  // Find and scroll to the first invalid field
+                                  if (_nameController.text.isEmpty) {
+                                    _scrollToField(_formKey);
+                                  } else if (_usernameController.text.isEmpty) {
+                                    _scrollToField(_formKey);
+                                  } else if (_emailController.text.isEmpty) {
+                                    _scrollToField(_formKey);
+                                  } else if (_passwordController.text.isEmpty ||
+                                      _passwordController.text.length < 6) {
+                                    _scrollToField(_formKey);
+                                  } else if (_confirmPasswordController
+                                          .text.isEmpty ||
+                                      _confirmPasswordController.text !=
+                                          _passwordController.text) {
+                                    _scrollToField(_formKey);
+                                  } else if (_mobileController.text.isEmpty ||
+                                      !RegExp(r'^\d{10}$')
+                                          .hasMatch(_mobileController.text)) {
+                                    _scrollToField(_formKey);
+                                  } else if (_selectedDate == null) {
+                                    _scrollToField(_formKey);
+                                  } else if (_selectedRegion == null) {
+                                    _scrollToField(_regionDropdownKey);
+                                  } else if (_selectedProvince == null) {
+                                    _scrollToField(_provinceDropdownKey);
+                                  } else if (_selectedMunicipality == null) {
+                                    _scrollToField(_municipalityDropdownKey);
+                                  } else if (_selectedBarangay == null) {
+                                    _scrollToField(_barangayDropdownKey);
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00C49A),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                          disabledBackgroundColor:
+                              const Color(0xFF00C49A).withOpacity(0.5),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Register',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
-      body: SingleChildScrollView(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
+    );
+  }
+
+  Widget _buildNewFields() {
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _mobileController,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          keyboardType: TextInputType.phone,
+          decoration: InputDecoration(
+            labelText: 'Mobile Number',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.grey),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.grey),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF00C49A)),
+            ),
+            prefixIcon: const Icon(Icons.phone_outlined),
+            prefixText: '+63 ',
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter your mobile number';
+            }
+            if (!RegExp(r'^\d{10}$').hasMatch(value)) {
+              return 'Please enter 10 digits for mobile number';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        GestureDetector(
+          onTap: () => _selectDate(context),
+          child: AbsorbPointer(
+            child: TextFormField(
+              controller: _birthDateController,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              decoration: InputDecoration(
+                labelText: 'Birth Date',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.grey),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF00C49A)),
+                ),
+                prefixIcon: const Icon(Icons.calendar_today_outlined),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              ),
+              validator: (_) => _selectedDate == null
+                  ? 'Please select your birth date'
+                  : null,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Theme(
+          data: Theme.of(context).copyWith(
+            inputDecorationTheme: InputDecorationTheme(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.grey),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.grey),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF00C49A)),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
+          ),
           child: Column(
             children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  border: OutlineInputBorder(),
+              DropdownSearch<Region>(
+                key: _regionDropdownKey,
+                items: _regions,
+                itemAsString: (Region? region) => region?.name ?? '',
+                onChanged: (Region? region) {
+                  setState(() {
+                    _selectedRegion = region;
+                    if (region != null) {
+                      _loadProvinces(region.code);
+                    }
+                  });
+                },
+                selectedItem: _selectedRegion,
+                dropdownDecoratorProps: DropDownDecoratorProps(
+                  dropdownSearchDecoration: InputDecoration(
+                    labelText: 'Region',
+                    prefixIcon: const Icon(Icons.location_on_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
-                autovalidateMode: AutovalidateMode.onUserInteraction,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your full name';
+                  if (value == null) {
+                    return 'Please select a region';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownSearch<Province>(
+                key: _provinceDropdownKey,
+                enabled: _selectedRegion != null,
+                items: _provinces,
+                itemAsString: (Province? province) => province?.name ?? '',
+                onChanged: (Province? province) {
+                  setState(() {
+                    _selectedProvince = province;
+                    if (province != null) {
+                      _loadMunicipalities(province.code);
+                    }
+                  });
+                },
+                selectedItem: _selectedProvince,
+                dropdownDecoratorProps: DropDownDecoratorProps(
+                  dropdownSearchDecoration: InputDecoration(
+                    labelText: 'Province',
+                    prefixIcon: const Icon(Icons.location_on_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null) {
+                    return 'Please select a province';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownSearch<Municipality>(
+                key: _municipalityDropdownKey,
+                enabled: _selectedProvince != null,
+                items: _municipalities,
+                itemAsString: (Municipality? municipality) =>
+                    municipality?.name ?? '',
+                onChanged: (Municipality? municipality) {
+                  setState(() {
+                    _selectedMunicipality = municipality;
+                    if (municipality != null) {
+                      _loadBarangays(municipality.code);
+                    }
+                  });
+                },
+                selectedItem: _selectedMunicipality,
+                dropdownDecoratorProps: DropDownDecoratorProps(
+                  dropdownSearchDecoration: InputDecoration(
+                    labelText: 'City / Municipality',
+                    prefixIcon: const Icon(Icons.location_city_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null) {
+                    return 'Please select a city / municipality';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownSearch<Barangay>(
+                key: _barangayDropdownKey,
+                enabled: _selectedMunicipality != null,
+                items: _barangays,
+                itemAsString: (Barangay? barangay) => barangay?.name ?? '',
+                onChanged: (Barangay? barangay) {
+                  setState(() {
+                    _selectedBarangay = barangay;
+                  });
+                },
+                selectedItem: _selectedBarangay,
+                dropdownDecoratorProps: DropDownDecoratorProps(
+                  dropdownSearchDecoration: InputDecoration(
+                    labelText: 'Barangay',
+                    prefixIcon: const Icon(Icons.location_on_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null) {
+                    return 'Please select a barangay';
                   }
                   return null;
                 },
               ),
               const SizedBox(height: 16),
               TextFormField(
-                controller: _usernameController,
-                decoration: const InputDecoration(
-                  labelText: 'Username',
-                  border: OutlineInputBorder(),
-                ),
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your username';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                ),
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
-                  }
-                  if (!value.contains('@') || !value.contains('.')) {
-                    return 'Please enter a valid email address';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _passwordController,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
+                controller: _addressController,
                 decoration: InputDecoration(
-                  labelText: 'Password',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
+                  labelText: 'Address / Street No. (Optional)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.grey),
                   ),
-                ),
-                obscureText: _obscurePassword,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your password';
-                  }
-                  if (value.length < 6) {
-                    return 'Password must be at least 6 characters';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _confirmPasswordController,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                decoration: InputDecoration(
-                  labelText: 'Confirm Password',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.grey),
                   ),
-                ),
-                obscureText: _obscurePassword,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please confirm your password';
-                  }
-                  if (value != _passwordController.text) {
-                    return 'Passwords do not match';
-                  }
-                  return null;
-                },
-              ),
-              _buildNewFields(),
-              const SizedBox(height: 24),
-              Container(
-                width: double.infinity,
-                height: 50,
-                margin: const EdgeInsets.symmetric(vertical: 16),
-                child: AnimatedBuilder(
-                  animation: _shakeController,
-                  builder: (context, child) {
-                    return Transform.translate(
-                      offset: Offset(
-                        sin(_shakeController.value * 2 * pi) * 10,
-                        0,
-                      ),
-                      child: child,
-                    );
-                  },
-                  child: ElevatedButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () async {
-                            if (_formKey.currentState!.validate() &&
-                                _selectedDate != null &&
-                                _selectedRegion != null &&
-                                _selectedProvince != null &&
-                                _selectedMunicipality != null &&
-                                _selectedBarangay != null) {
-                              setState(() {
-                                _isLoading = true;
-                              });
-
-                              Map<String, String> location = {
-                                'region': _selectedRegion!.name,
-                                'province': _selectedProvince!.name,
-                                'municipality': _selectedMunicipality!.name,
-                                'barangay': _selectedBarangay!.name,
-                              };
-
-                              // Create registration data
-                              final registrationData = RegistrationData(
-                                email: _emailController.text.trim(),
-                                password: _passwordController.text,
-                                fullName: _nameController.text.trim(),
-                                username: _usernameController.text.trim(),
-                                mobile: '+63${_mobileController.text.trim()}',
-                                birthDate: _selectedDate!,
-                                address: _addressController.text.trim(),
-                                location: location,
-                              );
-
-                              // Navigate to OTP verification page
-                              try {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => OTPVerificationPage(
-                                      registrationData: registrationData,
-                                    ),
-                                  ),
-                                );
-                              } catch (e) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(e.toString()),
-                                      backgroundColor:
-                                          const Color.fromARGB(255, 90, 90, 90),
-                                    ),
-                                  );
-                                }
-                              } finally {
-                                if (mounted) {
-                                  setState(() {
-                                    _isLoading = false;
-                                  });
-                                }
-                              }
-                            } else {
-                              // Shake the button
-                              _shakeController.forward(from: 0);
-
-                              // Find and scroll to the first invalid field
-                              if (_nameController.text.isEmpty) {
-                                _scrollToField(_formKey);
-                              } else if (_usernameController.text.isEmpty) {
-                                _scrollToField(_formKey);
-                              } else if (_emailController.text.isEmpty) {
-                                _scrollToField(_formKey);
-                              } else if (_passwordController.text.isEmpty ||
-                                  _passwordController.text.length < 6) {
-                                _scrollToField(_formKey);
-                              } else if (_confirmPasswordController
-                                      .text.isEmpty ||
-                                  _confirmPasswordController.text !=
-                                      _passwordController.text) {
-                                _scrollToField(_formKey);
-                              } else if (_mobileController.text.isEmpty ||
-                                  !RegExp(r'^\d{10}$')
-                                      .hasMatch(_mobileController.text)) {
-                                _scrollToField(_formKey);
-                              } else if (_selectedDate == null) {
-                                _scrollToField(_formKey);
-                              } else if (_selectedRegion == null) {
-                                _scrollToField(_regionDropdownKey);
-                              } else if (_selectedProvince == null) {
-                                _scrollToField(_provinceDropdownKey);
-                              } else if (_selectedMunicipality == null) {
-                                _scrollToField(_municipalityDropdownKey);
-                              } else if (_selectedBarangay == null) {
-                                _scrollToField(_barangayDropdownKey);
-                              }
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 2,
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                            'Register',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF00C49A)),
                   ),
+                  prefixIcon: const Icon(Icons.home_outlined),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),
               ),
             ],
           ),
         ),
-      ),
+      ],
     );
+  }
+
+  bool _isFormValid() {
+    return _nameController.text.isNotEmpty &&
+        _usernameController.text.isNotEmpty &&
+        _emailController.text.isNotEmpty &&
+        _passwordController.text.isNotEmpty &&
+        _passwordController.text.length >= 6 &&
+        _confirmPasswordController.text == _passwordController.text &&
+        _mobileController.text.isNotEmpty &&
+        RegExp(r'^\d{10}$').hasMatch(_mobileController.text) &&
+        _selectedDate != null &&
+        _selectedRegion != null &&
+        _selectedProvince != null &&
+        _selectedMunicipality != null &&
+        _selectedBarangay != null;
   }
 }

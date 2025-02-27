@@ -1,7 +1,7 @@
 {
   "rules": {
     "otps": {
-      ".read": "auth != null",  
+      ".read": true,  
       ".write": true, 
       "$email": {
         ".read": "auth != null && $email === auth.token.email.replace('.', '_')",
