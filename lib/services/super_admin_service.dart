@@ -35,14 +35,15 @@ class SuperAdminService {
       return Stream.error('User not logged in');
     }
 
-    return _database.child('admin_applications').onValue.map((event) {
+    return _database.child('admin_applications').orderByChild('createdAt').onValue.map((event) {
       final data = event.snapshot.value as Map<dynamic, dynamic>?;
       if (data == null) return [];
 
       return data.entries
           .map((e) => AdminApplication.fromJson(
               Map<String, dynamic>.from(e.value), e.key))
-          .toList();
+          .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt)); // Sort in descending order
     });
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 import '../../services/super_admin_service.dart';
 import '../../models/admin_application.dart';
 import '../../models/community.dart';
@@ -22,6 +23,31 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
       appBar: AppBar(
         title: const Text('Super Admin Dashboard'),
         backgroundColor: Theme.of(context).primaryColor,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              try {
+                final authService = AuthService();
+                // First navigate, then sign out to prevent permission errors
+                if (context.mounted) {
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    '/super-admin-login',
+                    (route) => false,
+                  );
+                }
+                // Sign out after navigation
+                await authService.signOut();
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error logging out: $e')),
+                  );
+                }
+              }
+            },
+          ),
+        ],
       ),
       drawer: NavigationDrawer(
         selectedIndex: _selectedIndex,
@@ -57,4 +83,4 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
       ),
     );
   }
-} 
+}

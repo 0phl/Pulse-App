@@ -12,37 +12,74 @@ class DocumentViewerDialog extends StatelessWidget {
 
   bool _isImageUrl(String url) {
     final lowercaseUrl = url.toLowerCase();
-    return lowercaseUrl.endsWith('.jpg') ||
+    // Check for common image extensions
+    if (lowercaseUrl.endsWith('.jpg') ||
         lowercaseUrl.endsWith('.jpeg') ||
         lowercaseUrl.endsWith('.png') ||
-        lowercaseUrl.contains('image');
+        lowercaseUrl.endsWith('.gif') ||
+        lowercaseUrl.endsWith('.webp')) {
+      return true;
+    }
+    // Check Cloudinary URL format
+    return lowercaseUrl.contains('/image/upload/');
   }
 
   bool _isPdfUrl(String url) {
-    return url.toLowerCase().endsWith('.pdf');
+    final lowercaseUrl = url.toLowerCase();
+    return lowercaseUrl.contains('.pdf') || 
+           lowercaseUrl.contains('/admin_docs/pdfs/');
   }
 
   Future<void> _openDocument(BuildContext context, String url) async {
-    if (_isImageUrl(url)) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ImageViewerPage(imageUrl: url),
-        ),
-      );
-    } else if (_isPdfUrl(url)) {
-      final Uri uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Could not open PDF file'),
-              backgroundColor: Colors.red,
-            ),
-          );
+    try {
+      if (_isPdfUrl(url)) {
+        // For PDFs, ensure we have the download parameter
+        final pdfUrl = url.contains('dl=1') ? url : '$url${url.contains('?') ? '&' : '?'}dl=1';
+        final Uri uri = Uri.parse(pdfUrl);
+        // Try to open in platform default viewer first
+        if (!await launchUrl(
+          uri,
+          mode: LaunchMode.platformDefault,
+        )) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Could not open PDF file. Please ensure you have a PDF viewer installed.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
         }
+      } else if (_isImageUrl(url)) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ImageViewerPage(imageUrl: url),
+          ),
+        );
+      } else {
+        throw Exception('Unsupported file type');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_isPdfUrl(url) 
+              ? 'Could not open PDF file. Please ensure you have a PDF viewer installed.'
+              : 'Could not open document: ${e.toString()}'
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Dismiss',
+              textColor: Colors.white,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
+        );
       }
     }
   }

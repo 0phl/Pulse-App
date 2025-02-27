@@ -119,6 +119,8 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
         allowMultiple: true,
+        withData: true, // Ensure we get the full file data
+        onFileLoading: (FilePickerStatus status) => print(status),
       );
 
       if (result != null) {

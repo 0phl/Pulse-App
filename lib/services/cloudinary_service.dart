@@ -13,12 +13,22 @@ class CloudinaryService {
 
   Future<String> uploadFile(File file) async {
     try {
-      CloudinaryResponse response = await cloudinary.uploadFile(
-        CloudinaryFile.fromFile(
-          file.path,
-          folder: 'Admin_docs',
-        ),
+      // Create a different Cloudinary instance for PDFs
+      final isPdf = file.path.toLowerCase().endsWith('.pdf');
+      final fileFolder = isPdf ? 'Admin_docs/pdfs' : 'Admin_docs';
+      
+      final cloudinaryFile = CloudinaryFile.fromFile(
+        file.path,
+        folder: fileFolder,
       );
+      
+      // Upload file
+      CloudinaryResponse response = await cloudinary.uploadFile(cloudinaryFile);
+      
+      if (isPdf) {
+        // For PDFs, add dl=1 to force download
+        return '${response.secureUrl}?dl=1';
+      }
       return response.secureUrl;
     } catch (e) {
       throw Exception('Failed to upload file: $e');

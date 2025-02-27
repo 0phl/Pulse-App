@@ -54,6 +54,7 @@ class MyApp extends StatelessWidget {
       home: kIsWeb ? const SuperAdminLoginPage() : const LoginPage(),
       routes: {
         '/super-admin': (context) => const SuperAdminDashboardPage(),
+        '/super-admin-login': (context) => const SuperAdminLoginPage(),
         '/mobile-login': (context) => const LoginPage(),
       },
     );
