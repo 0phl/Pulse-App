@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../services/super_admin_service.dart';
 import '../../../models/admin_application.dart';
+import '../../../widgets/document_viewer_dialog.dart';
 
 class AdminApplicationsList extends StatelessWidget {
   const AdminApplicationsList({super.key});
@@ -42,29 +43,42 @@ class AdminApplicationsList extends StatelessWidget {
                     Text('Applied: ${application.createdAt.toString()}'),
                   ],
                 ),
-                trailing: application.status == 'pending'
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.check, color: Colors.green),
-                            onPressed: () => _showApprovalDialog(
-                              context,
-                              application,
-                              superAdminService,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (application.documents.isNotEmpty)
+                      TextButton.icon(
+                        icon: const Icon(Icons.folder_open),
+                        label: Text('View Documents (${application.documents.length})'),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => DocumentViewerDialog(
+                              documents: application.documents,
                             ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close, color: Colors.red),
-                            onPressed: () => _showRejectionDialog(
-                              context,
-                              application,
-                              superAdminService,
-                            ),
-                          ),
-                        ],
-                      )
-                    : null,
+                          );
+                        },
+                      ),
+                    if (application.status == 'pending') ...[
+                      IconButton(
+                        icon: const Icon(Icons.check, color: Colors.green),
+                        onPressed: () => _showApprovalDialog(
+                          context,
+                          application,
+                          superAdminService,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.red),
+                        onPressed: () => _showRejectionDialog(
+                          context,
+                          application,
+                          superAdminService,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             );
           },
