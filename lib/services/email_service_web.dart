@@ -8,12 +8,21 @@ import 'dart:html';
 
 @JS()
 @anonymous
-class EmailJSParams {
-  external factory EmailJSParams({
+class EmailJSApprovalParams {
+  external factory EmailJSApprovalParams({
     String to_email,
     String to_name,
     String community_name,
     String password,
+  });
+}
+
+@JS()
+@anonymous
+class EmailJSRejectionParams {
+  external factory EmailJSRejectionParams({
+    String to_email,
+    String rejection_reason,
   });
 }
 
@@ -25,7 +34,7 @@ external void initEmailJs(String publicKey);
 
 @JS('emailjs.send')
 external dynamic sendEmailJS(
-    String serviceId, String templateId, EmailJSParams params);
+    String serviceId, String templateId, dynamic params);
 
 class EmailPlatform {
   static bool _initialized = false;
@@ -53,15 +62,50 @@ class EmailPlatform {
       print('Template ID: $templateId');
       print('Parameters: ${jsonEncode(params)}');
 
-      // Create EmailJS parameters using the proper JS interop
-      final emailParams = EmailJSParams(
-        to_email: params['to_email'] as String,
-        to_name: params['to_name'] as String,
-        community_name: params['community_name'] as String,
-        password: params['password'] as String,
-      );
+      // Validate required parameters
+      if (!params.containsKey('to_email') || params['to_email'] == null || params['to_email'].toString().isEmpty) {
+        throw Exception('to_email is required');
+      }
 
-      print('Sending with EmailJS parameters...');
+      // Create EmailJS parameters based on template type
+      dynamic emailParams;
+      if (templateId == 'template_cjg4pne') {  // Approval template
+        // Validate approval-specific parameters
+        if (!params.containsKey('to_name') || params['to_name'] == null) {
+          throw Exception('to_name is required for approval template');
+        }
+        if (!params.containsKey('community_name') || params['community_name'] == null) {
+          throw Exception('community_name is required for approval template');
+        }
+        if (!params.containsKey('password') || params['password'] == null) {
+          throw Exception('password is required for approval template');
+        }
+
+        emailParams = EmailJSApprovalParams(
+          to_email: params['to_email'] as String,
+          to_name: params['to_name'] as String,
+          community_name: params['community_name'] as String,
+          password: params['password'] as String,
+        );
+        print('Created approval parameters for: ${params['to_email']}');
+      } else if (templateId == 'template_8z8syof') {  // Rejection template
+        // Validate rejection-specific parameters
+        if (!params.containsKey('rejection_reason') || params['rejection_reason'] == null) {
+          throw Exception('rejection_reason is required for rejection template');
+        }
+
+        emailParams = EmailJSRejectionParams(
+          to_email: params['to_email'] as String,
+          rejection_reason: params['rejection_reason'] as String,
+        );
+        print('Created rejection parameters for: ${params['to_email']}');
+      } else {
+        throw Exception('Unknown template ID: $templateId');
+      }
+
+      print('Sending with EmailJS parameters for template: $templateId');
+      print('Final parameters being sent:');
+      print(emailParams);
 
       try {
         // Send email using EmailJS

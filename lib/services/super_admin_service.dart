@@ -198,12 +198,39 @@ class SuperAdminService {
   // Reject admin application
   Future<void> rejectAdminApplication(
       String applicationId, String email, String reason) async {
-    await _database.child('admin_applications').child(applicationId).update({
-      'status': 'rejected',
-      'rejectionReason': reason,
-    });
+    print('=== ADMIN REJECTION PROCESS START ===');
+    print('Application ID: $applicationId');
+    print('Email: $email');
+    print('Reason: $reason');
 
-    await _emailService.sendRejectionNotification(email, reason);
+    try {
+      // First verify authentication
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) throw 'Not authenticated';
+
+      print('Updating application status...');
+      // Update application status first
+      await _database.child('admin_applications').child(applicationId).update({
+        'status': 'rejected',
+        'rejectionReason': reason,
+        'rejectedAt': ServerValue.timestamp,
+        'rejectedBy': currentUser.uid,
+      });
+      print('Application status updated successfully');
+
+      // Send rejection email
+      print('Sending rejection notification...');
+      await _emailService.sendRejectionNotification(email, reason);
+      print('Rejection notification sent successfully');
+
+      print('=== ADMIN REJECTION PROCESS COMPLETE ===');
+    } catch (e, stackTrace) {
+      print('=== ERROR IN REJECTION PROCESS ===');
+      print('Error type: ${e.runtimeType}');
+      print('Error message: $e');
+      print('Stack trace: $stackTrace');
+      throw 'Failed to reject admin application: $e';
+    }
   }
 
   // Get all communities with their status

@@ -134,11 +134,35 @@ class AdminApplicationsList extends StatelessWidget {
                   ScaffoldMessenger.of(context).clearSnackBars();
                   // Show success message
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'Application approved successfully! Admin credentials have been sent via email.'),
-                      backgroundColor: Colors.green,
-                      duration: Duration(seconds: 5),
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Application Approved Successfully',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  'Admin credentials have been sent to ${application.email}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Colors.green.shade700,
+                      duration: const Duration(seconds: 4),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   );
                 }
@@ -153,17 +177,22 @@ class AdminApplicationsList extends StatelessWidget {
                   } else if (e.toString().contains('invalid-email')) {
                     errorMessage += 'The email address is invalid.';
                   } else if (e.toString().contains('permission-denied')) {
-                    errorMessage +=
-                        'You do not have permission to perform this action.';
+                    errorMessage += 'You do not have permission to perform this action.';
                   } else {
                     errorMessage += e.toString();
                   }
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(errorMessage),
+                      content: Row(
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(errorMessage)),
+                        ],
+                      ),
                       backgroundColor: Colors.red,
-                      duration: Duration(seconds: 5),
+                      duration: const Duration(seconds: 5),
                       action: SnackBarAction(
                         label: 'Dismiss',
                         textColor: Colors.white,
@@ -216,24 +245,103 @@ class AdminApplicationsList extends StatelessWidget {
             onPressed: () async {
               if (reasonController.text.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please provide a reason')),
+                  const SnackBar(
+                    content: Text('Please provide a reason'),
+                    backgroundColor: Colors.orange,
+                  ),
                 );
                 return;
               }
               Navigator.of(context).pop();
               try {
+                // Show loading indicator
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Row(
+                        children: [
+                          CircularProgressIndicator(color: Colors.white),
+                          SizedBox(width: 16),
+                          Text('Processing rejection...'),
+                        ],
+                      ),
+                      duration: Duration(seconds: 30),
+                      backgroundColor: Colors.blue,
+                      dismissDirection: DismissDirection.none,
+                    ),
+                  );
+                }
+
                 await superAdminService.rejectAdminApplication(
                   application.id,
                   application.email,
                   reasonController.text,
                 );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Application rejected')),
-                );
+
+                if (context.mounted) {
+                  // Clear the loading snackbar
+                  ScaffoldMessenger.of(context).clearSnackBars();
+                  // Show success message
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Application Rejected Successfully',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  'Rejection email has been sent to ${application.email}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Colors.red.shade700,
+                      duration: const Duration(seconds: 4),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                }
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error rejecting application: $e')),
-                );
+                if (context.mounted) {
+                  // Clear the loading snackbar
+                  ScaffoldMessenger.of(context).clearSnackBars();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text('Error rejecting application: $e'),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 5),
+                      action: SnackBarAction(
+                        label: 'Dismiss',
+                        textColor: Colors.white,
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                        },
+                      ),
+                    ),
+                  );
+                }
               }
             },
           ),
