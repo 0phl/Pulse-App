@@ -1,43 +1,81 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../models/admin_user.dart';
+import '../models/firestore_user.dart';
 
 class AuthService {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
-  // Modified sign in method
-  Future<UserCredential?> signInWithEmailOrUsername(
+  // Check user type and handle admin first login
+  Future<Map<String, dynamic>> signInWithEmailOrUsername(
       String emailOrUsername, String password) async {
     try {
+      UserCredential? userCredential;
       // First, check if input is an email
       if (emailOrUsername.contains('@')) {
-        return await _auth.signInWithEmailAndPassword(
+        userCredential = await _auth.signInWithEmailAndPassword(
           email: emailOrUsername,
           password: password,
         );
+      } else {
+
+        // If not email, search for user by username
+        final snapshot = await _database
+            .child('users')
+            .orderByChild('username')
+            .equalTo(emailOrUsername)
+            .once();
+
+        if (snapshot.snapshot.value != null) {
+          final userData = (snapshot.snapshot.value as Map).values.first as Map;
+          final email = userData['email'] as String;
+
+          userCredential = await _auth.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+        } else {
+          throw FirebaseAuthException(
+            code: 'user-not-found',
+            message: 'No user found with this username or email.',
+          );
+        }
       }
 
-      // If not email, search for user by username
-      final snapshot = await _database
-          .child('users')
-          .orderByChild('username')
-          .equalTo(emailOrUsername)
-          .once();
+      // Check if user is an admin
+      final adminDoc = await _firestore
+          .collection('admins')
+          .doc(userCredential!.user!.uid)
+          .get();
 
-      if (snapshot.snapshot.value != null) {
-        final userData = (snapshot.snapshot.value as Map).values.first as Map;
-        final email = userData['email'] as String;
-
-        return await _auth.signInWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
+      if (adminDoc.exists) {
+        final adminData = AdminUser.fromMap(adminDoc.data()!);
+        
+        // If admin's first login, they need to change password
+        if (adminData.isFirstLogin) {
+          return {
+            'userCredential': userCredential,
+            'userType': 'admin',
+            'requiresPasswordChange': true,
+          };
+        }
+        
+        return {
+          'userCredential': userCredential,
+          'userType': 'admin',
+          'requiresPasswordChange': false,
+        };
       }
 
-      throw FirebaseAuthException(
-        code: 'user-not-found',
-        message: 'No user found with this username or email.',
-      );
+      // Regular user login
+      return {
+        'userCredential': userCredential,
+        'userType': 'user',
+        'requiresPasswordChange': false,
+      };
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     }
@@ -69,19 +107,39 @@ class AuthService {
         password: password,
       );
 
-      // Save additional user data to Realtime Database
+      // Parse birthDate string to DateTime
+      final birthDateTime = DateFormat('MM/dd/yyyy').parse(DateFormat('MM/dd/yyyy').format(birthDate));
+
+      // Save user data to Realtime Database
       await _database.child('users').child(userCredential.user!.uid).set({
         'fullName': fullName,
         'username': username,
         'email': email,
         'mobile': mobile,
-        'birthDate': DateFormat('MM/dd/yyyy').format(birthDate),
+        'birthDate': DateFormat('MM/dd/yyyy').format(birthDate), // Keep string format for RTDB
         'address': address,
         'location': location,
         'communityId': communityId,
         'role': 'member',
         'createdAt': ServerValue.timestamp,
       });
+
+      // Create matching Firestore user document
+      final firestoreUser = FirestoreUser(
+        uid: userCredential.user!.uid,
+        fullName: fullName,
+        username: username,
+        email: email,
+        mobile: mobile,
+        birthDate: birthDateTime,
+        address: address,
+        location: location,
+        communityId: communityId,
+        role: 'member',
+        createdAt: DateTime.now(),
+      );
+
+      await _firestore.collection('users').doc(userCredential.user!.uid).set(firestoreUser.toMap());
 
       return userCredential;
     } on FirebaseAuthException catch (e) {

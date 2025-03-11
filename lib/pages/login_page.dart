@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'register_page.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
+import '../services/admin_service.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../models/admin_application.dart';
 import 'community_registration_page.dart';
+import 'admin/change_password_page.dart';
+import 'admin/dashboard_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -161,18 +164,27 @@ class _LoginPageState extends State<LoginPage> {
                                   _isLoading = true;
                                 });
                                 try {
-                                  await _authService.signInWithEmailOrUsername(
+                                  final result = await _authService.signInWithEmailOrUsername(
                                     _emailOrUsernameController.text.trim(),
                                     _passwordController.text,
                                   );
-                                  if (mounted) {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const MainScreen(),
-                                      ),
-                                    );
+                                  
+                                  if (!mounted) return;
+
+                                  // Only check for admin status on mobile
+                                  final adminService = AdminService();
+                                  final isAdmin = await adminService.isCurrentUserAdmin();
+                                  if (!mounted) return;
+                                  
+                                  if (isAdmin) {
+                                    if (result['requiresPasswordChange'] == true) {
+                                      Navigator.pushReplacementNamed(context, '/admin/change-password');
+                                    } else {
+                                      Navigator.pushReplacementNamed(context, '/admin/dashboard');
+                                    }
+                                  } else {
+                                    // Regular user flow
+                                    Navigator.pushReplacementNamed(context, '/home');
                                   }
                                 } catch (e) {
                                   if (mounted) {
@@ -462,246 +474,6 @@ class _LoginPageState extends State<LoginPage> {
           ],
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         ),
-      ),
-    );
-  }
-
-  Future<void> _showRegistrationForm(BuildContext context) {
-    final formKey = GlobalKey<FormState>();
-    final fullNameController = TextEditingController();
-    final emailController = TextEditingController();
-    final communityNameController = TextEditingController();
-    final descriptionController = TextEditingController();
-    List<String> documents = [];
-
-    return showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text(
-          'Community Registration',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        content: SingleChildScrollView(
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: fullNameController,
-                  decoration: InputDecoration(
-                    labelText: 'Full Name',
-                    hintText: 'Enter your full name',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF00C49A)),
-                    ),
-                    prefixIcon: const Icon(Icons.person_outline),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
-                  ),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Full name is required' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: emailController,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    hintText: 'Enter your email',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF00C49A)),
-                    ),
-                    prefixIcon: const Icon(Icons.mail_outline),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
-                  ),
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) return 'Email is required';
-                    if (!value!.contains('@')) return 'Invalid email';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: communityNameController,
-                  decoration: InputDecoration(
-                    labelText: 'Community Name',
-                    hintText: 'Enter community name',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF00C49A)),
-                    ),
-                    prefixIcon: const Icon(Icons.group_outlined),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
-                  ),
-                  validator: (value) => value?.isEmpty ?? true
-                      ? 'Community name is required'
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: descriptionController,
-                  decoration: InputDecoration(
-                    labelText: 'Community Description',
-                    hintText: 'Describe your community',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF00C49A)),
-                    ),
-                    prefixIcon: const Icon(Icons.description_outlined),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
-                  ),
-                  maxLines: 3,
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Description is required' : null,
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      // TODO: Implement document upload
-                      // For now, just add a placeholder
-                      documents.add('document_url');
-                    },
-                    icon: const Icon(Icons.upload_file),
-                    label: const Text('Upload Registration Documents'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF00C49A),
-                      side: const BorderSide(color: Color(0xFF00C49A)),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.grey,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (!formKey.currentState!.validate()) return;
-
-                    try {
-                      final application = AdminApplication(
-                        id: '', // Will be set by Firebase
-                        fullName: fullNameController.text,
-                        email: emailController.text,
-                        communityId: '', // Will be set when approved
-                        communityName: communityNameController.text,
-                        documents: documents,
-                        status: 'pending',
-                        createdAt: DateTime.now(),
-                      );
-
-                      // Submit application
-                      await FirebaseDatabase.instance
-                          .ref()
-                          .child('admin_applications')
-                          .push()
-                          .set(application.toJson());
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Application submitted successfully! We will review and contact you via email.',
-                            ),
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text('Error submitting application: $e')),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00C49A),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Submit',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       ),
     );
   }

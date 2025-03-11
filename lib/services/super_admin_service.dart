@@ -21,7 +21,7 @@ class SuperAdminService {
       if (!userDoc.exists) return false;
 
       final userData = userDoc.data()!;
-      return userData['role'] == 'super_admin';
+      return userData['role'] == 'super_admin' && userData['status'] == 'active';
     } catch (e) {
       print('Error checking super admin status: $e');
       return false;
@@ -116,7 +116,7 @@ class SuperAdminService {
 
       print('Updating user role and community...');
 
-      // Create admin user record in Firestore only
+      // Create admin user record
       final firestoreData = {
         'fullName': application.fullName,
         'email': application.email,
@@ -125,6 +125,7 @@ class SuperAdminService {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
+        'isFirstLogin': true, // Add this for admin first login check
       };
       await _firestore
           .collection('users')

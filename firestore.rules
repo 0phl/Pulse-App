@@ -8,15 +8,19 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
     }
     
-    function isCommunityAdmin(request) {
+    function isAdmin(request) {
       return request.auth != null && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    function canAccessStats(request) {
+      return isAdmin(request) || isSuperAdmin(request);
+    }
+
     // Admin requests collection
     match /admin_requests/{requestId} {
-      allow read: if isSuperAdmin(request);
+      allow read: if isSuperAdmin(request) || isAdmin(request);
       allow create: if request.auth != null;  // Anyone can submit a request
       allow update, delete: if isSuperAdmin(request);
     }
@@ -24,21 +28,24 @@ service cloud.firestore {
     // Communities collection
     match /communities/{communityId} {
       allow read: if request.auth != null;
-      allow write: if isSuperAdmin(request) || 
+      allow write: if isSuperAdmin(request) || isAdmin(request) || 
                   (isCommunityAdmin(request) && 
                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.communityId == communityId);
     }
 
     // Users collection
     match /users/{userId} {
-      allow read: if request.auth != null && (
-        request.auth.uid == userId || 
-        isSuperAdmin(request) || 
-        (isCommunityAdmin(request) && 
+      allow read: if request.auth != null;  // Allow all authenticated users to read
+      allow create: if request.auth != null && request.auth.uid == userId;  // Users can create their own documents
+      allow update: if request.auth != null && (
+        request.auth.uid == userId ||  // Users can update their own documents
+        isSuperAdmin(request) ||       // Super admins can update any user
+        isAdmin(request) ||            // Admins can update any user
+        (isCommunityAdmin(request) &&  // Community admins can update users in their community
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.communityId == 
          get(/databases/$(database)/documents/users/$(userId)).data.communityId)
       );
-      allow write: if isSuperAdmin(request) || (request.auth != null && request.auth.uid == userId);
+      allow delete: if isSuperAdmin(request);  // Only super admins can delete users
     }
 
     // Market items collection rules
@@ -77,6 +84,34 @@ service cloud.firestore {
       
       allow delete: if request.auth != null && 
                    resource.data.userId == request.auth.uid;
+    }
+
+    // Audit logs collection
+    match /audit_logs/{logId} {
+      allow read: if isAdmin(request) || isSuperAdmin(request);
+      allow create: if isAdmin(request) || isSuperAdmin(request);
+      allow update, delete: if false; // Audit logs should never be modified or deleted
+    }
+
+    // Collection statistics access
+    match /market_items/{document=**} {
+      allow read, count: if canAccessStats(request);
+    }
+    
+    match /volunteer_posts/{document=**} {
+      allow read, count: if canAccessStats(request);
+    }
+    
+    match /community_notices/{document=**} {
+      allow read, count: if canAccessStats(request);
+    }
+    
+    match /chats/{document=**} {
+      allow read, count: if canAccessStats(request);
+    }
+    
+    match /reports/{document=**} {
+      allow read, count: if canAccessStats(request);
     }
 
     // Deny access to other collections by default

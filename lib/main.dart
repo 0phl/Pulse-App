@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
-import 'pages/market_page.dart';
-import 'pages/login_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'firebase_options.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'pages/volunteer_page.dart';
+import 'firebase_options.dart';
+import 'widgets/auth_wrapper.dart';
+import 'pages/admin/audit_trail_page.dart';
+import 'pages/admin/change_password_page.dart';
+import 'pages/admin/community_notices_page.dart';
+import 'pages/admin/dashboard_page.dart';
+import 'pages/admin/marketplace_page.dart';
+import 'pages/admin/reports_page.dart';
+import 'pages/admin/users_page.dart';
+import 'pages/admin/volunteer_posts_page.dart';
+import 'pages/home_page.dart';
+import 'pages/market_page.dart';
 import 'pages/report_page.dart';
 import 'pages/super_admin/dashboard_page.dart';
 import 'pages/super_admin/login_page.dart';
-import 'pages/home_page.dart';
+import 'pages/volunteer_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,12 +60,33 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00C49A)),
         useMaterial3: true,
       ),
-      home: kIsWeb ? const SuperAdminLoginPage() : const LoginPage(),
-      routes: {
-        '/super-admin': (context) => const SuperAdminDashboardPage(),
-        '/super-admin-login': (context) => const SuperAdminLoginPage(),
-        '/mobile-login': (context) => const LoginPage(),
-      },
+      home: kIsWeb 
+          ? const SuperAdminLoginPage() 
+          : const AuthWrapper(),
+      routes: kIsWeb
+          ? {
+              '/super-admin': (context) => const SuperAdminDashboardPage(),
+              '/super-admin-login': (context) => const SuperAdminLoginPage(),
+            }
+          : {
+              '/login': (context) => const AuthWrapper(),
+              
+              // Admin routes
+              '/admin/dashboard': (context) => const AdminDashboardPage(),
+              '/admin/change-password': (context) => const ChangePasswordPage(),
+              '/admin/audit': (context) => const AdminAuditTrailPage(),
+              '/admin/users': (context) => const UsersPage(),
+              '/admin/notices': (context) => const AdminCommunityNoticesPage(),
+              '/admin/marketplace': (context) => const AdminMarketplacePage(),
+              '/admin/volunteer-posts': (context) => const AdminVolunteerPostsPage(),
+              '/admin/reports': (context) => const AdminReportsPage(),
+              
+              // Main app routes
+              '/home': (context) => const MainScreen(),
+              '/market': (context) => const MarketPage(),
+              '/volunteer': (context) => const VolunteerPage(),
+              '/report': (context) => const ReportPage(),
+            },
     );
   }
 }
