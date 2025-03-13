@@ -39,20 +39,28 @@ class AdminUser {
   }
 
   static AdminUser fromMap(Map<String, dynamic> map) {
-    final createdAtTimestamp = map['createdAt'] as Timestamp?;
-    final updatedAtTimestamp = map['updatedAt'] as Timestamp?;
-    final lastLoginAtTimestamp = map['lastLoginAt'] as Timestamp?;
+    final createdAt = map['createdAt'] is Timestamp 
+        ? (map['createdAt'] as Timestamp).toDate() 
+        : DateTime.now();
+
+    final updatedAt = map['updatedAt'] is Timestamp 
+        ? (map['updatedAt'] as Timestamp).toDate() 
+        : null;
+
+    final lastLoginAt = map['lastLoginAt'] is Timestamp 
+        ? (map['lastLoginAt'] as Timestamp).toDate() 
+        : null;
 
     return AdminUser(
-      uid: map['uid'] as String,
-      fullName: map['fullName'] as String,
-      email: map['email'] as String,
-      communityId: map['communityId'] as String,
-      isFirstLogin: map['isFirstLogin'] as bool,
-      status: map['status'] as String,
-      createdAt: createdAtTimestamp?.toDate() ?? DateTime.now(),
-      updatedAt: updatedAtTimestamp?.toDate(),
-      lastLoginAt: lastLoginAtTimestamp?.toDate(),
+      uid: map['uid']?.toString() ?? '',
+      fullName: map['fullName']?.toString() ?? '',
+      email: map['email']?.toString() ?? '',
+      communityId: map['communityId']?.toString() ?? '',
+      isFirstLogin: map['isFirstLogin'] as bool? ?? true,
+      status: map['status']?.toString() ?? 'active',
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      lastLoginAt: lastLoginAt,
     );
   }
 

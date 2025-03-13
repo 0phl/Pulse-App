@@ -13,6 +13,7 @@ class AuthService {
   Future<Map<String, dynamic>> signInWithEmailOrUsername(
       String emailOrUsername, String password) async {
     try {
+      print('AuthService: Attempting login with: $emailOrUsername');
       UserCredential? userCredential;
       // First, check if input is an email
       if (emailOrUsername.contains('@')) {
@@ -20,8 +21,10 @@ class AuthService {
           email: emailOrUsername,
           password: password,
         );
+        print('AuthService: Logged in with email: $emailOrUsername');
       } else {
-
+        print(
+            'AuthService: Attempting to find user by username: $emailOrUsername');
         // If not email, search for user by username
         final snapshot = await _database
             .child('users')
@@ -32,12 +35,15 @@ class AuthService {
         if (snapshot.snapshot.value != null) {
           final userData = (snapshot.snapshot.value as Map).values.first as Map;
           final email = userData['email'] as String;
+          print('AuthService: Found user by username, email: $email');
 
           userCredential = await _auth.signInWithEmailAndPassword(
             email: email,
             password: password,
           );
+          print('AuthService: Logged in with username: $emailOrUsername');
         } else {
+          print('AuthService: No user found with username: $emailOrUsername');
           throw FirebaseAuthException(
             code: 'user-not-found',
             message: 'No user found with this username or email.',
@@ -46,30 +52,30 @@ class AuthService {
       }
 
       // Check if user is an admin
-      final adminDoc = await _firestore
-          .collection('admins')
-          .doc(userCredential!.user!.uid)
+      print(
+          'AuthService: Checking if user is admin: ${userCredential!.user!.uid}');
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(userCredential.user!.uid)
           .get();
 
-      if (adminDoc.exists) {
-        final adminData = AdminUser.fromMap(adminDoc.data()!);
-        
-        // If admin's first login, they need to change password
-        if (adminData.isFirstLogin) {
+      if (userDoc.exists) {
+        final userData = userDoc.data()!;
+        print('AuthService: User data: ${userData.toString()}');
+        if (userData['role'] == 'admin' || userData['role'] == 'super_admin') {
+          final isFirstLogin = userData['isFirstLogin'] ?? false;
+          print('AuthService: User is admin, isFirstLogin: $isFirstLogin');
           return {
             'userCredential': userCredential,
             'userType': 'admin',
-            'requiresPasswordChange': true,
+            'requiresPasswordChange': isFirstLogin,
           };
         }
-        
-        return {
-          'userCredential': userCredential,
-          'userType': 'admin',
-          'requiresPasswordChange': false,
-        };
+      } else {
+        print('AuthService: User document does not exist in Firestore');
       }
 
+      print('AuthService: User is not admin, proceeding as regular user');
       // Regular user login
       return {
         'userCredential': userCredential,
@@ -77,7 +83,11 @@ class AuthService {
         'requiresPasswordChange': false,
       };
     } on FirebaseAuthException catch (e) {
+      print('AuthService: Firebase Auth Exception: ${e.code} - ${e.message}');
       throw _handleAuthException(e);
+    } catch (e) {
+      print('AuthService: Unexpected error during login: $e');
+      rethrow;
     }
   }
 
@@ -108,7 +118,8 @@ class AuthService {
       );
 
       // Parse birthDate string to DateTime
-      final birthDateTime = DateFormat('MM/dd/yyyy').parse(DateFormat('MM/dd/yyyy').format(birthDate));
+      final birthDateTime = DateFormat('MM/dd/yyyy')
+          .parse(DateFormat('MM/dd/yyyy').format(birthDate));
 
       // Save user data to Realtime Database
       await _database.child('users').child(userCredential.user!.uid).set({
@@ -116,7 +127,8 @@ class AuthService {
         'username': username,
         'email': email,
         'mobile': mobile,
-        'birthDate': DateFormat('MM/dd/yyyy').format(birthDate), // Keep string format for RTDB
+        'birthDate': DateFormat('MM/dd/yyyy')
+            .format(birthDate), // Keep string format for RTDB
         'address': address,
         'location': location,
         'communityId': communityId,
@@ -139,7 +151,10 @@ class AuthService {
         createdAt: DateTime.now(),
       );
 
-      await _firestore.collection('users').doc(userCredential.user!.uid).set(firestoreUser.toMap());
+      await _firestore
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .set(firestoreUser.toMap());
 
       return userCredential;
     } on FirebaseAuthException catch (e) {

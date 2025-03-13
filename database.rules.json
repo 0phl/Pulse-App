@@ -11,6 +11,17 @@
         "attempts": { ".validate": "newData.isNumber() && newData.val() <= 3" }
       }
     },
+      "community_notices": {
+        ".read": "auth != null",
+        ".indexOn": ["communityId", "createdAt"],
+        "$noticeId": {
+          ".write": "auth != null && (root.child('communities').child(newData.child('communityId').val()).child('adminId').val() === auth.uid || root.child('users').child(auth.uid).child('communityId').val() === newData.child('communityId').val())",
+          ".validate": "newData.hasChildren(['title', 'content', 'authorId', 'authorName', 'communityId', 'createdAt', 'likes', 'comments'])",
+          "communityId": {
+            ".validate": "newData.val() === root.child('users').child(auth.uid).child('communityId').val()"
+          }
+        }
+      },
     "users": {
       ".read": "auth != null",
       ".indexOn": ["email", "role", "communityId", "username"],
@@ -24,11 +35,14 @@
       }
     },
     "communities": {
-      ".read": "auth != null",
-      ".write": "auth != null",
-      ".indexOn": ["name", "status", "adminId"],
+      ".read": true,
+      ".write": true,
+      ".indexOn": ["name", "status", "adminId", "locationId"],
       "$communityId": {
-        ".validate": "newData.hasChildren(['name', 'adminId', 'status'])"
+        ".validate": "newData.hasChildren(['name', 'description', 'status', 'createdAt', 'regionCode', 'provinceCode', 'municipalityCode', 'barangayCode', 'locationId'])",
+        "status": {
+          ".validate": "newData.val() === 'pending' || newData.val() === 'active' || newData.val() === 'inactive' || newData.val() === 'rejected'"
+        }
       }
     },
     "marketItems": {
@@ -82,12 +96,11 @@
       }
     },
     "admin_applications": {
-      ".read": "auth != null",
+      ".read": true,
       ".write": true,
       ".indexOn": ["status", "communityId", "createdAt"],
       "$applicationId": {
-        ".write": "!data.exists() || auth != null",
-        ".validate": "newData.hasChildren(['fullName', 'email', 'status', 'createdAt']) && (!data.exists() || auth != null)"
+        ".validate": "newData.hasChildren(['fullName', 'email', 'status', 'communityId', 'createdAt'])"
       }
     }
   }

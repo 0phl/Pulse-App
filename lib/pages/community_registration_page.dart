@@ -3,6 +3,7 @@ import 'package:dropdown_search/dropdown_search.dart';
 import '../models/admin_application.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../services/location_service.dart';
+import '../services/community_service.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/cloudinary_service.dart';
 import 'dart:io';
@@ -20,6 +21,7 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final LocationService _locationService = LocationService();
+  final CommunityService _communityService = CommunityService();
   Region? _selectedRegion;
   Province? _selectedProvince;
   Municipality? _selectedMunicipality;
@@ -39,6 +41,7 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
   List<File> _selectedFiles = [];
   bool _isLoading = false;
   bool _isUploadingFiles = false;
+  bool _isCheckingCommunity = false;
 
   @override
   void initState() {
@@ -113,13 +116,64 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
     }
   }
 
+  Future<void> _checkCommunityExists() async {
+    if (_selectedRegion == null ||
+        _selectedProvince == null ||
+        _selectedMunicipality == null ||
+        _selectedBarangay == null) {
+      return;
+    }
+
+    setState(() {
+      _isCheckingCommunity = true;
+    });
+
+    try {
+      final exists = await _communityService.checkCommunityExists(
+        regionCode: _selectedRegion!.code,
+        provinceCode: _selectedProvince!.code,
+        municipalityCode: _selectedMunicipality!.code,
+        barangayCode: _selectedBarangay!.code,
+      );
+
+      if (exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'This community is already registered. Please contact the administrator.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error checking community status: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingCommunity = false;
+        });
+      }
+    }
+  }
+
   Future<void> _pickFiles() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
         allowMultiple: true,
-        withData: true, // Ensure we get the full file data
+        withData: true,
         onFileLoading: (FilePickerStatus status) => print(status),
       );
 
@@ -397,6 +451,9 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                           onChanged: (Barangay? barangay) {
                             setState(() {
                               _selectedBarangay = barangay;
+                              if (barangay != null) {
+                                _checkCommunityExists();
+                              }
                             });
                           },
                           selectedItem: _selectedBarangay,
@@ -499,7 +556,7 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: (_isLoading || _selectedFiles.isEmpty)
+                      onPressed: (_isLoading || _selectedFiles.isEmpty || _isCheckingCommunity)
                           ? null
                           : () async {
                               if (_formKey.currentState!.validate()) {
@@ -508,26 +565,58 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                                 });
 
                                 try {
+                                  // Check if community exists
+                                  final exists = await _communityService.checkCommunityExists(
+                                    regionCode: _selectedRegion!.code,
+                                    provinceCode: _selectedProvince!.code,
+                                    municipalityCode: _selectedMunicipality!.code,
+                                    barangayCode: _selectedBarangay!.code,
+                                  );
+
+                                  if (exists) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'This community is already registered. Please contact the administrator.',
+                                          ),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                    return;
+                                  }
+
                                   // Upload files first
                                   final uploadedUrls = await _uploadFiles();
 
+                                  // Create the community first
+                                  final communityId = await _communityService.createCommunity(
+                                    name: '${_selectedBarangay?.name} Community',
+                                    description: 'Community for ${_selectedBarangay?.name}',
+                                    regionCode: _selectedRegion!.code,
+                                    provinceCode: _selectedProvince!.code,
+                                    municipalityCode: _selectedMunicipality!.code,
+                                    barangayCode: _selectedBarangay!.code,
+                                  );
+
+                                  // Then create the admin application
                                   final application = AdminApplication(
                                     id: '',
                                     fullName: _fullNameController.text,
                                     email: _emailController.text,
-                                    communityId: '',
-                                    communityName:
-                                        '${_selectedBarangay?.name} Community',
+                                    communityId: communityId,
+                                    communityName: '${_selectedBarangay?.name} Community',
                                     documents: uploadedUrls,
                                     status: 'pending',
                                     createdAt: DateTime.now(),
                                   );
 
                                   await FirebaseDatabase.instance
-                                      .ref()
-                                      .child('admin_applications')
-                                      .push()
-                                      .set(application.toJson());
+                                    .ref()
+                                    .child('admin_applications')
+                                    .push()
+                                    .set(application.toJson());
 
                                   if (mounted) {
                                     Navigator.pop(context);
@@ -569,7 +658,7 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                         disabledBackgroundColor:
                             const Color(0xFF00C49A).withOpacity(0.5),
                       ),
-                      child: _isLoading || _isUploadingFiles
+                      child: _isLoading || _isUploadingFiles || _isCheckingCommunity
                           ? Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -585,7 +674,9 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                                 Text(
                                   _isUploadingFiles
                                       ? 'Uploading Files...'
-                                      : 'Submitting...',
+                                      : _isCheckingCommunity
+                                          ? 'Checking Community...'
+                                          : 'Submitting...',
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,

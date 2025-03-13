@@ -228,7 +228,13 @@ class AdminService {
           final role = userData['role'] as String;
           
           if (role == 'admin' || role == 'super_admin') {
-            return AdminUser.fromMap(userData);
+            // Add uid to the map since it's not stored in the document
+            final userDataWithId = {
+              ...userData,
+              'uid': snapshot.id,
+            };
+            print('AdminService: User data: $userDataWithId');
+            return AdminUser.fromMap(userDataWithId);
           }
           
           return null;

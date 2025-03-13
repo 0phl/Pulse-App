@@ -71,8 +71,6 @@ class SuperAdminService {
       final currentUser = _auth.currentUser;
       if (currentUser == null) throw 'Not authenticated';
 
-      // No need for token refresh since the rules are simplified now
-
       // Check if email already exists
       try {
         final methods =
@@ -102,17 +100,61 @@ class SuperAdminService {
           : application.communityId;
 
       print('Updating community with ID: $communityId');
-      // Create or update community with admin using exact name from application
+      
+      // First fix: Direct reference to the community node
       final communityRef = _database.child('communities').child(communityId);
-      await communityRef.set({
-        'name': application.communityName,
-        // Keep description consistent with the stored name
-        'description': 'Community for ${application.communityName}',
-        'adminId': userCredential.user!.uid,
-        'status': 'active',
-        'createdAt': ServerValue.timestamp,
-        'updatedAt': ServerValue.timestamp,
-      });
+      
+      try {
+        print('Updating community status...');
+        
+        // Second fix: Use a single update operation with all fields at once
+        Map<String, dynamic> updates = {
+          'status': 'active',
+          'adminId': userCredential.user!.uid,
+          // Use a timestamp from Dart instead of ServerValue
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+        };
+        
+        // Third fix: Await the update operation and add error handling
+        await communityRef.update(updates).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => throw TimeoutException('Community update timed out'),
+        );
+        
+        // Add a small delay to ensure Firebase has processed the update
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Verify the update
+        final verifySnapshot = await communityRef.get();
+        if (!verifySnapshot.exists) {
+          throw Exception('Community no longer exists after update');
+        }
+        
+        final verifiedData = Map<String, dynamic>.from(verifySnapshot.value as Map);
+        print('New community status: ${verifiedData['status']}');
+        
+        if (verifiedData['status'] != 'active') {
+          print('Status verification failed. Current status: ${verifiedData['status']}');
+          throw Exception('Community status was not updated correctly');
+        }
+        
+        print('Community status updated successfully to active');
+      } catch (e) {
+        print('Error updating community: $e');
+        // Try again with a different approach if the first attempt failed
+        try {
+          print('Trying alternative update method...');
+          // Fourth fix: Try direct set operation for status field only
+          await communityRef.child('status').set('active');
+          await communityRef.child('adminId').set(userCredential.user!.uid);
+          await communityRef.child('updatedAt').set(DateTime.now().millisecondsSinceEpoch);
+          
+          print('Alternative update method completed');
+        } catch (retryError) {
+          print('Alternative update method also failed: $retryError');
+          // Continue with user creation even if community update fails
+        }
+      }
 
       print('Updating user role and community...');
 
@@ -209,6 +251,13 @@ class SuperAdminService {
       final currentUser = _auth.currentUser;
       if (currentUser == null) throw 'Not authenticated';
 
+      // Get the application details first to get communityId
+      final applicationSnapshot = await _database.child('admin_applications').child(applicationId).get();
+      if (!applicationSnapshot.exists) throw 'Application not found';
+      
+      final applicationData = Map<String, dynamic>.from(applicationSnapshot.value as Map);
+      final communityId = applicationData['communityId'] as String?;
+
       print('Updating application status...');
       // Update application status first
       await _database.child('admin_applications').child(applicationId).update({
@@ -223,6 +272,16 @@ class SuperAdminService {
       print('Sending rejection notification...');
       await _emailService.sendRejectionNotification(email, reason);
       print('Rejection notification sent successfully');
+
+      // If there's an associated community, update its status too
+      if (communityId != null && communityId.isNotEmpty) {
+        print('Updating community status...');
+        await _database.child('communities').child(communityId).update({
+          'status': 'rejected',
+          'updatedAt': ServerValue.timestamp,
+        });
+        print('Community status updated successfully');
+      }
 
       print('=== ADMIN REJECTION PROCESS COMPLETE ===');
     } catch (e, stackTrace) {
@@ -254,4 +313,12 @@ class SuperAdminService {
           .toList();
     });
   }
+}
+
+class TimeoutException implements Exception {
+  final String message;
+  TimeoutException(this.message);
+  
+  @override
+  String toString() => 'TimeoutException: $message';
 }

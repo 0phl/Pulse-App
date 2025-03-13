@@ -15,6 +15,7 @@ import 'pages/admin/users_page.dart';
 import 'pages/admin/volunteer_posts_page.dart';
 import 'pages/home_page.dart';
 import 'pages/market_page.dart';
+import 'pages/login_page.dart';
 import 'pages/report_page.dart';
 import 'pages/super_admin/dashboard_page.dart';
 import 'pages/super_admin/login_page.dart';
@@ -69,7 +70,7 @@ class MyApp extends StatelessWidget {
               '/super-admin-login': (context) => const SuperAdminLoginPage(),
             }
           : {
-              '/login': (context) => const AuthWrapper(),
+              '/login': (context) => const LoginPage(),
               
               // Admin routes
               '/admin/dashboard': (context) => const AdminDashboardPage(),

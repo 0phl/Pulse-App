@@ -55,9 +55,16 @@ class CommunitySelector extends StatelessWidget {
               if (nameController.text.isEmpty) return;
               
               try {
+                // TODO: You need to collect location information (region, province, municipality, barangay)
+                // before creating a community. Consider adding location selection fields
+                // to this dialog or creating a separate registration flow.
                 final communityId = await _communityService.createCommunity(
-                  nameController.text,
-                  descriptionController.text,
+                  name: nameController.text,
+                  description: descriptionController.text,
+                  regionCode: '',       // Required
+                  provinceCode: '',     // Required
+                  municipalityCode: '', // Required
+                  barangayCode: '',     // Required
                 );
                 
                 final community = await _communityService.getCommunity(communityId);

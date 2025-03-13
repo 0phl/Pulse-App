@@ -124,20 +124,33 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
       final snapshot = await communitiesRef.get();
       
       String? communityId;
-      final barangayName = widget.registrationData.location['barangay']!;
-      final normalizedBarangayName = normalizeString(barangayName);
       if (snapshot.exists) {
         final communities = snapshot.value as Map<dynamic, dynamic>;
         
-        // Find community by name (case insensitive, with or without "Barangay" prefix)
+        // Find active community by barangay code
         for (var entry in communities.entries) {
           final community = entry.value as Map<dynamic, dynamic>;
-          final communityName = community['name'] as String;
           final status = community['status'] as String?;
+          final barangayCode = community['barangayCode'] as String?;
           
-          final normalizedCommunityName = normalizeString(communityName);
-
-          if (normalizedCommunityName == normalizedBarangayName && status == 'active') {
+          // Get the location ID from the community
+          final communityLocationId = community['locationId'] as String?;
+          
+          // Get location codes from registration data
+          final registrationLocationId = widget.registrationData.location['locationId']?.toString();
+          
+          // Debug print to help diagnose the issue
+          print('Checking community:');
+          print('- status: $status');
+          print('- communityLocationId: $communityLocationId');
+          print('- registrationLocationId: $registrationLocationId');
+          print('Registration location data: ${widget.registrationData.location}');
+          
+          // Match by locationId which uniquely identifies the community
+          if (status == 'active' && 
+              communityLocationId != null && 
+              registrationLocationId != null &&
+              communityLocationId == registrationLocationId) {
             communityId = entry.key;
             break;
           }

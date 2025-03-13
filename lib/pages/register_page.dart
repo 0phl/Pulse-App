@@ -53,6 +53,10 @@ class _RegisterPageState extends State<RegisterPage>
   final CommunityService _communityService = CommunityService();
   late AnimationController _shakeController;
   final ScrollController _scrollController = ScrollController();
+  bool _showCurrentPassword = false;
+  bool _showNewPassword = false;
+  bool _showConfirmPassword = false;
+  bool _passwordsMatch = true;
 
   Future<void> _showVerificationDialog() async {
     await showDialog(
@@ -255,6 +259,44 @@ class _RegisterPageState extends State<RegisterPage>
     }
   }
 
+  Map<String, bool> _checkPasswordStrength(String password) {
+    return {
+      'length': password.length >= 8,
+      'uppercase': password.contains(RegExp(r'[A-Z]')),
+      'lowercase': password.contains(RegExp(r'[a-z]')),
+      'number': password.contains(RegExp(r'[0-9]')),
+      'special': password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]')),
+    };
+  }
+
+  bool _isPasswordStrong(String password) {
+    final checks = _checkPasswordStrength(password);
+    return checks.values.every((isValid) => isValid);
+  }
+
+  Widget _buildRequirement(String text, bool isMet) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            isMet ? Icons.check_circle : Icons.circle_outlined,
+            size: 16,
+            color: isMet ? const Color(0xFF00C49A) : Colors.grey,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              color: isMet ? Colors.black87 : Colors.grey,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -425,16 +467,74 @@ class _RegisterPageState extends State<RegisterPage>
                           horizontal: 16, vertical: 16),
                     ),
                     obscureText: _obscurePassword,
+                    onChanged: (value) {
+                      // Force rebuild to update password requirements
+                      setState(() {});
+                    },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your password';
                       }
-                      if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
+                      if (!_isPasswordStrong(value)) {
+                        return 'Password does not meet requirements';
                       }
                       return null;
                     },
                   ),
+                  if (_passwordController.text.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Password Requirements',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildRequirement(
+                            'At least 8 characters',
+                            _checkPasswordStrength(
+                                    _passwordController.text)['length'] ??
+                                false,
+                          ),
+                          _buildRequirement(
+                            'Contains uppercase letter',
+                            _checkPasswordStrength(
+                                    _passwordController.text)['uppercase'] ??
+                                false,
+                          ),
+                          _buildRequirement(
+                            'Contains lowercase letter',
+                            _checkPasswordStrength(
+                                    _passwordController.text)['lowercase'] ??
+                                false,
+                          ),
+                          _buildRequirement(
+                            'Contains number',
+                            _checkPasswordStrength(
+                                    _passwordController.text)['number'] ??
+                                false,
+                          ),
+                          _buildRequirement(
+                            'Contains special character',
+                            _checkPasswordStrength(
+                                    _passwordController.text)['special'] ??
+                                false,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _confirmPasswordController,
@@ -511,11 +611,23 @@ class _RegisterPageState extends State<RegisterPage>
                                     _isLoading = true;
                                   });
 
+                                  final locationId = Community.createLocationId(
+                                    regionCode: _selectedRegion!.code,
+                                    provinceCode: _selectedProvince!.code,
+                                    municipalityCode: _selectedMunicipality!.code,
+                                    barangayCode: _selectedBarangay!.code,
+                                  );
+
                                   Map<String, String> location = {
                                     'region': _selectedRegion!.name,
+                                    'regionCode': _selectedRegion!.code,
                                     'province': _selectedProvince!.name,
+                                    'provinceCode': _selectedProvince!.code,
                                     'municipality': _selectedMunicipality!.name,
+                                    'municipalityCode': _selectedMunicipality!.code,
                                     'barangay': _selectedBarangay!.name,
+                                    'barangayCode': _selectedBarangay!.code,
+                                    'locationId': locationId,
                                   };
 
                                   // Create registration data
@@ -571,7 +683,8 @@ class _RegisterPageState extends State<RegisterPage>
                                   } else if (_emailController.text.isEmpty) {
                                     _scrollToField(_formKey);
                                   } else if (_passwordController.text.isEmpty ||
-                                      _passwordController.text.length < 6) {
+                                      !_isPasswordStrong(
+                                          _passwordController.text)) {
                                     _scrollToField(_formKey);
                                   } else if (_confirmPasswordController
                                           .text.isEmpty ||
@@ -877,7 +990,7 @@ class _RegisterPageState extends State<RegisterPage>
         _usernameController.text.isNotEmpty &&
         _emailController.text.isNotEmpty &&
         _passwordController.text.isNotEmpty &&
-        _passwordController.text.length >= 6 &&
+        _isPasswordStrong(_passwordController.text) &&
         _confirmPasswordController.text == _passwordController.text &&
         _mobileController.text.isNotEmpty &&
         RegExp(r'^\d{10}$').hasMatch(_mobileController.text) &&

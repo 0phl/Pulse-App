@@ -8,6 +8,7 @@ import '../models/admin_application.dart';
 import 'community_registration_page.dart';
 import 'admin/change_password_page.dart';
 import 'admin/dashboard_page.dart';
+import '../widgets/auth_wrapper.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -164,29 +165,30 @@ class _LoginPageState extends State<LoginPage> {
                                   _isLoading = true;
                                 });
                                 try {
-                                  final result = await _authService.signInWithEmailOrUsername(
+                                  print('LoginPage: Starting login process');
+                                  // Just perform login, AuthWrapper will handle the routing
+                                  final result = await _authService
+                                      .signInWithEmailOrUsername(
                                     _emailOrUsernameController.text.trim(),
                                     _passwordController.text,
                                   );
-                                  
+
+                                  print(
+                                      'LoginPage: Login successful, userType: ${result['userType']}, requiresPasswordChange: ${result['requiresPasswordChange']}');
+
                                   if (!mounted) return;
 
-                                  // Only check for admin status on mobile
-                                  final adminService = AdminService();
-                                  final isAdmin = await adminService.isCurrentUserAdmin();
-                                  if (!mounted) return;
-                                  
-                                  if (isAdmin) {
-                                    if (result['requiresPasswordChange'] == true) {
-                                      Navigator.pushReplacementNamed(context, '/admin/change-password');
-                                    } else {
-                                      Navigator.pushReplacementNamed(context, '/admin/dashboard');
-                                    }
-                                  } else {
-                                    // Regular user flow
-                                    Navigator.pushReplacementNamed(context, '/home');
-                                  }
+                                  // Let AuthWrapper handle all navigation
+                                  print('LoginPage: Navigating to AuthWrapper');
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const AuthWrapper(),
+                                    ),
+                                    (route) => false,
+                                  );
                                 } catch (e) {
+                                  print('LoginPage: Login error: $e');
                                   if (mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(

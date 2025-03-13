@@ -4,6 +4,56 @@ import '../models/community.dart';
 class CommunityService {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
 
+  // Check if a community exists by location
+  Future<bool> checkCommunityExists({
+    required String regionCode,
+    required String provinceCode,
+    required String municipalityCode,
+    required String barangayCode,
+  }) async {
+    final locationId = Community.createLocationId(
+      regionCode: regionCode,
+      provinceCode: provinceCode,
+      municipalityCode: municipalityCode,
+      barangayCode: barangayCode,
+    );
+
+    final snapshot = await _database
+        .child('communities')
+        .orderByChild('locationId')
+        .equalTo(locationId)
+        .get();
+
+    return snapshot.exists;
+  }
+
+  // Get community by location
+  Future<Community?> getCommunityByLocation({
+    required String regionCode,
+    required String provinceCode,
+    required String municipalityCode,
+    required String barangayCode,
+  }) async {
+    final locationId = Community.createLocationId(
+      regionCode: regionCode,
+      provinceCode: provinceCode,
+      municipalityCode: municipalityCode,
+      barangayCode: barangayCode,
+    );
+
+    final snapshot = await _database
+        .child('communities')
+        .orderByChild('locationId')
+        .equalTo(locationId)
+        .get();
+
+    if (!snapshot.exists) return null;
+
+    final data = snapshot.value as Map<dynamic, dynamic>;
+    final entry = data.entries.first;
+    return Community.fromMap(entry.key, entry.value as Map<dynamic, dynamic>);
+  }
+
   // Fetch all communities
   Stream<List<Community>> getCommunities() {
     return _database.child('communities').onValue.map((event) {
@@ -28,12 +78,46 @@ class CommunityService {
   }
 
   // Create a new community
-  Future<String> createCommunity(String name, String description) async {
+  Future<String> createCommunity({
+    required String name,
+    required String description,
+    required String regionCode,
+    required String provinceCode,
+    required String municipalityCode,
+    required String barangayCode,
+    String? adminId,
+  }) async {
+    // Check if community already exists
+    final exists = await checkCommunityExists(
+      regionCode: regionCode,
+      provinceCode: provinceCode,
+      municipalityCode: municipalityCode,
+      barangayCode: barangayCode,
+    );
+
+    if (exists) {
+      throw Exception('A community is already registered for this location');
+    }
+
+    final locationId = Community.createLocationId(
+      regionCode: regionCode,
+      provinceCode: provinceCode,
+      municipalityCode: municipalityCode,
+      barangayCode: barangayCode,
+    );
+
     final newCommunityRef = _database.child('communities').push();
     await newCommunityRef.set({
       'name': name,
       'description': description,
+      'adminId': null, // Will be set after admin application approval
+      'status': 'pending',
       'createdAt': ServerValue.timestamp,
+      'regionCode': regionCode,
+      'provinceCode': provinceCode,
+      'municipalityCode': municipalityCode,
+      'barangayCode': barangayCode,
+      'locationId': locationId,
     });
     return newCommunityRef.key!;
   }
