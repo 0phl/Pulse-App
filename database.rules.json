@@ -1,8 +1,8 @@
 {
   "rules": {
     "otps": {
-      ".read": true,  
-      ".write": true, 
+      ".read": true,
+      ".write": true,
       "$email": {
         ".read": "auth != null && $email === auth.token.email.replace('.', '_')",
         ".validate": "newData.hasChildren(['hash', 'expiresAt', 'attempts'])",
@@ -23,7 +23,7 @@
         }
       },
     "users": {
-      ".read": "auth != null",
+      ".read": true,
       ".indexOn": ["email", "role", "communityId", "username"],
       "$uid": {
         ".write": "auth != null && auth.uid === $uid",

@@ -29,6 +29,8 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+      // Set persistence to NONE to prevent auto sign-in for web
+      await FirebaseAuth.instance.setPersistence(Persistence.NONE);
     } catch (e) {
       print('Firebase initialization error: $e');
     }
@@ -37,6 +39,8 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+      // Set persistence to NONE to prevent auto sign-in for mobile
+      await FirebaseAuth.instance.setPersistence(Persistence.NONE);
     } catch (e) {
       print('Firebase initialization error: $e');
     }
@@ -44,6 +48,9 @@ void main() async {
 
   FirebaseDatabase.instance.databaseURL =
       'https://pulse-app-ea5be-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+  // Clear any existing auth state after Firebase initialization
+  await FirebaseAuth.instance.signOut();
 
   runApp(const MyApp());
 }

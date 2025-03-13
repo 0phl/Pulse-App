@@ -23,6 +23,7 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  String _loadingMessage = '';
   final _authService = AuthService();
 
   @override
@@ -94,9 +95,9 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       prefixIcon: const Icon(Icons.mail_outline),
                     ),
-                    validator: (value) {
+                      validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your email or username';
+                        return 'Email or username is required to sign in';
                       }
                       return null;
                     },
@@ -135,7 +136,7 @@ class _LoginPageState extends State<LoginPage> {
                     obscureText: _obscurePassword,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
+                        return 'Password is required to sign in';
                       }
                       return null;
                     },
@@ -163,6 +164,7 @@ class _LoginPageState extends State<LoginPage> {
                               if (_formKey.currentState!.validate()) {
                                 setState(() {
                                   _isLoading = true;
+                                  _loadingMessage = 'Signing in...';
                                 });
                                 try {
                                   print('LoginPage: Starting login process');
@@ -190,10 +192,27 @@ class _LoginPageState extends State<LoginPage> {
                                 } catch (e) {
                                   print('LoginPage: Login error: $e');
                                   if (mounted) {
+                                    String errorMessage = 'Invalid password. Please check your credentials and try again.';
+                                    if (e.toString().contains('user-not-found')) {
+                                      errorMessage = 'No account found with these credentials. Please check your details.';
+                                    } else if (e.toString().contains('network-request-failed')) {
+                                      errorMessage = 'Connection error. Please check your internet connection.';
+                                    } else if (e.toString().contains('too-many-requests')) {
+                                      errorMessage = 'Too many login attempts. Please try again later.';
+                                    }
+                                    
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(e.toString()),
+                                        content: Text(errorMessage),
                                         backgroundColor: Colors.red,
+                                        duration: const Duration(seconds: 4),
+                                        action: SnackBarAction(
+                                          label: 'Dismiss',
+                                          textColor: Colors.white,
+                                          onPressed: () {
+                                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                          },
+                                        ),
                                       ),
                                     );
                                   }
@@ -214,15 +233,30 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         elevation: 0,
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
+                          child: _isLoading
+                              ? Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    if (_loadingMessage.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _loadingMessage,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                )
                           : const Text(
                               'Login',
                               style: TextStyle(

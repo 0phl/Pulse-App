@@ -24,7 +24,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
     if (kIsWeb) return Container();
 
     return StreamBuilder<User?>(
-      initialData: FirebaseAuth.instance.currentUser,
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {

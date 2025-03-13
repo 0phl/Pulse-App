@@ -9,6 +9,43 @@ class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
+  final _maxRetries = 3;
+  final _retryDelay = Duration(milliseconds: 500);
+
+  Future<void> _waitForConnection() async {
+    final connectedRef = FirebaseDatabase.instance.ref(".info/connected");
+    bool isConnected = false;
+    try {
+      final snapshot = await connectedRef.get();
+      isConnected = snapshot.value as bool? ?? false;
+      if (!isConnected) {
+        await Future.delayed(_retryDelay);
+      }
+    } catch (e) {
+      print('AuthService: Error checking connection: $e');
+      await Future.delayed(_retryDelay);
+    }
+  }
+
+  Future<DataSnapshot> _queryUsernameWithRetry(String username, int retryCount) async {
+    try {
+      await _waitForConnection();
+      return await _database
+          .child('users')
+          .orderByChild('username')
+          .equalTo(username)
+          .once()
+          .then((event) => event.snapshot);
+    } catch (e) {
+      print('AuthService: Error querying username (attempt ${retryCount + 1}): $e');
+      if (retryCount < _maxRetries) {
+        await Future.delayed(_retryDelay);
+        return _queryUsernameWithRetry(username, retryCount + 1);
+      }
+      throw Exception('Failed to query username after $_maxRetries attempts');
+    }
+  }
+
   // Check user type and handle admin first login
   Future<Map<String, dynamic>> signInWithEmailOrUsername(
       String emailOrUsername, String password) async {
@@ -26,14 +63,10 @@ class AuthService {
         print(
             'AuthService: Attempting to find user by username: $emailOrUsername');
         // If not email, search for user by username
-        final snapshot = await _database
-            .child('users')
-            .orderByChild('username')
-            .equalTo(emailOrUsername)
-            .once();
+        final snapshot = await _queryUsernameWithRetry(emailOrUsername, 0);
 
-        if (snapshot.snapshot.value != null) {
-          final userData = (snapshot.snapshot.value as Map).values.first as Map;
+        if (snapshot.value != null) {
+          final userData = (snapshot.value as Map).values.first as Map;
           final email = userData['email'] as String;
           print('AuthService: Found user by username, email: $email');
 
