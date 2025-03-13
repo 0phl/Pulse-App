@@ -73,11 +73,72 @@ class EmailService {
       ..recipients = [recipientEmail]
       ..subject = 'Your OTP Verification Code'
       ..html = '''
-        <h2>Email Verification</h2>
-        <p>Your OTP verification code is:</p>
-        <h1 style="font-size: 32px; letter-spacing: 5px; color: #4CAF50;">$otp</h1>
-        <p>This code will expire in 3 minutes.</p>
-        <p>If you did not request this code, please ignore this email.</p>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verification - PULSE App</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #F5F5F5;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff;">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background-color: #00C49A; padding: 30px 20px; text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 500;">Email Verification</h1>
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 30px;">
+                            <div style="text-align: center; margin-bottom: 30px;">
+                                <h2 style="color: #00C49A; margin-bottom: 15px;">Verify Your Email Address</h2>
+                                <p style="margin: 0; color: #666666; font-size: 16px;">Please use the verification code below to complete your registration:</p>
+                            </div>
+
+                            <!-- OTP Code Box -->
+                            <div style="background-color: #E0F7F3; border: 2px solid #00C49A; border-radius: 8px; padding: 25px; margin: 20px 0; text-align: center;">
+                                <h3 style="color: #00C49A; letter-spacing: 5px; font-size: 32px; margin: 0; font-family: monospace;">$otp</h3>
+                            </div>
+
+                            <!-- Timer Notice -->
+                            <div style="background-color: #FFF4E5; border-left: 4px solid #FF9800; padding: 20px; margin: 20px 0;">
+                                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                    <tr>
+                                        <td width="24" style="vertical-align: top; padding-right: 10px;">⏳</td>
+                                        <td>
+                                            <p style="margin: 0; color: #E65100; font-weight: 500;">This code will expire in 3 minutes</p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <!-- Security Notice -->
+                            <div style="background-color: #F8F9FA; border: 1px solid #E9ECEF; padding: 20px; margin: 20px 0;">
+                                <p style="margin: 0; color: #666666; font-size: 14px;">
+                                    If you did not request this verification code, please ignore this email. Your account security is important to us.
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #E0F7F3; padding: 20px; text-align: center;">
+                            <p style="margin: 0 0 10px 0; color: #666666;">Best regards,<br>PULSE App Team</p>
+                            <small style="color: #666666;">This is an automated message, please do not reply directly to this email.</small>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
       ''';
 
     await _sendEmail(message);
