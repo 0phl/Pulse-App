@@ -8,6 +8,8 @@ class AuditLogService {
   // Collection reference
   CollectionReference get _auditLogsCollection => 
       _firestore.collection('audit_logs');
+  CollectionReference get _usersCollection =>
+      _firestore.collection('users');
 
   // Create a new audit log entry
   Future<void> logAction({
@@ -18,19 +20,19 @@ class AuditLogService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('No authenticated user');
 
-    // Get admin's email from Firestore
-    final adminDoc = await _firestore
-        .collection('admins')
-        .doc(user.uid)
-        .get();
+    // Get user's data from Firestore
+    final userDoc = await _usersCollection.doc(user.uid).get();
+    if (!userDoc.exists) throw Exception('User not found');
 
-    if (!adminDoc.exists) {
-      throw Exception('User is not an admin');
-    }
+    final userData = userDoc.data() as Map<String, dynamic>;
+    final isAdmin = userData['role'] == 'admin';
+    final communityId = userData['communityId'] as String;
 
     await _auditLogsCollection.add({
-      'adminId': user.uid,
-      'adminEmail': user.email,
+      'userId': user.uid,
+      'userEmail': user.email,
+      'isAdmin': isAdmin,
+      'communityId': communityId,
       'actionType': actionType,
       'targetResource': targetResource,
       'details': details,
@@ -47,7 +49,20 @@ class AuditLogService {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    Query query = _auditLogsCollection.orderBy('timestamp', descending: true);
+    final currentAdmin = _auth.currentUser;
+    if (currentAdmin == null) throw Exception('No admin logged in');
+
+    // Get admin's community ID
+    final adminDoc = await _usersCollection.doc(currentAdmin.uid).get();
+    if (!adminDoc.exists) throw Exception('Admin not found');
+    
+    final adminData = adminDoc.data() as Map<String, dynamic>;
+    final communityId = adminData['communityId'] as String;
+
+    // Start with base query for admin's community
+    Query query = _auditLogsCollection
+        .where('communityId', isEqualTo: communityId)
+        .orderBy('timestamp', descending: true);
 
     // Apply filters if provided
     if (actionType != null) {
@@ -118,7 +133,20 @@ class AuditLogService {
     DateTime? endDate,
     String? actionType,
   }) async {
-    Query query = _auditLogsCollection.orderBy('timestamp', descending: true);
+    // Get admin's community ID first
+    final currentAdmin = _auth.currentUser;
+    if (currentAdmin == null) throw Exception('No admin logged in');
+
+    final adminDoc = await _usersCollection.doc(currentAdmin.uid).get();
+    if (!adminDoc.exists) throw Exception('Admin not found');
+    
+    final adminData = adminDoc.data() as Map<String, dynamic>;
+    final communityId = adminData['communityId'] as String;
+
+    // Start with community-specific query
+    Query query = _auditLogsCollection
+        .where('communityId', isEqualTo: communityId)
+        .orderBy('timestamp', descending: true);
 
     if (startDate != null) {
       query = query.where('timestamp', 
@@ -143,16 +171,39 @@ class AuditLogService {
 
 // Enum for common action types
 enum AuditActionType {
-  userCreated('USER_CREATED'),
-  userUpdated('USER_UPDATED'),
-  userDeleted('USER_DELETED'),
-  communityCreated('COMMUNITY_CREATED'),
-  communityUpdated('COMMUNITY_UPDATED'),
-  communityDeleted('COMMUNITY_DELETED'),
+  // User related
+  userViewed('USER_VIEWED'),
+  userStatsViewed('USER_STATS_VIEWED'),
+
+  // Reports
+  reportViewed('REPORT_VIEWED'),
   reportHandled('REPORT_HANDLED'),
-  settingsChanged('SETTINGS_CHANGED'),
+
+  // Notices
+  noticeViewed('NOTICE_VIEWED'),
+  noticeCreated('NOTICE_CREATED'),
+  noticeUpdated('NOTICE_UPDATED'),
+  noticeDeleted('NOTICE_DELETED'),
+
+  // Marketplace
+  marketplaceViewed('MARKETPLACE_VIEWED'),
+  marketplaceItemViewed('MARKETPLACE_ITEM_VIEWED'),
+  marketplaceItemRemoved('MARKETPLACE_ITEM_REMOVED'),
+  sellerWarned('SELLER_WARNED'),
+
+  // Volunteer Posts - Admin Actions
+  volunteerPostsViewed('VOLUNTEER_POSTS_VIEWED'),
+  volunteerPostViewed('VOLUNTEER_POST_VIEWED'),
+  volunteerPostRemoved('VOLUNTEER_POST_REMOVED'),
+
+  // Volunteer Posts - User Actions
+  volunteerSignedUp('VOLUNTEER_SIGNED_UP'),
+  volunteerCancelled('VOLUNTEER_CANCELLED'),
+
+  // Security
   loginAttempt('LOGIN_ATTEMPT'),
   passwordChanged('PASSWORD_CHANGED'),
+  settingsChanged('SETTINGS_CHANGED'),
   dataExported('DATA_EXPORTED');
 
   final String value;

@@ -1,77 +1,11 @@
 {
   "indexes": [
     {
-      "collectionGroup": "market_items",
+      "collectionGroup": "audit_logs",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "sellerId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "market_items",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "communityId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "market_items",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "communityId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "sellerId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "volunteer_posts",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "communityId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "date",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "market_items",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "sellerId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "hasUnreadMessages",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "communityId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
     }
   ]

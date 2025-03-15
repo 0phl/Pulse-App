@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/volunteer_post.dart';
 import 'add_volunteer_post_page.dart';
 import '../services/community_service.dart';
+import '../services/audit_log_service.dart';
 import 'package:intl/intl.dart';
 
 class VolunteerPage extends StatefulWidget {
@@ -17,6 +18,7 @@ class _VolunteerPageState extends State<VolunteerPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final CommunityService _communityService = CommunityService();
+  final AuditLogService _auditLogService = AuditLogService();
   Stream<List<VolunteerPost>>? _postsStream;
   String? _currentUserCommunityId;
   bool _isLoading = false;
@@ -117,6 +119,19 @@ class _VolunteerPageState extends State<VolunteerPage> {
             'spotsLeft': currentSpotsLeft - 1,
             'participants': participants,
           });
+
+          // Log the signup action
+          await _auditLogService.logAction(
+            actionType: AuditActionType.volunteerSignedUp.value,
+            targetResource: 'volunteer_posts/${post.id}',
+            details: {
+              'action': 'Signed up for volunteer activity',
+              'postTitle': post.title,
+              'spotsLeft': currentSpotsLeft - 1,
+              'timestamp': DateTime.now().toIso8601String(),
+            },
+          );
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Successfully signed up!')),
           );
@@ -161,6 +176,19 @@ class _VolunteerPageState extends State<VolunteerPage> {
           'spotsLeft': currentSpotsLeft + 1,
           'participants': participants,
         });
+
+        // Log the cancellation action
+        await _auditLogService.logAction(
+          actionType: AuditActionType.volunteerCancelled.value,
+          targetResource: 'volunteer_posts/${post.id}',
+          details: {
+            'action': 'Cancelled volunteer signup',
+            'postTitle': post.title,
+            'spotsLeft': currentSpotsLeft + 1,
+            'timestamp': DateTime.now().toIso8601String(),
+          },
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Successfully cancelled signup!')),
         );

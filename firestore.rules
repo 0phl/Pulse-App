@@ -13,9 +13,17 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-
+    
     function canAccessStats(request) {
       return isAdmin(request) || isSuperAdmin(request);
+    }
+    
+    function getUserCommunityId(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.communityId;
+    }
+    
+    function inSameCommunity(request, targetUserId) {
+      return getUserCommunityId(request.auth.uid) == getUserCommunityId(targetUserId);
     }
 
     // Admin requests collection
@@ -28,23 +36,26 @@ service cloud.firestore {
     // Communities collection
     match /communities/{communityId} {
       allow read: if request.auth != null;
-      allow write: if isSuperAdmin(request) || isAdmin(request) || 
-                  (isCommunityAdmin(request) && 
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.communityId == communityId);
+      allow write: if isSuperAdmin(request) || isAdmin(request);
     }
 
     // Users collection
     match /users/{userId} {
-      allow read: if request.auth != null;  // Allow all authenticated users to read
+      // Regular users can read their own data, admins can read all user data
+      allow read: if request.auth != null && (
+        request.auth.uid == userId || 
+        isAdmin(request) || 
+        isSuperAdmin(request)
+      );
+      
       allow create: if request.auth != null && request.auth.uid == userId;  // Users can create their own documents
+      
       allow update: if request.auth != null && (
         request.auth.uid == userId ||  // Users can update their own documents
         isSuperAdmin(request) ||       // Super admins can update any user
-        isAdmin(request) ||            // Admins can update any user
-        (isCommunityAdmin(request) &&  // Community admins can update users in their community
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.communityId == 
-         get(/databases/$(database)/documents/users/$(userId)).data.communityId)
+        isAdmin(request)               // Admins can update any user
       );
+      
       allow delete: if isSuperAdmin(request);  // Only super admins can delete users
     }
 
@@ -88,8 +99,12 @@ service cloud.firestore {
 
     // Audit logs collection
     match /audit_logs/{logId} {
+      function isVolunteerAction(actionType) {
+        return actionType in ['VOLUNTEER_SIGNED_UP', 'VOLUNTEER_CANCELLED'];
+      }
+
       allow read: if isAdmin(request) || isSuperAdmin(request);
-      allow create: if isAdmin(request) || isSuperAdmin(request);
+      allow create: if request.auth != null; // Any authenticated user can create audit logs
       allow update, delete: if false; // Audit logs should never be modified or deleted
     }
 
