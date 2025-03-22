@@ -3,8 +3,6 @@ import '../widgets/market_item_card.dart';
 import '../models/market_item.dart';
 import 'chat_page.dart';
 import 'add_item_page.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -13,6 +11,7 @@ import '../widgets/image_viewer_page.dart';
 import 'edit_item_page.dart';
 import 'chat_list_page.dart';
 import '../services/community_service.dart';
+import '../services/cloudinary_service.dart';
 
 class MarketPage extends StatefulWidget {
   const MarketPage({super.key});
@@ -162,7 +161,7 @@ class _MarketPageState extends State<MarketPage>
 
       final userData = userSnapshot.value as Map<dynamic, dynamic>;
 
-      // Upload image to Imgur and get the download URL
+      // Upload image to Cloudinary and get the download URL
       String downloadUrl = await _uploadImage(item.imageUrl);
 
       // Create new item document in Firestore using the item's ID
@@ -197,25 +196,9 @@ class _MarketPageState extends State<MarketPage>
   }
 
   Future<String> _uploadImage(String imagePath) async {
-    File imageFile = File(imagePath); // Convert the path to a File
-    final bytes = await imageFile.readAsBytes();
-    final base64Image = base64Encode(bytes);
-
-    final response = await http.post(
-      Uri.parse('https://api.imgur.com/3/image'),
-      headers: {
-        'Authorization': 'Client-ID d22045c222ba371', // Use your Client ID
-        'Content-Type': 'application/json',
-      },
-      body: json.encode({'image': base64Image}),
-    );
-
-    if (response.statusCode == 200) {
-      final jsonResponse = json.decode(response.body);
-      return jsonResponse['data']['link']; // Return the image URL
-    } else {
-      throw Exception('Failed to upload image: ${response.body}');
-    }
+    File imageFile = File(imagePath);
+    final cloudinaryService = CloudinaryService();
+    return await cloudinaryService.uploadMarketImage(imageFile);
   }
 
   void _handleImageTap(BuildContext context, String imageUrl) {

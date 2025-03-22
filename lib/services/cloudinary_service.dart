@@ -5,10 +5,26 @@ class CloudinaryService {
   static final CloudinaryService _instance = CloudinaryService._internal();
   factory CloudinaryService() => _instance;
   
-  late final CloudinaryPublic cloudinary;
+  late final CloudinaryPublic adminCloudinary;
+  late final CloudinaryPublic marketCloudinary;
   
   CloudinaryService._internal() {
-    cloudinary = CloudinaryPublic('dy1jizr52', 'Admin_docs', cache: false);
+    adminCloudinary = CloudinaryPublic('dy1jizr52', 'Admin_docs', cache: false);
+    marketCloudinary = CloudinaryPublic('dy1jizr52', 'market_images', cache: false);
+  }
+
+  Future<String> uploadMarketImage(File file) async {
+    try {
+      final cloudinaryFile = CloudinaryFile.fromFile(
+        file.path,
+        folder: 'market',
+      );
+      
+      CloudinaryResponse response = await marketCloudinary.uploadFile(cloudinaryFile);
+      return response.secureUrl;
+    } catch (e) {
+      throw Exception('Failed to upload market image: $e');
+    }
   }
 
   Future<String> uploadFile(File file) async {
@@ -17,13 +33,15 @@ class CloudinaryService {
       final isPdf = file.path.toLowerCase().endsWith('.pdf');
       final fileFolder = isPdf ? 'Admin_docs/pdfs' : 'Admin_docs';
       
+      final targetCloudinary = adminCloudinary;
+      
       final cloudinaryFile = CloudinaryFile.fromFile(
         file.path,
         folder: fileFolder,
       );
       
       // Upload file
-      CloudinaryResponse response = await cloudinary.uploadFile(cloudinaryFile);
+      CloudinaryResponse response = await targetCloudinary.uploadFile(cloudinaryFile);
       
       if (isPdf) {
         // For PDFs, add dl=1 to force download
