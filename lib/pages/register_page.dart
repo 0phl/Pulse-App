@@ -9,7 +9,9 @@ import '../models/community.dart';
 import '../models/registration_data.dart';
 import 'otp_verification_page.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
+import 'dart:async';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -57,6 +59,9 @@ class _RegisterPageState extends State<RegisterPage>
   bool _showNewPassword = false;
   bool _showConfirmPassword = false;
   bool _passwordsMatch = true;
+  bool _isEmailAvailable = true;
+  bool _isCheckingEmail = false;
+  Timer? _emailCheckDebouncer;
 
   Future<void> _showVerificationDialog() async {
     await showDialog(
@@ -104,6 +109,7 @@ class _RegisterPageState extends State<RegisterPage>
 
   @override
   void dispose() {
+    _emailCheckDebouncer?.cancel();
     _shakeController.dispose();
     _scrollController.dispose();
     _birthDateController.dispose();
@@ -297,6 +303,45 @@ class _RegisterPageState extends State<RegisterPage>
     );
   }
 
+  Future<void> _checkEmailAvailability(String email) async {
+    if (email.isEmpty) {
+      setState(() {
+        _isEmailAvailable = true;
+        _isCheckingEmail = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isCheckingEmail = true;
+    });
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final querySnapshot = await firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .get();
+
+      if (mounted) {
+        setState(() {
+          _isEmailAvailable = querySnapshot.docs.isEmpty;
+          _isCheckingEmail = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isEmailAvailable = true;
+          _isCheckingEmail = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking email: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -418,16 +463,46 @@ class _RegisterPageState extends State<RegisterPage>
                         borderSide: const BorderSide(color: Color(0xFF00C49A)),
                       ),
                       prefixIcon: const Icon(Icons.mail_outline),
+                      suffixIcon: _isCheckingEmail
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : _emailController.text.isNotEmpty &&
+                                  !_isEmailAvailable
+                              ? const Icon(
+                                  Icons.error,
+                                  color: Colors.red,
+                                )
+                              : null,
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 16),
                     ),
                     autovalidateMode: AutovalidateMode.onUserInteraction,
+                    onChanged: (value) {
+                      // Cancel previous debounced call
+                      _emailCheckDebouncer?.cancel();
+                      // Create new debounced call
+                      _emailCheckDebouncer = Timer(
+                        const Duration(milliseconds: 500),
+                        () => _checkEmailAvailability(value),
+                      );
+                    },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';
                       }
                       if (!value.contains('@') || !value.contains('.')) {
                         return 'Please enter a valid email address';
+                      }
+                      if (!_isEmailAvailable) {
+                        return 'This email is already registered';
                       }
                       return null;
                     },
@@ -614,7 +689,8 @@ class _RegisterPageState extends State<RegisterPage>
                                   final locationId = Community.createLocationId(
                                     regionCode: _selectedRegion!.code,
                                     provinceCode: _selectedProvince!.code,
-                                    municipalityCode: _selectedMunicipality!.code,
+                                    municipalityCode:
+                                        _selectedMunicipality!.code,
                                     barangayCode: _selectedBarangay!.code,
                                   );
 
@@ -624,7 +700,8 @@ class _RegisterPageState extends State<RegisterPage>
                                     'province': _selectedProvince!.name,
                                     'provinceCode': _selectedProvince!.code,
                                     'municipality': _selectedMunicipality!.name,
-                                    'municipalityCode': _selectedMunicipality!.code,
+                                    'municipalityCode':
+                                        _selectedMunicipality!.code,
                                     'barangay': _selectedBarangay!.name,
                                     'barangayCode': _selectedBarangay!.code,
                                     'locationId': locationId,

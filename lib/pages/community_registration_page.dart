@@ -7,6 +7,8 @@ import '../services/community_service.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/cloudinary_service.dart';
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 
 class CommunityRegistrationPage extends StatefulWidget {
   const CommunityRegistrationPage({super.key});
@@ -42,6 +44,9 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
   bool _isLoading = false;
   bool _isUploadingFiles = false;
   bool _isCheckingCommunity = false;
+  bool _isEmailAvailable = true;
+  bool _isCheckingEmail = false;
+  Timer? _emailCheckDebouncer;
 
   @override
   void initState() {
@@ -224,6 +229,45 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
     }
   }
 
+  Future<void> _checkEmailAvailability(String email) async {
+    if (email.isEmpty) {
+      setState(() {
+        _isEmailAvailable = true;
+        _isCheckingEmail = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isCheckingEmail = true;
+    });
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final querySnapshot = await firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .get();
+
+      if (mounted) {
+        setState(() {
+          _isEmailAvailable = querySnapshot.docs.isEmpty;
+          _isCheckingEmail = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isEmailAvailable = true;
+          _isCheckingEmail = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking email: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -300,6 +344,14 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                     controller: _emailController,
                     decoration: InputDecoration(
                       labelText: 'Email',
+                      errorText: _emailController.text.isNotEmpty
+                          ? (!_emailController.text.contains('@') ||
+                                  !_emailController.text.contains('.'))
+                              ? 'Please enter a valid email address'
+                              : !_isEmailAvailable
+                                  ? 'This email is already registered'
+                                  : null
+                          : null,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: Colors.grey),
@@ -313,12 +365,50 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                         borderSide: const BorderSide(color: Color(0xFF00C49A)),
                       ),
                       prefixIcon: const Icon(Icons.mail_outline),
+                      suffixIcon: _isCheckingEmail
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : _emailController.text.isNotEmpty &&
+                                  (!_emailController.text.contains('@') ||
+                                      !_emailController.text.contains('.') ||
+                                      !_isEmailAvailable)
+                              ? const Icon(
+                                  Icons.error,
+                                  color: Colors.red,
+                                )
+                              : null,
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 16),
                     ),
+                    onChanged: (value) {
+                      setState(
+                          () {}); // Trigger rebuild to update error message
+                      // Cancel previous debounced call
+                      _emailCheckDebouncer?.cancel();
+                      // Create new debounced call
+                      if (value.contains('@') && value.contains('.')) {
+                        _emailCheckDebouncer = Timer(
+                          const Duration(milliseconds: 500),
+                          () => _checkEmailAvailability(value),
+                        );
+                      }
+                    },
                     validator: (value) {
                       if (value?.isEmpty ?? true) return 'Email is required';
-                      if (!value!.contains('@')) return 'Invalid email';
+                      if (!value!.contains('@') || !value.contains('.')) {
+                        return 'Please enter a valid email address';
+                      }
+                      if (!_isEmailAvailable) {
+                        return 'This email is already registered';
+                      }
                       return null;
                     },
                   ),
@@ -556,7 +646,9 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: (_isLoading || _selectedFiles.isEmpty || _isCheckingCommunity)
+                      onPressed: (_isLoading ||
+                              _selectedFiles.isEmpty ||
+                              _isCheckingCommunity)
                           ? null
                           : () async {
                               if (_formKey.currentState!.validate()) {
@@ -566,16 +658,19 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
 
                                 try {
                                   // Check if community exists
-                                  final exists = await _communityService.checkCommunityExists(
+                                  final exists = await _communityService
+                                      .checkCommunityExists(
                                     regionCode: _selectedRegion!.code,
                                     provinceCode: _selectedProvince!.code,
-                                    municipalityCode: _selectedMunicipality!.code,
+                                    municipalityCode:
+                                        _selectedMunicipality!.code,
                                     barangayCode: _selectedBarangay!.code,
                                   );
 
                                   if (exists) {
                                     if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
                                         const SnackBar(
                                           content: Text(
                                             'This community is already registered. Please contact the administrator.',
@@ -591,12 +686,16 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                                   final uploadedUrls = await _uploadFiles();
 
                                   // Create the community first
-                                  final communityId = await _communityService.createCommunity(
-                                    name: '${_selectedBarangay?.name} Community',
-                                    description: 'Community for ${_selectedBarangay?.name}',
+                                  final communityId =
+                                      await _communityService.createCommunity(
+                                    name:
+                                        '${_selectedBarangay?.name} Community',
+                                    description:
+                                        'Community for ${_selectedBarangay?.name}',
                                     regionCode: _selectedRegion!.code,
                                     provinceCode: _selectedProvince!.code,
-                                    municipalityCode: _selectedMunicipality!.code,
+                                    municipalityCode:
+                                        _selectedMunicipality!.code,
                                     barangayCode: _selectedBarangay!.code,
                                   );
 
@@ -606,17 +705,18 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                                     fullName: _fullNameController.text,
                                     email: _emailController.text,
                                     communityId: communityId,
-                                    communityName: '${_selectedBarangay?.name} Community',
+                                    communityName:
+                                        '${_selectedBarangay?.name} Community',
                                     documents: uploadedUrls,
                                     status: 'pending',
                                     createdAt: DateTime.now(),
                                   );
 
                                   await FirebaseDatabase.instance
-                                    .ref()
-                                    .child('admin_applications')
-                                    .push()
-                                    .set(application.toJson());
+                                      .ref()
+                                      .child('admin_applications')
+                                      .push()
+                                      .set(application.toJson());
 
                                   if (mounted) {
                                     Navigator.pop(context);
@@ -658,7 +758,9 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                         disabledBackgroundColor:
                             const Color(0xFF00C49A).withOpacity(0.5),
                       ),
-                      child: _isLoading || _isUploadingFiles || _isCheckingCommunity
+                      child: _isLoading ||
+                              _isUploadingFiles ||
+                              _isCheckingCommunity
                           ? Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -704,6 +806,7 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
 
   @override
   void dispose() {
+    _emailCheckDebouncer?.cancel();
     _fullNameController.dispose();
     _emailController.dispose();
     super.dispose();

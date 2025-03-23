@@ -29,7 +29,7 @@ service cloud.firestore {
     // Admin requests collection
     match /admin_requests/{requestId} {
       allow read: if isSuperAdmin(request) || isAdmin(request);
-      allow create: if request.auth != null;  // Anyone can submit a request
+      allow create: if request.auth != null;
       allow update, delete: if isSuperAdmin(request);
     }
 
@@ -39,25 +39,16 @@ service cloud.firestore {
       allow write: if isSuperAdmin(request) || isAdmin(request);
     }
 
-    // Users collection
-    match /users/{userId} {
-      // Regular users can read their own data, admins can read all user data
-      allow read: if request.auth != null && (
-        request.auth.uid == userId || 
-        isAdmin(request) || 
-        isSuperAdmin(request)
-      );
-      
-      allow create: if request.auth != null && request.auth.uid == userId;  // Users can create their own documents
-      
-      allow update: if request.auth != null && (
-        request.auth.uid == userId ||  // Users can update their own documents
-        isSuperAdmin(request) ||       // Super admins can update any user
-        isAdmin(request)               // Admins can update any user
-      );
-      
-      allow delete: if isSuperAdmin(request);  // Only super admins can delete users
-    }
+// Users collection
+match /users/{userId} {
+  allow read: if request.auth == null;
+  
+  allow create: if request.auth == null;
+  
+  allow update: if request.auth != null && request.auth.uid == userId;
+  
+  allow delete: if isSuperAdmin(request);
+}
 
     // Market items collection rules
     match /market_items/{itemId} {
@@ -104,8 +95,8 @@ service cloud.firestore {
       }
 
       allow read: if isAdmin(request) || isSuperAdmin(request);
-      allow create: if request.auth != null; // Any authenticated user can create audit logs
-      allow update, delete: if false; // Audit logs should never be modified or deleted
+      allow create: if request.auth != null;
+      allow update, delete: if false; 
     }
 
     // Collection statistics access
