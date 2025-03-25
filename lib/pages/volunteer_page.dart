@@ -352,10 +352,42 @@ class _VolunteerPageState extends State<VolunteerPage> {
                 final posts = snapshot.data ?? [];
 
                 if (posts.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No volunteer opportunities available',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.volunteer_activism,
+                          size: 80,
+                          color: Color(0xFF00C49A).withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          child: const Text(
+                            'No Volunteer Opportunities',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2D3748),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 40),
+                          child: Text(
+                            'Wait for your community administrator to create a volunteer opportunity.',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                              height: 1.4,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 }

@@ -335,6 +335,13 @@ class _MarketPageState extends State<MarketPage>
       );
     }
 
+    // Precache next few images
+    for (var i = 0; i < items.length && i < 5; i++) {
+      if (items[i].imageUrl.startsWith('http')) {
+        precacheImage(NetworkImage(items[i].imageUrl), context);
+      }
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: items.length,

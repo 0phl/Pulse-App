@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/market_item.dart';
 import 'dart:io';
+import 'package:transparent_image/transparent_image.dart';
 
 class MarketItemCard extends StatelessWidget {
   final MarketItem item;
@@ -157,14 +158,23 @@ class MarketItemCard extends StatelessWidget {
   Widget _buildImage() {
     if (item.imageUrl.startsWith('http')) {
       // Network image
-      return Image.network(
-        item.imageUrl,
-        height: 200,
-        width: double.infinity,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildErrorPlaceholder();
-        },
+      return Stack(
+        children: [
+          Container(
+            height: 200,
+            width: double.infinity,
+            color: Colors.grey[200],
+          ),
+          FadeInImage.memoryNetwork(
+            placeholder: kTransparentImage,
+            image: item.imageUrl,
+            height: 200,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            fadeInDuration: const Duration(milliseconds: 200),
+            imageErrorBuilder: (context, error, stackTrace) => _buildErrorPlaceholder(),
+          ),
+        ],
       );
     } else {
       // Local file image

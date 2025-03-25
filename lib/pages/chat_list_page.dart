@@ -373,13 +373,42 @@ class _ChatListPageState extends State<ChatListPage> {
           : _error != null
               ? Center(child: Text(_error!))
               : _chats.isEmpty
-                  ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text(
-                          'No chats yet. When you message sellers or receive messages about your items, they will appear here.',
-                          textAlign: TextAlign.center,
-                        ),
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 80,
+                            color: Color(0xFF00C49A).withOpacity(0.5),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 32),
+                            child: const Text(
+                              'No chats yet',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF2D3748),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 40),
+                            child: Text(
+                              'When you message sellers or receive messages about your items, they will appear here',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[600],
+                                height: 1.4,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
                       ),
                     )
                   : ListView.builder(

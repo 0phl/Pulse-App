@@ -29,7 +29,7 @@ service cloud.firestore {
     // Admin requests collection
     match /admin_requests/{requestId} {
       allow read: if isSuperAdmin(request) || isAdmin(request);
-      allow create: if request.auth != null;
+      allow create: if request.auth != null;  // Anyone can submit a request
       allow update, delete: if isSuperAdmin(request);
     }
 
@@ -41,12 +41,20 @@ service cloud.firestore {
 
 // Users collection
 match /users/{userId} {
-  allow read: if request.auth == null;
+  // Anyone can read user data for email verification during registration
+  allow read: if true;
   
-  allow create: if request.auth == null;
+  // Users can create their own documents
+  allow create: if request.auth != null && request.auth.uid == userId;
   
-  allow update: if request.auth != null && request.auth.uid == userId;
+  // Users can update their own documents, admins and super admins can update any user
+  allow update: if request.auth != null && (
+    request.auth.uid == userId ||
+    isSuperAdmin(request) ||
+    isAdmin(request)
+  );
   
+  // Only super admins can delete users
   allow delete: if isSuperAdmin(request);
 }
 
@@ -95,8 +103,8 @@ match /users/{userId} {
       }
 
       allow read: if isAdmin(request) || isSuperAdmin(request);
-      allow create: if request.auth != null;
-      allow update, delete: if false; 
+      allow create: if request.auth != null; // Any authenticated user can create audit logs
+      allow update, delete: if false; // Audit logs should never be modified or deleted
     }
 
     // Collection statistics access

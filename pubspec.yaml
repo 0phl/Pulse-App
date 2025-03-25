@@ -33,6 +33,7 @@ dependencies:
   cloudinary_public: ^0.23.1
   url_launcher: ^6.2.4
   timeago: ^3.6.1
+  transparent_image: ^2.0.1
 
 dev_dependencies:
   flutter_test:
