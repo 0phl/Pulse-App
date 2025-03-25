@@ -5,7 +5,6 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'firebase_options.dart';
 import 'widgets/auth_wrapper.dart';
-import 'pages/admin/audit_trail_page.dart';
 import 'pages/admin/change_password_page.dart';
 import 'pages/admin/community_notices_page.dart';
 import 'pages/admin/dashboard_page.dart';
@@ -68,9 +67,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00C49A)),
         useMaterial3: true,
       ),
-      home: kIsWeb 
-          ? const SuperAdminLoginPage() 
-          : const AuthWrapper(),
+      home: kIsWeb ? const SuperAdminLoginPage() : const AuthWrapper(),
       routes: kIsWeb
           ? {
               '/super-admin': (context) => const SuperAdminDashboardPage(),
@@ -78,17 +75,17 @@ class MyApp extends StatelessWidget {
             }
           : {
               '/login': (context) => const LoginPage(),
-              
+
               // Admin routes
               '/admin/dashboard': (context) => const AdminDashboardPage(),
               '/admin/change-password': (context) => const ChangePasswordPage(),
-              '/admin/audit': (context) => const AdminAuditTrailPage(),
               '/admin/users': (context) => const UsersPage(),
               '/admin/notices': (context) => const AdminCommunityNoticesPage(),
               '/admin/marketplace': (context) => const AdminMarketplacePage(),
-              '/admin/volunteer-posts': (context) => const AdminVolunteerPostsPage(),
+              '/admin/volunteer-posts': (context) =>
+                  const AdminVolunteerPostsPage(),
               '/admin/reports': (context) => const AdminReportsPage(),
-              
+
               // Main app routes
               '/home': (context) => const MainScreen(),
               '/market': (context) => const MarketPage(),

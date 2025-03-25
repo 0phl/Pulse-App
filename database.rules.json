@@ -15,10 +15,13 @@
         ".read": "auth != null",
         ".indexOn": ["communityId", "createdAt"],
         "$noticeId": {
-          ".write": "auth != null && (root.child('communities').child(newData.child('communityId').val()).child('adminId').val() === auth.uid || root.child('users').child(auth.uid).child('communityId').val() === newData.child('communityId').val())",
-          ".validate": "newData.hasChildren(['title', 'content', 'authorId', 'authorName', 'communityId', 'createdAt', 'likes', 'comments'])",
-          "communityId": {
-            ".validate": "newData.val() === root.child('users').child(auth.uid).child('communityId').val()"
+          ".write": "auth != null",
+          ".validate": "newData.hasChildren(['title', 'content', 'authorId', 'authorName', 'communityId'])",
+          "likes": {
+            ".write": "auth != null"
+          },
+          "comments": {
+            ".write": "auth != null"
           }
         }
       },

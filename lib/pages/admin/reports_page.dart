@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
 import '../../services/auth_service.dart';
-import '../../services/audit_log_service.dart';
 
 class AdminReportsPage extends StatefulWidget {
   const AdminReportsPage({super.key});
@@ -14,11 +13,10 @@ class AdminReportsPage extends StatefulWidget {
 class _AdminReportsPageState extends State<AdminReportsPage> {
   final _adminService = AdminService();
   final _authService = AuthService();
-  final _auditLogService = AuditLogService();
   String _communityName = '';
-  bool _isLoading = false;
+  bool _isLoading = true;
   List<Map<String, dynamic>> _reports = [];
-  
+
   @override
   void initState() {
     super.initState();
@@ -123,13 +121,6 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('Audit Trail'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/audit');
-              },
-            ),
-            ListTile(
               leading: const Icon(Icons.announcement),
               title: const Text('Community Notices'),
               onTap: () {
@@ -147,7 +138,8 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
               leading: const Icon(Icons.volunteer_activism),
               title: const Text('Volunteer Posts'),
               onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/volunteer-posts');
+                Navigator.pushReplacementNamed(
+                    context, '/admin/volunteer-posts');
               },
             ),
             ListTile(
@@ -182,8 +174,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                       child: ExpansionTile(
                         title: Text('Report #${report['id']}'),
                         subtitle: Text(
-                          'Type: ${report['type']} • Status: ${report['status']}'
-                        ),
+                            'Type: ${report['type']} • Status: ${report['status']}'),
                         children: [
                           Padding(
                             padding: const EdgeInsets.all(16),
@@ -199,7 +190,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                                   children: [
                                     TextButton(
                                       onPressed: () => _handleReport(
-                                        report, 
+                                        report['id'],
                                         'dismissed',
                                       ),
                                       child: const Text('Dismiss'),
@@ -207,7 +198,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
                                     const SizedBox(width: 8),
                                     ElevatedButton(
                                       onPressed: () => _handleReport(
-                                        report, 
+                                        report['id'],
                                         'action_taken',
                                       ),
                                       child: const Text('Take Action'),
@@ -231,16 +222,6 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     }
 
     try {
-      // Log that admin is viewing reports
-      await _auditLogService.logAction(
-        actionType: AuditActionType.reportViewed.value,
-        targetResource: 'reports',
-        details: {
-          'action': 'Viewed reports list',
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
-
       // TODO: Implement loading reports from Firestore
       // This is a placeholder for demo
       setState(() {
@@ -265,32 +246,21 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     }
   }
 
-  Future<void> _handleReport(Map<String, dynamic> report, String decision) async {
+  Future<void> _handleReport(String reportId, String action) async {
     try {
-      // Log the report handling action
-      await _auditLogService.logAction(
-        actionType: AuditActionType.reportHandled.value,
-        targetResource: 'reports/${report['id']}',
-        details: {
-          'action': 'Report handled',
-          'decision': decision,
-          'reportType': report['type'],
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
-
-      // TODO: Implement actual report handling logic
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Report ${decision == 'dismissed' ? 'dismissed' : 'handled'}')),
-      );
-
-      // Refresh reports list
-      _loadReports();
+      await _adminService.handleReport(reportId, action);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Report $action successfully')),
+        );
+        _loadReports();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error handling report: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error handling report: $e')),
+        );
+      }
     }
   }
 }

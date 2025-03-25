@@ -687,11 +687,10 @@ class _RegisterPageState extends State<RegisterPage>
                                   });
 
                                   final locationId = Community.createLocationId(
-                                    regionCode: _selectedRegion!.code,
-                                    provinceCode: _selectedProvince!.code,
-                                    municipalityCode:
-                                        _selectedMunicipality!.code,
-                                    barangayCode: _selectedBarangay!.code,
+                                    _selectedRegion!.code,
+                                    _selectedProvince!.code,
+                                    _selectedMunicipality!.code,
+                                    _selectedBarangay!.code,
                                   );
 
                                   Map<String, String> location = {

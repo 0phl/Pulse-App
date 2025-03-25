@@ -2,24 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
 import '../../services/auth_service.dart';
-import '../../services/audit_log_service.dart';
 import '../../models/volunteer_post.dart';
 
 class AdminVolunteerPostsPage extends StatefulWidget {
   const AdminVolunteerPostsPage({super.key});
 
   @override
-  State<AdminVolunteerPostsPage> createState() => _AdminVolunteerPostsPageState();
+  State<AdminVolunteerPostsPage> createState() =>
+      _AdminVolunteerPostsPageState();
 }
 
 class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
   final _adminService = AdminService();
   final _authService = AuthService();
-  final _auditLogService = AuditLogService();
   String _communityName = '';
-  bool _isLoading = false;
-  List<VolunteerPost> _posts = [];
-  
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _volunteerPosts = [];
+
   @override
   void initState() {
     super.initState();
@@ -124,13 +123,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('Audit Trail'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/audit');
-              },
-            ),
-            ListTile(
               leading: const Icon(Icons.announcement),
               title: const Text('Community Notices'),
               onTap: () {
@@ -177,7 +169,7 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Text(
-                    'Total Posts: ${_posts.length}',
+                    'Total Posts: ${_volunteerPosts.length}',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -185,18 +177,18 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                   ),
                 ),
                 Expanded(
-                  child: _posts.isEmpty
+                  child: _volunteerPosts.isEmpty
                       ? const Center(child: Text('No volunteer posts'))
                       : ListView.builder(
-                          itemCount: _posts.length,
+                          itemCount: _volunteerPosts.length,
                           padding: const EdgeInsets.all(16),
                           itemBuilder: (context, index) {
-                            final post = _posts[index];
+                            final post = _volunteerPosts[index];
                             return Card(
                               child: ListTile(
-                                title: Text(post.title),
+                                title: Text(post['title']),
                                 subtitle: Text(
-                                  post.description,
+                                  post['description'],
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -220,32 +212,24 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     }
 
     try {
-      // Log that admin is viewing volunteer posts
-      await _auditLogService.logAction(
-        actionType: AuditActionType.volunteerPostsViewed.value,
-        targetResource: 'volunteer_posts',
-        details: {
-          'action': 'Viewed volunteer posts',
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
-
       // TODO: Implement loading volunteer posts from Firestore
       setState(() {
-        _posts = [
-          VolunteerPost(
-            id: '1',
-            title: 'Sample Volunteer Post',
-            description: 'This is a sample volunteer post.',
-            userId: 'user1',
-            userName: 'Sample User',
-            location: 'Sample Location',
-            spotLimit: 10,
-            spotsLeft: 10,
-            communityId: 'community1',
-            date: DateTime.now(),
-            createdAt: DateTime.now(),
-          ),
+        _volunteerPosts = [
+          {
+            'id': '1',
+            'title': 'Sample Volunteer Post',
+            'description': 'This is a sample volunteer post.',
+            'userId': 'user1',
+            'userName': 'Sample User',
+            'location': 'Sample Location',
+            'spotLimit': 10,
+            'spotsLeft': 10,
+            'communityId': 'community1',
+            'date': DateTime.now().toIso8601String(),
+            'createdAt': DateTime.now().toIso8601String(),
+            'imageUrl': 'https://example.com/image.jpg',
+            'organizerName': 'Sample User'
+          },
         ];
         _isLoading = false;
       });
@@ -259,7 +243,7 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     }
   }
 
-  Future<void> _showPostOptions(VolunteerPost post) async {
+  Future<void> _showPostOptions(Map<String, dynamic> post) async {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -281,7 +265,7 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
               title: const Text('Remove Post'),
               onTap: () {
                 Navigator.pop(context);
-                _removePost(post);
+                _removePost(post['id']);
               },
             ),
           ],
@@ -290,35 +274,27 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     );
   }
 
-  Future<void> _viewPostDetails(VolunteerPost post) async {
+  Future<void> _viewPostDetails(Map<String, dynamic> post) async {
     try {
-      // Log post details view
-      await _auditLogService.logAction(
-        actionType: AuditActionType.volunteerPostViewed.value,
-        targetResource: 'volunteer_posts/${post.id}',
-        details: {
-          'action': 'Viewed volunteer post details',
-          'postTitle': post.title,
-          'userId': post.userId,
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
-
       // Show post details dialog
       if (mounted) {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text(post.title),
+            title: Text(post['title']),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Description: ${post.description}'),
+                Image.network(post['imageUrl']),
+                const SizedBox(height: 16),
+                Text('Description: ${post['description']}'),
                 const SizedBox(height: 8),
-                Text('Author ID: ${post.userId}'),
+                Text('Location: ${post['location']}'),
                 const SizedBox(height: 8),
-                Text('Date: ${post.date.toString()}'),
+                Text('Date: ${post['date']}'),
+                const SizedBox(height: 8),
+                Text('Organizer: ${post['organizerName']}'),
               ],
             ),
             actions: [
@@ -331,73 +307,29 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error viewing post details: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error viewing post details: $e')),
+        );
+      }
     }
   }
 
-  Future<void> _removePost(VolunteerPost post) async {
+  Future<void> _removePost(String postId) async {
     try {
-      // Show confirmation dialog
-      final reason = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Remove Post'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Why are you removing this post?'),
-              const SizedBox(height: 16),
-              TextFormField(
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: 'Enter reason',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (value) => Navigator.pop(context, value),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'Violates community guidelines'),
-              child: const Text('Remove'),
-            ),
-          ],
-        ),
-      );
-
-      if (reason == null) return;
-
-      // TODO: Implement actual post removal logic
-
-      // Log post removal
-      await _auditLogService.logAction(
-        actionType: AuditActionType.volunteerPostRemoved.value,
-        targetResource: 'volunteer_posts/${post.id}',
-        details: {
-          'action': 'Removed volunteer post',
-          'postTitle': post.title,
-          'userId': post.userId,
-          'reason': reason,
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Post removed successfully')),
-      );
-
-      _loadVolunteerPosts(); // Refresh list
+      await _adminService.removeVolunteerPost(postId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Post removed successfully')),
+        );
+        _loadVolunteerPosts();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error removing post: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error removing post: $e')),
+        );
+      }
     }
   }
 }

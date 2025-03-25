@@ -12,10 +12,10 @@ class CommunityService {
     required String barangayCode,
   }) async {
     final locationId = Community.createLocationId(
-      regionCode: regionCode,
-      provinceCode: provinceCode,
-      municipalityCode: municipalityCode,
-      barangayCode: barangayCode,
+      regionCode,
+      provinceCode,
+      municipalityCode,
+      barangayCode,
     );
 
     final snapshot = await _database
@@ -35,10 +35,10 @@ class CommunityService {
     required String barangayCode,
   }) async {
     final locationId = Community.createLocationId(
-      regionCode: regionCode,
-      provinceCode: provinceCode,
-      municipalityCode: municipalityCode,
-      barangayCode: barangayCode,
+      regionCode,
+      provinceCode,
+      municipalityCode,
+      barangayCode,
     );
 
     final snapshot = await _database
@@ -61,7 +61,8 @@ class CommunityService {
       if (data == null) return [];
 
       return data.entries.map((entry) {
-        return Community.fromMap(entry.key, entry.value as Map<dynamic, dynamic>);
+        return Community.fromMap(
+            entry.key, entry.value as Map<dynamic, dynamic>);
       }).toList();
     });
   }
@@ -100,10 +101,10 @@ class CommunityService {
     }
 
     final locationId = Community.createLocationId(
-      regionCode: regionCode,
-      provinceCode: provinceCode,
-      municipalityCode: municipalityCode,
-      barangayCode: barangayCode,
+      regionCode,
+      provinceCode,
+      municipalityCode,
+      barangayCode,
     );
 
     final newCommunityRef = _database.child('communities').push();

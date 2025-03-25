@@ -16,8 +16,22 @@ class CommunityNoticeService {
       if (data == null) return [];
 
       final notices = data.entries.map((entry) {
-        return CommunityNotice.fromMap(
-            entry.key, entry.value as Map<dynamic, dynamic>);
+        final originalData = entry.value as Map<dynamic, dynamic>;
+        final noticeData = {
+          'id': entry.key.toString(),
+          'title': originalData['title']?.toString() ?? '',
+          'content': originalData['content']?.toString() ?? '',
+          'authorId': originalData['authorId']?.toString() ?? '',
+          'authorName': originalData['authorName']?.toString() ?? '',
+          'authorAvatar': originalData['authorAvatar']?.toString(),
+          'imageUrl': originalData['imageUrl']?.toString(),
+          'communityId': originalData['communityId']?.toString() ?? '',
+          'createdAt': originalData['createdAt'] ?? 0,
+          'updatedAt': originalData['updatedAt'] ?? 0,
+          'likes': originalData['likes'] is Map ? originalData['likes'] : null,
+          'comments': originalData['comments'] is Map ? originalData['comments'] : null,
+        };
+        return CommunityNotice.fromMap(noticeData);
       }).toList();
 
       // Sort by createdAt in descending order (newest first)
@@ -41,23 +55,52 @@ class CommunityNoticeService {
       'authorId': authorId,
       'authorName': authorName,
       'createdAt': ServerValue.timestamp,
-      'likes': 0,
-      'comments': 0,
+      'likes': null,
+      'comments': null,
       'communityId': communityId,
     });
     return newNoticeRef.key!;
   }
 
   // Like a notice
-  Future<void> likeNotice(String noticeId) async {
-    final noticeRef = _database.child('community_notices').child(noticeId);
-    await noticeRef.child('likes').set(ServerValue.increment(1));
+  Future<void> likeNotice(String noticeId, String userId) async {
+    final likesRef = _database
+        .child('community_notices')
+        .child(noticeId)
+        .child('likes')
+        .child(userId);
+
+    final snapshot = await likesRef.get();
+    if (snapshot.exists) {
+      await likesRef.remove();
+    } else {
+      await likesRef.set({
+        'createdAt': ServerValue.timestamp,
+      });
+    }
   }
 
   // Add a comment
-  Future<void> addComment(String noticeId) async {
-    final noticeRef = _database.child('community_notices').child(noticeId);
-    await noticeRef.child('comments').set(ServerValue.increment(1));
+  Future<void> addComment(
+    String noticeId,
+    String content,
+    String authorId,
+    String authorName,
+    String? authorAvatar,
+  ) async {
+    final newCommentRef = _database
+        .child('community_notices')
+        .child(noticeId)
+        .child('comments')
+        .push();
+
+    await newCommentRef.set({
+      'content': content,
+      'createdAt': ServerValue.timestamp,
+      'authorId': authorId,
+      'authorName': authorName,
+      'authorAvatar': authorAvatar,
+    });
   }
 
   // Delete a notice (only by author or admin)

@@ -1,30 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/admin_service.dart';
 import '../../services/auth_service.dart';
-import '../../services/audit_log_service.dart';
 import '../../models/community_notice.dart';
+import '../../widgets/create_notice_sheet.dart';
+import '../../widgets/notice_card.dart';
 
 class AdminCommunityNoticesPage extends StatefulWidget {
   const AdminCommunityNoticesPage({super.key});
 
   @override
-  State<AdminCommunityNoticesPage> createState() => _AdminCommunityNoticesPageState();
+  State<AdminCommunityNoticesPage> createState() =>
+      _AdminCommunityNoticesPageState();
 }
 
 class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
   final _adminService = AdminService();
   final _authService = AuthService();
-  final _auditLogService = AuditLogService();
+  final _scrollController = ScrollController();
+
   String _communityName = '';
-  bool _isLoading = false;
+  bool _isLoading = true;
   List<CommunityNotice> _notices = [];
-  
+  bool _isCreatingNotice = false;
+
   @override
   void initState() {
     super.initState();
     _loadCommunity();
     _loadNotices();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels ==
+        _scrollController.position.maxScrollExtent) {
+      _loadMoreNotices();
+    }
+  }
+
+  Future<void> _loadMoreNotices() async {
+    // TODO: Implement pagination
   }
 
   Future<void> _loadCommunity() async {
@@ -45,19 +68,106 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
     }
   }
 
-  Future<void> _signOut() async {
+  Future<void> _createNotice() async {
+    setState(() => _isCreatingNotice = true);
     try {
-      await _authService.signOut();
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => const CreateNoticeSheet(),
+      );
+      _loadNotices();
+    } finally {
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
+        setState(() => _isCreatingNotice = false);
+      }
+    }
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: _createNotice,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor:
+                          Theme.of(context).primaryColor.withOpacity(0.1),
+                      child: Icon(
+                        Icons.person,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Share an update with your community...',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          IconButton(
+            onPressed: _createNotice,
+            icon: const Icon(Icons.photo_library),
+            color: Theme.of(context).primaryColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editNotice(CommunityNotice notice) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => CreateNoticeSheet(notice: notice),
+    );
+    _loadNotices();
+  }
+
+  Future<void> _deleteNotice(String noticeId) async {
+    try {
+      await _adminService.deleteNotice(noticeId);
+      _loadNotices();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notice deleted successfully')),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error signing out: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error deleting notice: $e')),
         );
       }
     }
@@ -68,6 +178,12 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Community Notices'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadNotices,
+          ),
+        ],
       ),
       drawer: Drawer(
         child: ListView(
@@ -76,6 +192,14 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
             DrawerHeader(
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor,
+                image: DecorationImage(
+                  image: const AssetImage('assets/images/header_bg.jpg'),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(
+                    Theme.of(context).primaryColor.withOpacity(0.8),
+                    BlendMode.darken,
+                  ),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,13 +248,6 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('Audit Trail'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/audit');
-              },
-            ),
-            ListTile(
               selected: true,
               leading: const Icon(Icons.announcement),
               title: const Text('Community Notices'),
@@ -151,7 +268,8 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
               leading: const Icon(Icons.volunteer_activism),
               title: const Text('Volunteer Posts'),
               onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/volunteer-posts');
+                Navigator.pushReplacementNamed(
+                    context, '/admin/volunteer-posts');
               },
             ),
             ListTile(
@@ -170,60 +288,61 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
           ],
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: ElevatedButton.icon(
-                    onPressed: _createNotice,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create Notice'),
+      body: Column(
+        children: [
+          _buildHeader(),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _loadNotices,
+                    child: _notices.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.announcement_outlined,
+                                  size: 64,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No notices yet',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Create your first community notice',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: _scrollController,
+                            itemCount: _notices.length,
+                            itemBuilder: (context, index) {
+                              final notice = _notices[index];
+                              return NoticeCard(
+                                notice: notice,
+                                onEdit: () => _editNotice(notice),
+                                onDelete: () => _deleteNotice(notice.id),
+                                onRefresh: _loadNotices,
+                              );
+                            },
+                          ),
                   ),
-                ),
-                Expanded(
-                  child: _notices.isEmpty
-                      ? const Center(child: Text('No notices yet'))
-                      : ListView.builder(
-                          itemCount: _notices.length,
-                          padding: const EdgeInsets.all(16),
-                          itemBuilder: (context, index) {
-                            final notice = _notices[index];
-                            return Card(
-                              child: ListTile(
-                                title: Text(notice.title),
-                                subtitle: Text(
-                                  notice.content,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                trailing: PopupMenuButton(
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('Edit'),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('Delete'),
-                                    ),
-                                  ],
-                                  onSelected: (value) {
-                                    if (value == 'edit') {
-                                      _editNotice(notice);
-                                    } else if (value == 'delete') {
-                                      _deleteNotice(notice);
-                                    }
-                                  },
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -233,33 +352,13 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
     }
 
     try {
-      // Log that admin is viewing notices
-      await _auditLogService.logAction(
-        actionType: AuditActionType.noticeViewed.value,
-        targetResource: 'notices',
-        details: {
-          'action': 'Viewed community notices',
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
-
-      // TODO: Implement loading notices from Firestore
-      setState(() {
-        _notices = [
-          CommunityNotice(
-            id: '1',
-            title: 'Sample Notice',
-            content: 'This is a sample notice content.',
-            createdAt: DateTime.now(),
-            likes: 0,
-            comments: 0,
-            authorName: 'Admin',
-            authorId: 'admin1',
-            communityId: 'community1',
-          ),
-        ];
-        _isLoading = false;
-      });
+      final notices = await _adminService.getNotices();
+      if (mounted) {
+        setState(() {
+          _notices = notices;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -270,116 +369,21 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
     }
   }
 
-  Future<void> _createNotice() async {
+  Future<void> _signOut() async {
     try {
-      // TODO: Implement notice creation UI and logic
-      final notice = CommunityNotice(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: 'New Notice',
-        content: 'New notice content',
-        createdAt: DateTime.now(),
-        likes: 0,
-        comments: 0,
-        authorName: 'Admin',
-        authorId: 'admin1',
-        communityId: 'community1',
-      );
-
-      // Log notice creation
-      await _auditLogService.logAction(
-        actionType: AuditActionType.noticeCreated.value,
-        targetResource: 'notices/${notice.id}',
-        details: {
-          'action': 'Created new notice',
-          'noticeTitle': notice.title,
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Notice created successfully')),
-      );
-
-      _loadNotices(); // Refresh list
+      await _authService.signOut();
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error creating notice: $e')),
-      );
-    }
-  }
-
-  Future<void> _editNotice(CommunityNotice notice) async {
-    try {
-      // TODO: Implement notice editing UI and logic
-
-      // Log notice update
-      await _auditLogService.logAction(
-        actionType: AuditActionType.noticeUpdated.value,
-        targetResource: 'notices/${notice.id}',
-        details: {
-          'action': 'Updated notice',
-          'noticeTitle': notice.title,
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Notice updated successfully')),
-      );
-
-      _loadNotices(); // Refresh list
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating notice: $e')),
-      );
-    }
-  }
-
-  Future<void> _deleteNotice(CommunityNotice notice) async {
-    try {
-      // Show confirmation dialog
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Delete Notice'),
-          content: const Text('Are you sure you want to delete this notice?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete'),
-            ),
-          ],
-        ),
-      );
-
-      if (confirmed != true) return;
-
-      // TODO: Implement notice deletion logic
-
-      // Log notice deletion
-      await _auditLogService.logAction(
-        actionType: AuditActionType.noticeDeleted.value,
-        targetResource: 'notices/${notice.id}',
-        details: {
-          'action': 'Deleted notice',
-          'noticeTitle': notice.title,
-          'timestamp': DateTime.now().toIso8601String(),
-        },
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Notice deleted successfully')),
-      );
-
-      _loadNotices(); // Refresh list
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error deleting notice: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error signing out: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }

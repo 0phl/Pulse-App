@@ -10,10 +10,13 @@ class AdminDashboardPage extends StatefulWidget {
   State<AdminDashboardPage> createState() => _AdminDashboardPageState();
 }
 
-class _AdminDashboardPageState extends State<AdminDashboardPage> {
+class _AdminDashboardPageState extends State<AdminDashboardPage>
+    with SingleTickerProviderStateMixin {
   final _adminService = AdminService();
   final _authService = AuthService();
-  
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+
   Map<String, dynamic>? _userStats;
   Map<String, dynamic>? _communityStats;
   Map<String, dynamic>? _activityStats;
@@ -24,7 +27,20 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   @override
   void initState() {
     super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
     _loadCommunityAndStats();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCommunityAndStats() async {
@@ -35,6 +51,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         setState(() => _communityName = community.name);
       }
       await _loadStats();
+      _controller.forward();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -96,11 +113,154 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
+  Widget _buildQuickActions() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Quick Actions',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 2.5,
+            children: [
+              _buildQuickActionButton(
+                icon: Icons.add_circle_outline,
+                label: 'Add Notice',
+                onTap: () => Navigator.pushNamed(context, '/admin/notices/add'),
+                color: const Color(0xFF00C49A),
+              ),
+              _buildQuickActionButton(
+                icon: Icons.store_outlined,
+                label: 'Add Item',
+                onTap: () =>
+                    Navigator.pushNamed(context, '/admin/marketplace/add'),
+                color: const Color(0xFF00C49A),
+              ),
+              _buildQuickActionButton(
+                icon: Icons.volunteer_activism,
+                label: 'Add Post',
+                onTap: () =>
+                    Navigator.pushNamed(context, '/admin/volunteer-posts/add'),
+                color: const Color(0xFF00C49A),
+              ),
+              _buildQuickActionButton(
+                icon: Icons.report_problem_outlined,
+                label: 'View Reports',
+                onTap: () => Navigator.pushNamed(context, '/admin/reports'),
+                color: const Color(0xFF00C49A),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return Material(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return Column(
+      children: [
+        Container(
+          height: 200,
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: List.generate(
+                4,
+                (index) => Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                    )),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          height: 150,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Admin Dashboard'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadCommunityAndStats,
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _signOut,
+          ),
+        ],
       ),
       drawer: Drawer(
         child: ListView(
@@ -109,6 +269,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             DrawerHeader(
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor,
+                image: DecorationImage(
+                  image: const AssetImage('assets/images/header_bg.jpg'),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(
+                    Theme.of(context).primaryColor.withOpacity(0.8),
+                    BlendMode.darken,
+                  ),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,24 +314,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               selected: true,
               leading: const Icon(Icons.dashboard),
               title: const Text('Dashboard'),
-              onTap: () {
-                Navigator.pop(context);
-              },
+              onTap: () => Navigator.pop(context),
             ),
             ListTile(
               leading: const Icon(Icons.people),
               title: const Text('Manage Users'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.pushNamed(context, '/admin/users');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('Audit Trail'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, '/admin/audit');
+                Navigator.pushReplacementNamed(context, '/admin/users');
               },
             ),
             ListTile(
@@ -187,7 +345,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               title: const Text('Volunteer Posts'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, '/admin/volunteer-posts');
+                Navigator.pushReplacementNamed(
+                    context, '/admin/volunteer-posts');
               },
             ),
             ListTile(
@@ -208,36 +367,46 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? _buildLoadingSkeleton()
           : RefreshIndicator(
               onRefresh: _loadCommunityAndStats,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16.0),
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
-                    child: Text(
-                      _communityName,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return GridView.count(
-                          crossAxisCount: constraints.maxWidth > 600 ? 2 : 1,
-                          padding: const EdgeInsets.all(16.0),
-                          mainAxisSpacing: 16.0,
-                          crossAxisSpacing: 16.0,
-                          childAspectRatio: 1.5,
-                          shrinkWrap: true,
-                          physics: const AlwaysScrollableScrollPhysics(),
+              child: SingleChildScrollView(
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(24.0),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor,
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(30),
+                            bottomRight: Radius.circular(30),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Text(
+                              _communityName,
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildQuickActions(),
+                            const SizedBox(height: 24),
                             if (_userStats != null)
                               StatisticsCard(
                                 title: 'User Statistics',
@@ -245,11 +414,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 icon: Icons.people,
                                 items: [
                                   StatisticItem(
-                                    label: 'Total Users',
-                                    value: _userStats!['totalUsers'],
-                                  ),
-                                  StatisticItem(
-                                    label: 'Users in Your Community',
+                                    label: 'Community Members',
                                     value: _userStats!['communityUsers'],
                                   ),
                                   StatisticItem(
@@ -258,56 +423,56 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                   ),
                                 ],
                               ),
-                            if (_activityStats != null)
+                            const SizedBox(height: 16),
+                            if (_communityStats != null)
                               StatisticsCard(
-                                title: 'Activity',
-                                color: Colors.orange,
-                                icon: Icons.analytics,
+                                title: 'Community Statistics',
+                                color: const Color(0xFF00C49A),
+                                icon: Icons.location_city,
                                 items: [
                                   StatisticItem(
-                                    label: 'Reports',
-                                    value: _activityStats!['totalReports'],
+                                    label: 'Total Posts',
+                                    value: _communityStats!['totalPosts'],
                                   ),
                                   StatisticItem(
-                                    label: 'Volunteer Posts',
-                                    value: _activityStats!['volunteerPosts'],
+                                    label: 'Active Users',
+                                    value: _communityStats!['activeUsers'],
                                   ),
                                   StatisticItem(
-                                    label: 'Recent Logs (24h)',
-                                    value: _activityStats!['recentLogs'],
-                                  ),
-                                  StatisticItem(
-                                    label: 'Active Chats',
-                                    value: _activityStats!['activeChats'],
+                                    label: 'Engagement Rate',
+                                    value:
+                                        '${_communityStats!['engagementRate']}%',
                                   ),
                                 ],
                               ),
-                            if (_contentStats != null)
+                            const SizedBox(height: 16),
+                            if (_activityStats != null)
                               StatisticsCard(
-                                title: 'Content',
-                                color: Colors.purple,
-                                icon: Icons.article,
+                                title: 'Recent Activity',
+                                color: const Color(0xFF00C49A),
+                                icon: Icons.timeline,
                                 items: [
                                   StatisticItem(
-                                    label: 'Market Items',
-                                    value: _contentStats!['marketItems'],
+                                    label: 'New Posts Today',
+                                    value: _activityStats!['newPostsToday'],
                                   ),
                                   StatisticItem(
-                                    label: 'Community Notices',
-                                    value: _contentStats!['communityNotices'],
+                                    label: 'New Users Today',
+                                    value: _activityStats!['newUsersToday'],
                                   ),
                                   StatisticItem(
-                                    label: 'Recent Posts (7d)',
-                                    value: _contentStats!['recentPosts'],
+                                    label: 'Active Conversations',
+                                    value:
+                                        _activityStats!['activeConversations'],
                                   ),
                                 ],
                               ),
                           ],
-                        );
-                      },
-                    ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
     );
