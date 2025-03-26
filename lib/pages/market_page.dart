@@ -175,6 +175,7 @@ class _MarketPageState extends State<MarketPage>
         'imageUrl': downloadUrl,
         'communityId': _currentUserCommunityId,
         'createdAt': FieldValue.serverTimestamp(),
+        'isSold': false,
       }).catchError((error) {
         print('Firestore error details: $error');
         throw error;
@@ -220,8 +221,7 @@ class _MarketPageState extends State<MarketPage>
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
         actions: [
-          if (_tabController.index == 1) // Only show on My Items tab
-            Stack(
+          Stack(
               children: [
                 IconButton(
                   icon: const Icon(Icons.chat),
@@ -356,6 +356,8 @@ class _MarketPageState extends State<MarketPage>
             isOwner: _auth.currentUser?.uid == items[index].sellerId,
             showEditButton: isMyItemsTab,
             onEdit: isMyItemsTab ? () => _handleEditItem(items[index]) : null,
+            onDelete: isMyItemsTab ? () => _handleDelete(items[index]) : null,
+            onMarkAsSold: isMyItemsTab ? () => _handleMarkAsSold(items[index]) : null,
           ),
         );
       },
@@ -372,6 +374,64 @@ class _MarketPageState extends State<MarketPage>
         ),
       ),
     );
+  }
+
+  Future<void> _handleDelete(MarketItem item) async {
+    final confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Item'),
+        content: const Text('Are you sure you want to delete this item? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmDelete != true) return;
+
+    try {
+      // Delete the item from Firestore
+      await _firestore.collection('market_items').doc(item.id).delete();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Item deleted successfully')),
+      );
+    } catch (e) {
+      print('Error deleting item: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting item: $e')),
+      );
+    }
+  }
+
+  Future<void> _handleMarkAsSold(MarketItem item) async {
+    try {
+      await _firestore.collection('market_items').doc(item.id).update({
+        'isSold': !item.isSold, // Toggle the sold status
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(item.isSold ? 'Item marked as available' : 'Item marked as sold'),
+        ),
+      );
+    } catch (e) {
+      print('Error updating item status: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating item status: $e')),
+      );
+    }
   }
 
   Future<void> _handleItemUpdate(
@@ -395,6 +455,7 @@ class _MarketPageState extends State<MarketPage>
         'description': updatedItem.description,
         'imageUrl': imageUrl,
         'communityId': updatedItem.communityId,
+        'isSold': updatedItem.isSold,
       });
 
       ScaffoldMessenger.of(context).showSnackBar(

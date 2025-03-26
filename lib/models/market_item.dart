@@ -10,6 +10,7 @@ class MarketItem {
   final String imageUrl;
   final String communityId;
   final DateTime? createdAt;
+  final bool isSold;
 
   MarketItem({
     required this.id,
@@ -21,6 +22,7 @@ class MarketItem {
     required this.imageUrl,
     required this.communityId,
     this.createdAt,
+    this.isSold = false,
   });
 
   factory MarketItem.fromFirestore(DocumentSnapshot doc) {
@@ -35,6 +37,7 @@ class MarketItem {
       imageUrl: data['imageUrl'] ?? '',
       communityId: data['communityId'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      isSold: data['isSold'] ?? false,
     );
   }
 
@@ -48,6 +51,7 @@ class MarketItem {
       'imageUrl': imageUrl,
       'communityId': communityId,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
+      'isSold': isSold,
     };
   }
 
@@ -61,6 +65,7 @@ class MarketItem {
       'sellerName': sellerName,
       'imageUrl': imageUrl,
       'communityId': communityId,
+      'isSold': isSold,
     };
   }
 

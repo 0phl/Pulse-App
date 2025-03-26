@@ -10,6 +10,8 @@ class MarketItemCard extends StatelessWidget {
   final bool isOwner;
   final bool showEditButton;
   final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onMarkAsSold;
   final int? unreadCount;
 
   const MarketItemCard({
@@ -20,6 +22,8 @@ class MarketItemCard extends StatelessWidget {
     required this.isOwner,
     this.showEditButton = false,
     this.onEdit,
+    this.onDelete,
+    this.onMarkAsSold,
     this.unreadCount,
   });
 
@@ -91,15 +95,51 @@ class MarketItemCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    if (isOwner && showEditButton)
+                    if (isOwner && showEditButton) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: onEdit,
+                              icon: const Icon(Icons.edit),
+                              label: const Text('Edit'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00C49A),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: onMarkAsSold,
+                              icon: const Icon(Icons.check_circle_outline),
+                              label: const Text('Mark as Sold'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: item.isSold ? Colors.grey : const Color(0xFF00C49A),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: onEdit,
-                          icon: const Icon(Icons.edit),
-                          label: const Text('Edit Item'),
+                          onPressed: onDelete,
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Delete Item'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00C49A),
+                            backgroundColor: Colors.red,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
@@ -108,11 +148,12 @@ class MarketItemCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                    ],
                     if (!isOwner)
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: onInterested,
+                          onPressed: item.isSold ? null : onInterested,
                           icon: const Icon(Icons.chat_bubble_outline),
                           label: const Text('I\'m Interested'),
                           style: ElevatedButton.styleFrom(
@@ -130,6 +171,37 @@ class MarketItemCard extends StatelessWidget {
               ),
             ],
           ),
+          if (item.isSold)
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      'SOLD',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (unreadCount != null && unreadCount! > 0)
             Positioned(
               top: 8,
