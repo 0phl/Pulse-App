@@ -264,7 +264,9 @@ class AdminService {
     if (!userDoc.exists) return false;
 
     final userData = userDoc.data() as Map<String, dynamic>;
-    return userData['role'] == 'community_admin' || userData['role'] == 'admin' || userData['role'] == 'super_admin';
+    return userData['role'] == 'community_admin' ||
+        userData['role'] == 'admin' ||
+        userData['role'] == 'super_admin';
   }
 
   // Create new admin (only for super admin use)
@@ -493,7 +495,7 @@ class AdminService {
         .orderByChild('communityId')
         .equalTo(community.id)
         .get();
-    
+
     if (!snapshot.exists) return [];
 
     final data = snapshot.value as Map<dynamic, dynamic>;
@@ -512,7 +514,8 @@ class AdminService {
         'createdAt': originalData['createdAt'] ?? 0,
         'updatedAt': originalData['updatedAt'] ?? 0,
         'likes': originalData['likes'] is Map ? originalData['likes'] : null,
-        'comments': originalData['comments'] is Map ? originalData['comments'] : null,
+        'comments':
+            originalData['comments'] is Map ? originalData['comments'] : null,
       };
       return CommunityNotice.fromMap({
         ...noticeData,
@@ -596,10 +599,7 @@ class AdminService {
 
     // Delete the notice image if it exists
     try {
-      await _storage
-          .ref()
-          .child('community_notices/$noticeId')
-          .delete();
+      await _storage.ref().child('community_notices/$noticeId').delete();
     } catch (_) {
       // Ignore if image doesn't exist
     }
@@ -669,5 +669,66 @@ class AdminService {
         .child('comments')
         .child(commentId)
         .remove();
+  }
+
+  // Get market items for a community
+  Future<QuerySnapshot> getMarketItems(String communityId) async {
+    return _marketItemsCollection
+        .where('communityId', isEqualTo: communityId)
+        .orderBy('createdAt', descending: true)
+        .get();
+  }
+
+  // Get market statistics for a community
+  Future<Map<String, dynamic>> getMarketStats(String communityId) async {
+    final snapshot = await _marketItemsCollection
+        .where('communityId', isEqualTo: communityId)
+        .get();
+
+    int totalItems = 0;
+    int activeItems = 0;
+    int soldItems = 0;
+    double totalValue = 0;
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      totalItems++;
+      if (data['isSold'] == true) {
+        soldItems++;
+        totalValue += (data['price'] as num).toDouble();
+      } else {
+        activeItems++;
+      }
+    }
+
+    return {
+      'totalItems': totalItems,
+      'activeItems': activeItems,
+      'soldItems': soldItems,
+      'totalValue': totalValue,
+      'averagePrice': totalItems > 0 ? totalValue / totalItems : 0,
+    };
+  }
+
+  // Get recent transactions for a community
+  Future<List<Map<String, dynamic>>> getRecentTransactions(
+      String communityId) async {
+    final snapshot = await _marketItemsCollection
+        .where('communityId', isEqualTo: communityId)
+        .where('isSold', isEqualTo: true)
+        .orderBy('soldAt', descending: true)
+        .limit(5)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return {
+        'id': doc.id,
+        'title': data['title'] ?? '',
+        'imageUrl': data['imageUrl'] ?? '',
+        'amount': data['price'] ?? 0,
+        'date': data['soldAt'] ?? data['createdAt'],
+      };
+    }).toList();
   }
 }

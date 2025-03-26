@@ -78,8 +78,11 @@ match /users/{userId} {
         )
       );
       
-      allow delete: if request.auth != null && 
-                   resource.data.sellerId == request.auth.uid;
+      allow delete: if request.auth != null && (
+                   resource.data.sellerId == request.auth.uid ||
+                   isAdmin(request) ||
+                   isSuperAdmin(request)
+                   );
     }
 
     // Volunteer posts collection rules
