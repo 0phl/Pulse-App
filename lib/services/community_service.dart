@@ -11,16 +11,17 @@ class CommunityService {
     required String municipalityCode,
     required String barangayCode,
   }) async {
-    final locationId = Community.createLocationId(
+    final locationId = Community.createLocationStatusId(
       regionCode,
       provinceCode,
       municipalityCode,
       barangayCode,
+      'active'
     );
 
     final snapshot = await _database
         .child('communities')
-        .orderByChild('locationId')
+        .orderByChild('locationStatusId')
         .equalTo(locationId)
         .get();
 
@@ -97,7 +98,7 @@ class CommunityService {
     );
 
     if (exists) {
-      throw Exception('A community is already registered for this location');
+      throw Exception('An active community is already registered for this location. Please contact the administrator');
     }
 
     final locationId = Community.createLocationId(
@@ -107,18 +108,28 @@ class CommunityService {
       barangayCode,
     );
 
+    final status = 'pending';
+    final locationStatusId = Community.createLocationStatusId(
+      regionCode,
+      provinceCode,
+      municipalityCode,
+      barangayCode,
+      status
+    );
+
     final newCommunityRef = _database.child('communities').push();
     await newCommunityRef.set({
       'name': name,
       'description': description,
       'adminId': null, // Will be set after admin application approval
-      'status': 'pending',
+      'status': status,
       'createdAt': ServerValue.timestamp,
       'regionCode': regionCode,
       'provinceCode': provinceCode,
       'municipalityCode': municipalityCode,
       'barangayCode': barangayCode,
       'locationId': locationId,
+      'locationStatusId': locationStatusId,
     });
     return newCommunityRef.key!;
   }

@@ -219,12 +219,24 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text(
-          'PULSE',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'PULSE',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              _communityName,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
         backgroundColor: const Color(0xFF00C49A),
         actions: [
@@ -251,103 +263,120 @@ class _HomePageState extends State<HomePage> {
                 );
               },
             ),
-            itemBuilder: (BuildContext context) => [
-              const PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout, color: Color(0xFF00C49A)),
-                    SizedBox(width: 8),
-                    Text('Logout'),
-                  ],
-                ),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                child: const Text('Profile'),
+                onTap: () {
+                  // Navigate to profile
+                },
+              ),
+              PopupMenuItem(
+                child: const Text('Settings'),
+                onTap: () {
+                  // Navigate to settings
+                },
+              ),
+              PopupMenuItem(
+                child: const Text('Logout'),
+                onTap: () async {
+                  await _auth.signOut();
+                  if (mounted) {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const LoginPage()),
+                    );
+                  }
+                },
               ),
             ],
-            onSelected: (value) {
-              if (value == 'logout') {
-                // Navigate to login page
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                  (route) => false,
-                );
-              }
-            },
           ),
-          const SizedBox(width: 8),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshNotices,
-        color: const Color(0xFF00C49A),
-        child: StreamBuilder<List<CommunityNotice>>(
-          stream: _noticeService.getNotices(_currentUserCommunityId!),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            }
-
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final notices = snapshot.data!;
-            if (notices.isEmpty) {
-              return _buildEmptyState();
-            }
-
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: notices.length,
-              itemBuilder: (context, index) {
-                final notice = notices[index];
-                return CommunityNoticeCard(
-                  notice: notice,
-                  isAdmin: _isAdmin,
-                  onDelete: _isAdmin
-                      ? () async {
-                          try {
-                            await _noticeService.deleteNotice(notice.id);
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Notice deleted successfully'),
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Error deleting notice: $e'),
-                                ),
-                              );
-                            }
-                          }
-                        }
-                      : null,
-                );
-              },
-            );
-          },
-        ),
-      ),
-      floatingActionButton: _isAdmin
-          ? FloatingActionButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AddCommunityNoticePage(
-                      onNoticeAdded: _handleNoticeAdded,
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.white,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Community Notices',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF00C49A),
+                  ),
+                ),
+                if (_isAdmin)
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AddCommunityNoticePage(
+                            onNoticeAdded: _handleNoticeAdded,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('New Notice'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00C49A),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<List<CommunityNotice>>(
+              stream: _noticeService.getNotices(_currentUserCommunityId!),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}'),
+                  );
+                }
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final notices = snapshot.data ?? [];
+
+                if (notices.isEmpty) {
+                  return _buildEmptyState();
+                }
+
+                return RefreshIndicator(
+                  onRefresh: _refreshNotices,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: notices.length,
+                    itemBuilder: (context, index) {
+                      final notice = notices[index];
+                      return CommunityNoticeCard(
+                        notice: notice,
+                        isAdmin: _isAdmin,
+                        onDelete: () async {
+                          await _noticeService.deleteNotice(notice.id);
+                          _refreshNotices();
+                        },
+                      );
+                    },
                   ),
                 );
               },
-              backgroundColor: const Color(0xFF00C49A),
-              child: const Icon(Icons.add, color: Colors.white),
-            )
-          : null,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

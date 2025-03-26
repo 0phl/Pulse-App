@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 
 class CommentsSheet extends StatefulWidget {
   final CommunityNotice notice;
 
-  const CommentsSheet({super.key, required this.notice});
+  const CommentsSheet({
+    Key? key,
+    required this.notice,
+  }) : super(key: key);
 
   @override
   State<CommentsSheet> createState() => _CommentsSheetState();
@@ -13,9 +19,17 @@ class CommentsSheet extends StatefulWidget {
 
 class _CommentsSheetState extends State<CommentsSheet> {
   final _commentController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
   final _adminService = AdminService();
-  bool _isLoading = false;
-  bool _isSendingComment = false;
+  bool _isSubmitting = false;
+  List<Comment> _comments = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _comments = List.from(widget.notice.comments);
+    _comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
 
   @override
   void dispose() {
@@ -24,41 +38,65 @@ class _CommentsSheetState extends State<CommentsSheet> {
   }
 
   Future<void> _addComment() async {
-    if (_commentController.text.isEmpty) return;
+    if (!_formKey.currentState!.validate() || _isSubmitting) return;
 
-    setState(() => _isSendingComment = true);
+    setState(() => _isSubmitting = true);
+
     try {
-      await _adminService.addComment(
-        widget.notice.id,
-        _commentController.text,
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        String fullName = 'Admin';  // Default name
+        
+        // Try to get admin data from Firestore first
+        final adminDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (adminDoc.exists) {
+          // User is an admin, get name from Firestore
+          final adminData = adminDoc.data() as Map<String, dynamic>;
+          fullName = 'Admin ${adminData['fullName'] as String}';
+        } else {
+          // If not in Firestore, try RTDB (for regular users)
+          final userSnapshot = await FirebaseDatabase.instance
+              .ref()
+              .child('users')
+              .child(user.uid)
+              .get();
+
+          if (userSnapshot.exists) {
+            final userData = userSnapshot.value as Map<dynamic, dynamic>;
+            fullName = userData['fullName'] as String;
+          }
+        }
+
+        await _adminService.addComment(
+          widget.notice.id,
+          _commentController.text,
+        );
+
+        // Create a temporary comment to show immediately
+        final newComment = Comment(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          content: _commentController.text,
+          authorId: user.uid,
+          authorName: fullName,
+          authorAvatar: user.photoURL,
+          createdAt: DateTime.now(),
+        );
+
+        setState(() {
+          _comments.insert(0, newComment);
+          _commentController.clear();
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error adding comment: $e')),
       );
-      if (mounted) {
-        _commentController.clear();
-        setState(() {});
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding comment: $e')),
-        );
-      }
     } finally {
-      if (mounted) {
-        setState(() => _isSendingComment = false);
-      }
-    }
-  }
-
-  Future<void> _deleteComment(String commentId) async {
-    try {
-      await _adminService.deleteComment(widget.notice.id, commentId);
-      setState(() {});
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting comment: $e')),
-        );
-      }
+      setState(() => _isSubmitting = false);
     }
   }
 
@@ -67,194 +105,253 @@ class _CommentsSheetState extends State<CommentsSheet> {
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Header
           Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
+              border: Border(
+                bottom: BorderSide(color: Colors.grey.shade200),
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+                const SizedBox(width: 16),
                 const Text(
                   'Comments',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '(${widget.notice.commentsCount})',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+
+          // Comments list
           Flexible(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : widget.notice.comments.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.chat_bubble_outline,
-                                size: 48,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No comments yet',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Be the first to comment',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
+            child: _comments.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          size: 48,
+                          color: Colors.grey.shade300,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'No comments yet',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: widget.notice.comments.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 16),
-                        itemBuilder: (context, index) {
-                          final comment = widget.notice.comments[index];
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: Theme.of(context)
-                                    .primaryColor
-                                    .withOpacity(0.1),
-                                child: Icon(
-                                  Icons.person,
-                                  color: Theme.of(context).primaryColor,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          comment.authorName,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        Text(
-                                          _formatDate(comment.createdAt),
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                        if (comment.authorId ==
-                                            _adminService.currentUserId) ...[
-                                          PopupMenuButton(
-                                            icon: Icon(
-                                              Icons.more_vert,
-                                              color: Colors.grey[600],
-                                              size: 20,
-                                            ),
-                                            itemBuilder: (context) => [
-                                              const PopupMenuItem(
-                                                value: 'delete',
-                                                child: Text('Delete'),
-                                              ),
-                                            ],
-                                            onSelected: (value) {
-                                              if (value == 'delete') {
-                                                _deleteComment(comment.id);
-                                              }
-                                            },
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(comment.content),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    padding: EdgeInsets.only(
+                      top: 8,
+                      bottom: MediaQuery.of(context).padding.bottom + 80,
+                    ),
+                    itemCount: _comments.length,
+                    separatorBuilder: (context, index) => Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.grey[100],
+                    ),
+                    itemBuilder: (context, index) {
+                      final comment = _comments[index];
+                      return _CommentItem(comment: comment);
+                    },
+                  ),
           ),
-          const Divider(height: 1),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              8,
-              16,
-              8 + MediaQuery.of(context).viewInsets.bottom,
+
+          // Comment input
+          SafeArea(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                border: Border(
+                  top: BorderSide(color: Colors.grey.shade200),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Row(
+                children: [
+                  FutureBuilder<String>(
+                    future: () async {
+                      final userId = FirebaseAuth.instance.currentUser?.uid;
+                      if (userId == null) return 'A';
+                      
+                      // Check Firestore first for admin
+                      final adminDoc = await FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(userId)
+                          .get();
+                      
+                      if (adminDoc.exists) {
+                        final adminData = adminDoc.data() as Map<String, dynamic>;
+                        return (adminData['fullName'] as String)[0];
+                      }
+                      
+                      // If not in Firestore, check RTDB for regular users
+                      final userSnapshot = await FirebaseDatabase.instance
+                          .ref()
+                          .child('users')
+                          .child(userId)
+                          .get();
+                      
+                      if (userSnapshot.exists) {
+                        final userData = userSnapshot.value as Map<dynamic, dynamic>;
+                        return (userData['fullName'] as String)[0];
+                      }
+                      
+                      return 'A';
+                    }(),
+                    builder: (context, snapshot) {
+                      final initial = snapshot.data ?? 'A';
+                      return CircleAvatar(
+                        radius: 16,
+                        backgroundColor:
+                            const Color(0xFF00C49A).withOpacity(0.1),
+                        child: Text(
+                          initial.toUpperCase(),
+                          style: const TextStyle(
+                            color: Color(0xFF00C49A),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Form(
+                            key: _formKey,
+                            child: TextFormField(
+                              controller: _commentController,
+                              decoration: InputDecoration(
+                                hintText: 'Write a comment...',
+                                hintStyle: TextStyle(
+                                  color: Colors.grey[400],
+                                  fontSize: 14,
+                                ),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Please enter a comment';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: _isSubmitting ? null : _addComment,
+                          icon: Icon(
+                            Icons.send_rounded,
+                            color: _commentController.text.isEmpty
+                                ? Colors.grey[400]
+                                : const Color(0xFF00C49A),
+                            size: 20,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: Row(
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommentItem extends StatelessWidget {
+  final Comment comment;
+
+  const _CommentItem({required this.comment});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isAdmin = comment.authorName.startsWith('Admin ');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: isAdmin
+                ? const Color(0xFF00C49A).withOpacity(0.1)
+                : Colors.blue[50],
+            child: Text(
+              comment.authorName[0].toUpperCase(),
+              style: TextStyle(
+                color: isAdmin ? const Color(0xFF00C49A) : Colors.blue[700],
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _commentController,
-                    decoration: const InputDecoration(
-                      hintText: 'Write a comment...',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                Row(
+                  children: [
+                    Text(
+                      comment.authorName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                        color:
+                            isAdmin ? const Color(0xFF00C49A) : Colors.black87,
                       ),
                     ),
-                    maxLines: null,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _addComment(),
-                  ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _formatTimeAgo(comment.createdAt),
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _isSendingComment ? null : _addComment,
-                  icon: _isSendingComment
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send),
-                  color: Theme.of(context).primaryColor,
+                const SizedBox(height: 4),
+                Text(
+                  comment.content,
+                  style: const TextStyle(
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
@@ -264,7 +361,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
     );
   }
 
-  String _formatDate(DateTime date) {
+  String _formatTimeAgo(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
 

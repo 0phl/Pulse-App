@@ -1,6 +1,7 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/admin_application.dart';
+import '../models/community.dart';
 import 'email_service.dart';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -115,6 +116,21 @@ class SuperAdminService {
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
         };
         
+        // Get community data for creating locationStatusId
+        final communitySnapshot = await communityRef.get();
+        if (!communitySnapshot.exists) throw Exception('Community not found');
+        
+        final communityData = communitySnapshot.value as Map<dynamic, dynamic>;
+        final locationStatusId = Community.createLocationStatusId(
+          communityData['regionCode'] as String,
+          communityData['provinceCode'] as String,
+          communityData['municipalityCode'] as String,
+          communityData['barangayCode'] as String,
+          'active'
+        );
+        
+        updates['locationStatusId'] = locationStatusId;
+        
         // Third fix: Await the update operation and add error handling
         await communityRef.update(updates).timeout(
           const Duration(seconds: 10),
@@ -144,10 +160,22 @@ class SuperAdminService {
         // Try again with a different approach if the first attempt failed
         try {
           print('Trying alternative update method...');
-          // Fourth fix: Try direct set operation for status field only
-          await communityRef.child('status').set('active');
-          await communityRef.child('adminId').set(userCredential.user!.uid);
-          await communityRef.child('updatedAt').set(DateTime.now().millisecondsSinceEpoch);
+          // Fourth fix: Try direct set operation for fields
+          final communitySnapshot = await communityRef.get();
+          if (communitySnapshot.exists) {
+            final communityData = communitySnapshot.value as Map<dynamic, dynamic>;
+            final locationStatusId = Community.createLocationStatusId(
+              communityData['regionCode'] as String,
+              communityData['provinceCode'] as String,
+              communityData['municipalityCode'] as String,
+              communityData['barangayCode'] as String,
+              'active'
+            );
+            await communityRef.child('status').set('active');
+            await communityRef.child('adminId').set(userCredential.user!.uid);
+            await communityRef.child('updatedAt').set(DateTime.now().millisecondsSinceEpoch);
+            await communityRef.child('locationStatusId').set(locationStatusId);
+          }
           
           print('Alternative update method completed');
         } catch (retryError) {
@@ -276,11 +304,27 @@ class SuperAdminService {
       // If there's an associated community, update its status too
       if (communityId != null && communityId.isNotEmpty) {
         print('Updating community status...');
-        await _database.child('communities').child(communityId).update({
-          'status': 'rejected',
-          'updatedAt': ServerValue.timestamp,
-        });
-        print('Community status updated successfully');
+        
+        // Get community data for creating locationStatusId
+        final communityRef = _database.child('communities').child(communityId);
+        final communitySnapshot = await communityRef.get();
+        if (communitySnapshot.exists) {
+          final communityData = communitySnapshot.value as Map<dynamic, dynamic>;
+          final locationStatusId = Community.createLocationStatusId(
+            communityData['regionCode'] as String,
+            communityData['provinceCode'] as String,
+            communityData['municipalityCode'] as String,
+            communityData['barangayCode'] as String,
+            'rejected'
+          );
+
+          await communityRef.update({
+            'status': 'rejected',
+            'locationStatusId': locationStatusId,
+            'updatedAt': ServerValue.timestamp,
+          });
+          print('Community status updated successfully');
+        }
       }
 
       print('=== ADMIN REJECTION PROCESS COMPLETE ===');

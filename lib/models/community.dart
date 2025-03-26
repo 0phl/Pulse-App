@@ -123,4 +123,9 @@ class Community {
       String region, String province, String city, String barangay) {
     return '$region:$province:$city:$barangay'.toLowerCase();
   }
+
+  static String createLocationStatusId(
+      String region, String province, String city, String barangay, String status) {
+    return '$region:$province:$city:$barangay:$status'.toLowerCase();
+  }
 }

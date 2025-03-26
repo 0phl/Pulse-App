@@ -99,48 +99,45 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: InkWell(
-              onTap: _createNotice,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor:
-                          Theme.of(context).primaryColor.withOpacity(0.1),
-                      child: Icon(
-                        Icons.person,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Share an update with your community...',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
+      child: InkWell(
+        onTap: _createNotice,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                child: Icon(
+                  Icons.person,
+                  size: 20,
+                  color: Theme.of(context).primaryColor,
                 ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Share an update...',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.photo_library,
+                color: Theme.of(context).primaryColor,
+                size: 20,
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          IconButton(
-            onPressed: _createNotice,
-            icon: const Icon(Icons.photo_library),
-            color: Theme.of(context).primaryColor,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -328,6 +325,7 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
                           )
                         : ListView.builder(
                             controller: _scrollController,
+                            padding: const EdgeInsets.only(top: 8, bottom: 16),
                             itemCount: _notices.length,
                             itemBuilder: (context, index) {
                               final notice = _notices[index];

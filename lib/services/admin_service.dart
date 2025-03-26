@@ -550,7 +550,17 @@ class AdminService {
       'createdAt': ServerValue.timestamp,
       'updatedAt': ServerValue.timestamp,
       'authorId': currentUserId,
-      'authorName': _auth.currentUser?.displayName ?? 'Admin',
+      'authorName': await () async {
+        final user = _auth.currentUser;
+        if (user != null) {
+          final adminDoc = await _usersCollection.doc(user.uid).get();
+          if (adminDoc.exists) {
+            final adminData = adminDoc.data() as Map<String, dynamic>;
+            return 'Admin ${adminData['fullName']}';
+          }
+        }
+        return 'Admin';
+      }(),
       'authorAvatar': _auth.currentUser?.photoURL,
       'likes': null,
       'comments': null,
@@ -636,7 +646,17 @@ class AdminService {
       'content': content,
       'createdAt': ServerValue.timestamp,
       'authorId': currentUserId,
-      'authorName': _auth.currentUser?.displayName ?? 'Admin',
+      'authorName': await () async {
+        final user = _auth.currentUser;
+        if (user != null) {
+          final adminDoc = await _usersCollection.doc(user.uid).get();
+          if (adminDoc.exists) {
+            final adminData = adminDoc.data() as Map<String, dynamic>;
+            return 'Admin ${adminData['fullName']}';
+          }
+        }
+        return 'Admin';
+      }(),
       'authorAvatar': _auth.currentUser?.photoURL,
     });
   }
