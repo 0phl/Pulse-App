@@ -222,45 +222,45 @@ class _MarketPageState extends State<MarketPage>
         automaticallyImplyLeading: false,
         actions: [
           Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chat),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ChatListPage(),
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chat),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ChatListPage(),
+                    ),
+                  );
+                },
+                tooltip: 'My Chats',
+              ),
+              if (_unreadChats > 0)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      _unreadChats.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
                       ),
-                    );
-                  },
-                  tooltip: 'My Chats',
-                ),
-                if (_unreadChats > 0)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      child: Text(
-                        _unreadChats.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
+          ),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -357,7 +357,8 @@ class _MarketPageState extends State<MarketPage>
             showEditButton: isMyItemsTab,
             onEdit: isMyItemsTab ? () => _handleEditItem(items[index]) : null,
             onDelete: isMyItemsTab ? () => _handleDelete(items[index]) : null,
-            onMarkAsSold: isMyItemsTab ? () => _handleMarkAsSold(items[index]) : null,
+            onMarkAsSold:
+                isMyItemsTab ? () => _handleMarkAsSold(items[index]) : null,
           ),
         );
       },
@@ -381,7 +382,8 @@ class _MarketPageState extends State<MarketPage>
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Item'),
-        content: const Text('Are you sure you want to delete this item? This action cannot be undone.'),
+        content: const Text(
+            'Are you sure you want to delete this item? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -403,7 +405,7 @@ class _MarketPageState extends State<MarketPage>
     try {
       // Delete the item from Firestore
       await _firestore.collection('market_items').doc(item.id).delete();
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Item deleted successfully')),
       );
@@ -423,7 +425,8 @@ class _MarketPageState extends State<MarketPage>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(item.isSold ? 'Item marked as available' : 'Item marked as sold'),
+          content: Text(
+              item.isSold ? 'Item marked as available' : 'Item marked as sold'),
         ),
       );
     } catch (e) {

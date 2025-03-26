@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
 import '../../services/auth_service.dart';
+import './admin_drawer.dart';
 
 class AdminReportsPage extends StatefulWidget {
   const AdminReportsPage({super.key});
@@ -66,101 +67,7 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
       appBar: AppBar(
         title: const Text('Reports'),
       ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  const CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.admin_panel_settings,
-                      size: 35,
-                      color: Color(0xFF00C49A),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    _communityName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Text(
-                    'Admin Panel',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.dashboard),
-              title: const Text('Dashboard'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/dashboard');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.people),
-              title: const Text('Manage Users'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/users');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.announcement),
-              title: const Text('Community Notices'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/notices');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.store),
-              title: const Text('Marketplace'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/marketplace');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.volunteer_activism),
-              title: const Text('Volunteer Posts'),
-              onTap: () {
-                Navigator.pushReplacementNamed(
-                    context, '/admin/volunteer-posts');
-              },
-            ),
-            ListTile(
-              selected: true,
-              leading: const Icon(Icons.report),
-              title: const Text('Reports'),
-              textColor: const Color(0xFF00C49A),
-              iconColor: const Color(0xFF00C49A),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Logout'),
-              onTap: _signOut,
-            ),
-          ],
-        ),
-      ),
+      drawer: const AdminDrawer(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _reports.isEmpty

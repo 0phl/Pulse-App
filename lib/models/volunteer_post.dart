@@ -4,68 +4,69 @@ class VolunteerPost {
   final String id;
   final String title;
   final String description;
+  final String adminId;
+  final String adminName;
+  final DateTime date; // Changed from datePosted to match Firestore index
+  final DateTime eventDate;
   final String location;
-  final DateTime date;
-  final int spotLimit;
-  final int spotsLeft;
-  final String userId;
-  final String userName;
+  final int maxVolunteers;
+  final List<String> joinedUsers;
+  final bool isActive;
   final String communityId;
-  final DateTime createdAt;
-  final List<String> participants;
 
   VolunteerPost({
     required this.id,
     required this.title,
     required this.description,
+    required this.adminId,
+    required this.adminName,
+    required this.date, // Changed parameter name
+    required this.eventDate,
     required this.location,
-    required this.date,
-    required this.spotLimit,
-    required this.spotsLeft,
-    required this.userId,
-    required this.userName,
+    required this.maxVolunteers,
+    required this.joinedUsers,
     required this.communityId,
-    required this.createdAt,
-    this.participants = const [],
+    this.isActive = true,
   });
-
-  factory VolunteerPost.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<dynamic, dynamic>;
-    return VolunteerPost(
-      id: doc.id,
-      title: data['title'] ?? '',
-      description: data['description'] ?? '',
-      location: data['location'] ?? '',
-      date: (data['date'] as Timestamp).toDate(),
-      spotLimit: data['spotLimit'] ?? 0,
-      spotsLeft: data['spotsLeft'] ?? 0,
-      userId: data['userId'] ?? '',
-      userName: data['userName'] ?? '',
-      communityId: data['communityId'] ?? '',
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      participants: List<String>.from(data['participants'] ?? []),
-    );
-  }
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'title': title,
       'description': description,
+      'adminId': adminId,
+      'adminName': adminName,
+      'date': date, // Changed from datePosted to date
+      'eventDate': eventDate,
       'location': location,
-      'date': Timestamp.fromDate(date),
-      'spotLimit': spotLimit,
-      'spotsLeft': spotsLeft,
-      'userId': userId,
-      'userName': userName,
+      'maxVolunteers': maxVolunteers,
+      'joinedUsers': joinedUsers,
+      'isActive': isActive,
       'communityId': communityId,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'participants': participants,
     };
+  }
+
+  factory VolunteerPost.fromMap(Map<String, dynamic> map, String documentId) {
+    return VolunteerPost(
+      id: documentId,
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      adminId: map['adminId'] ?? '',
+      adminName: map['adminName'] ?? '',
+      date: (map['date'] as Timestamp)
+          .toDate(), // Changed from datePosted to date
+      eventDate: (map['eventDate'] as Timestamp).toDate(),
+      location: map['location'] ?? '',
+      maxVolunteers: map['maxVolunteers'] ?? 0,
+      joinedUsers: List<String>.from(map['joinedUsers'] ?? []),
+      isActive: map['isActive'] ?? true,
+      communityId: map['communityId'] ?? '',
+    );
   }
 
   String getTimeAgo() {
     final now = DateTime.now();
-    final difference = now.difference(createdAt);
+    final difference = now.difference(date); // Changed from datePosted to date
 
     if (difference.inDays > 0) {
       return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
@@ -78,32 +79,43 @@ class VolunteerPost {
     }
   }
 
+  // Get formatted time from eventDate (HH:MM)
+  String get formattedTime {
+    final hour = eventDate.hour;
+    final minute = eventDate.minute;
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final hourDisplay = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+    final minuteDisplay = minute.toString().padLeft(2, '0');
+    return '$hourDisplay:$minuteDisplay $period';
+  }
+
   VolunteerPost copyWith({
     String? title,
     String? description,
     String? location,
-    DateTime? date,
-    int? spotLimit,
-    int? spotsLeft,
-    List<String>? participants,
+    DateTime? date, // Changed from datePosted to date
+    int? maxVolunteers,
+    List<String>? joinedUsers,
+    bool? isActive,
+    String? communityId,
   }) {
     return VolunteerPost(
       id: id,
       title: title ?? this.title,
       description: description ?? this.description,
+      adminId: adminId,
+      adminName: adminName,
+      date: date ?? this.date, // Changed from datePosted to date
+      eventDate: eventDate,
       location: location ?? this.location,
-      date: date ?? this.date,
-      spotLimit: spotLimit ?? this.spotLimit,
-      spotsLeft: spotsLeft ?? this.spotsLeft,
-      userId: userId,
-      userName: userName,
-      communityId: communityId,
-      createdAt: createdAt,
-      participants: participants ?? this.participants,
+      maxVolunteers: maxVolunteers ?? this.maxVolunteers,
+      joinedUsers: joinedUsers ?? this.joinedUsers,
+      isActive: isActive ?? this.isActive,
+      communityId: communityId ?? this.communityId,
     );
   }
 
   bool hasParticipant(String userId) {
-    return participants.contains(userId);
+    return joinedUsers.contains(userId);
   }
 }

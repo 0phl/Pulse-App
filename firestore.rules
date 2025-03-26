@@ -89,14 +89,40 @@ match /users/{userId} {
     match /volunteer_posts/{postId} {
       allow read, list: if request.auth != null;
       
-      allow create: if request.auth != null && 
-                   request.resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && (
+                   request.resource.data.userId == request.auth.uid ||
+                   isAdmin(request) ||
+                   isSuperAdmin(request)
+                   );
       
-      allow update: if request.auth != null && 
-                   resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && (
+                   // Allow original conditions (creator, admin, super admin)
+                   resource.data.userId == request.auth.uid ||
+                   isAdmin(request) ||
+                   isSuperAdmin(request) ||
+                   // Allow users to only update joinedUsers array when joining or canceling
+                   (
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['joinedUsers']) &&
+                     (
+                       // When joining (adding user to array)
+                       (
+                         request.resource.data.joinedUsers.hasAll(resource.data.joinedUsers) &&
+                         request.resource.data.joinedUsers.removeAll(resource.data.joinedUsers).hasOnly([request.auth.uid])
+                       ) ||
+                       // When canceling (removing user from array)
+                       (
+                         resource.data.joinedUsers.hasAll(request.resource.data.joinedUsers) &&
+                         resource.data.joinedUsers.removeAll(request.resource.data.joinedUsers).hasOnly([request.auth.uid])
+                       )
+                     )
+                   )
+                   );
       
-      allow delete: if request.auth != null && 
-                   resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && (
+                   resource.data.userId == request.auth.uid ||
+                   isAdmin(request) ||
+                   isSuperAdmin(request)
+                   );
     }
 
     // Audit logs collection

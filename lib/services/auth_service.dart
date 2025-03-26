@@ -12,6 +12,9 @@ class AuthService {
   final _maxRetries = 3;
   final _retryDelay = Duration(milliseconds: 500);
 
+  // Get current user
+  User? get currentUser => _auth.currentUser;
+
   Future<void> _waitForConnection() async {
     final connectedRef = FirebaseDatabase.instance.ref(".info/connected");
     bool isConnected = false;
@@ -27,7 +30,8 @@ class AuthService {
     }
   }
 
-  Future<DataSnapshot> _queryUsernameWithRetry(String username, int retryCount) async {
+  Future<DataSnapshot> _queryUsernameWithRetry(
+      String username, int retryCount) async {
     try {
       await _waitForConnection();
       return await _database
@@ -37,7 +41,8 @@ class AuthService {
           .once()
           .then((event) => event.snapshot);
     } catch (e) {
-      print('AuthService: Error querying username (attempt ${retryCount + 1}): $e');
+      print(
+          'AuthService: Error querying username (attempt ${retryCount + 1}): $e');
       if (retryCount < _maxRetries) {
         await Future.delayed(_retryDelay);
         return _queryUsernameWithRetry(username, retryCount + 1);

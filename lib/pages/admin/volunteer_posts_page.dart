@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../services/admin_service.dart';
-import '../../services/auth_service.dart';
+import 'package:intl/intl.dart';
 import '../../models/volunteer_post.dart';
+import '../../services/auth_service.dart';
+import '../admin/admin_drawer.dart';
 
 class AdminVolunteerPostsPage extends StatefulWidget {
-  const AdminVolunteerPostsPage({super.key});
+  const AdminVolunteerPostsPage({Key? key}) : super(key: key);
 
   @override
   State<AdminVolunteerPostsPage> createState() =>
@@ -13,323 +14,818 @@ class AdminVolunteerPostsPage extends StatefulWidget {
 }
 
 class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
-  final _adminService = AdminService();
-  final _authService = AuthService();
-  String _communityName = '';
-  bool _isLoading = true;
-  List<Map<String, dynamic>> _volunteerPosts = [];
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _maxVolunteersController = TextEditingController();
+  DateTime _selectedDate = DateTime.now();
+  TimeOfDay _selectedTime = TimeOfDay.now();
+  bool _isCreatingPost = false;
+
+  Future<String?> _getAdminCommunityId() async {
+    final currentUser = AuthService().currentUser;
+    if (currentUser == null) return null;
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .get();
+
+    if (!userDoc.exists) return null;
+
+    final userData = userDoc.data()!;
+    return userData['communityId'] as String;
+  }
 
   @override
-  void initState() {
-    super.initState();
-    _loadCommunity();
-    _loadVolunteerPosts();
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    _maxVolunteersController.dispose();
+    super.dispose();
   }
 
-  Future<void> _loadCommunity() async {
+  Future<void> _createVolunteerPost() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isCreatingPost = true;
+    });
+
+    final currentUser = AuthService().currentUser;
+    if (currentUser == null) {
+      setState(() {
+        _isCreatingPost = false;
+      });
+      return;
+    }
+
+    // Get admin's community ID
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .get();
+
+    if (!userDoc.exists) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: User data not found')),
+        );
+        setState(() {
+          _isCreatingPost = false;
+        });
+      }
+      return;
+    }
+
+    final userData = userDoc.data()!;
+    final communityId = userData['communityId'] as String;
+
+    // Create DateTime with both date and time components
+    final eventDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _selectedTime.hour,
+      _selectedTime.minute,
+    );
+
+    final post = VolunteerPost(
+      id: '',
+      title: _titleController.text,
+      description: _descriptionController.text,
+      adminId: currentUser.uid,
+      adminName: currentUser.displayName ?? 'Admin',
+      date: DateTime.now(),
+      eventDate: eventDateTime,
+      location: _locationController.text,
+      maxVolunteers: int.parse(_maxVolunteersController.text),
+      joinedUsers: [],
+      communityId: communityId,
+    );
+
     try {
-      final community = await _adminService.getCurrentAdminCommunity();
-      if (community != null && mounted) {
-        setState(() => _communityName = community.name);
+      await FirebaseFirestore.instance
+          .collection('volunteer_posts')
+          .add(post.toMap());
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Volunteer post created successfully!'),
+            backgroundColor: Color(0xFF00C49A),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading community: $e'),
-            backgroundColor: Colors.red,
+          SnackBar(content: Text('Error creating post: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCreatingPost = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deletePost(String postId, String title) async {
+    // Show confirmation dialog
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Post?'),
+        content: Text('Are you sure you want to delete "$title"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('volunteer_posts')
+          .doc(postId)
+          .delete();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Post deleted successfully'),
+            backgroundColor: Color(0xFF00C49A),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting post: $e')),
         );
       }
     }
   }
 
-  Future<void> _signOut() async {
-    try {
-      await _authService.signOut();
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error signing out: $e'),
-            backgroundColor: Colors.red,
+  void _showCreatePostDialog() {
+    _titleController.clear();
+    _descriptionController.clear();
+    _locationController.clear();
+    _maxVolunteersController.text = "1"; // Default value
+    _selectedDate =
+        DateTime.now().add(const Duration(days: 1)); // Default to tomorrow
+    _selectedTime = const TimeOfDay(hour: 9, minute: 0); // Default to 9 AM
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Create Volunteer Post',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildFormField(
+                            label: 'Title',
+                            controller: _titleController,
+                            hintText: 'Tree Planting',
+                            validator: (value) => value?.isEmpty ?? true
+                                ? 'Please enter a title'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildFormField(
+                            label: 'Description',
+                            controller: _descriptionController,
+                            hintText:
+                                'Join us for a community tree planting event...',
+                            maxLines: 3,
+                            validator: (value) => value?.isEmpty ?? true
+                                ? 'Please enter a description'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildDateField(
+                                  label: 'Date',
+                                  value: DateFormat('MM/dd/yyyy')
+                                      .format(_selectedDate),
+                                  icon: Icons.calendar_today,
+                                  onTap: () async {
+                                    final date = await showDatePicker(
+                                      context: context,
+                                      initialDate: _selectedDate,
+                                      firstDate: DateTime.now(),
+                                      lastDate: DateTime.now()
+                                          .add(const Duration(days: 365)),
+                                      builder: (context, child) {
+                                        return Theme(
+                                          data: Theme.of(context).copyWith(
+                                            colorScheme:
+                                                const ColorScheme.light(
+                                              primary: Color(0xFF00C49A),
+                                            ),
+                                          ),
+                                          child: child!,
+                                        );
+                                      },
+                                    );
+                                    if (date != null && mounted) {
+                                      setState(() => _selectedDate = date);
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildDateField(
+                                  label: 'Time',
+                                  value: _selectedTime.format(context),
+                                  icon: Icons.access_time,
+                                  onTap: () async {
+                                    final time = await showTimePicker(
+                                      context: context,
+                                      initialTime: _selectedTime,
+                                      builder: (context, child) {
+                                        return Theme(
+                                          data: Theme.of(context).copyWith(
+                                            colorScheme:
+                                                const ColorScheme.light(
+                                              primary: Color(0xFF00C49A),
+                                            ),
+                                          ),
+                                          child: child!,
+                                        );
+                                      },
+                                    );
+                                    if (time != null && mounted) {
+                                      setState(() => _selectedTime = time);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _buildFormField(
+                            label: 'Location',
+                            controller: _locationController,
+                            hintText: 'Barangay Pulse',
+                            validator: (value) => value?.isEmpty ?? true
+                                ? 'Please enter a location'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildFormField(
+                            label: 'Maximum Volunteers',
+                            controller: _maxVolunteersController,
+                            hintText: '1',
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value?.isEmpty ?? true) {
+                                return 'Please enter maximum volunteers';
+                              }
+                              if (int.tryParse(value!) == null) {
+                                return 'Please enter a valid number';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: _isCreatingPost
+                                      ? null
+                                      : () => Navigator.pop(context),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    side:
+                                        BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                  child: const Text('Cancel'),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: _isCreatingPost
+                                      ? null
+                                      : _createVolunteerPost,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF00C49A),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: _isCreatingPost
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                    Colors.white),
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Create Post',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        );
-      }
-    }
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormField({
+    required String label,
+    required TextEditingController controller,
+    required String hintText,
+    int maxLines = 1,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: 14,
+            color: Color(0xFF4A5568),
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade200),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade200),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFF00C49A)),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            isDense: true,
+            filled: true,
+            fillColor: Colors.grey.shade50,
+          ),
+          maxLines: maxLines,
+          keyboardType: keyboardType,
+          validator: validator,
+          style: const TextStyle(fontSize: 14),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateField({
+    required String label,
+    required String value,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: 14,
+            color: Color(0xFF4A5568),
+          ),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade200),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.grey.shade50,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+                Icon(icon, size: 16, color: Colors.grey.shade600),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AdminDrawer(),
       appBar: AppBar(
-        title: const Text('Volunteer Posts'),
+        title: const Text(
+          'Manage Volunteer Posts',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+            fontSize: 18,
+          ),
+        ),
+        backgroundColor: const Color(0xFF00C49A),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 20),
+            onPressed: () => setState(() {}),
+          ),
+        ],
       ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
+      body: StreamBuilder<String?>(
+        stream: Stream.fromFuture(_getAdminCommunityId()),
+        builder: (context, communitySnapshot) {
+          if (communitySnapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
               ),
+            );
+          }
+
+          final communityId = communitySnapshot.data;
+          if (communityId == null) {
+            return Center(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.admin_panel_settings,
-                      size: 35,
-                      color: Color(0xFF00C49A),
-                    ),
+                  Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: Colors.red.shade300,
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    _communityName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  const SizedBox(height: 16),
                   const Text(
-                    'Admin Panel',
+                    'Could not find community ID',
                     style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
+                      fontSize: 16,
+                      color: Color(0xFF4A5568),
                     ),
                   ),
                 ],
               ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.dashboard),
-              title: const Text('Dashboard'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/dashboard');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.people),
-              title: const Text('Manage Users'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/users');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.announcement),
-              title: const Text('Community Notices'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/notices');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.store),
-              title: const Text('Marketplace'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/marketplace');
-              },
-            ),
-            ListTile(
-              selected: true,
-              leading: const Icon(Icons.volunteer_activism),
-              title: const Text('Volunteer Posts'),
-              textColor: const Color(0xFF00C49A),
-              iconColor: const Color(0xFF00C49A),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.report),
-              title: const Text('Reports'),
-              onTap: () {
-                Navigator.pushReplacementNamed(context, '/admin/reports');
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Logout'),
-              onTap: _signOut,
-            ),
-          ],
-        ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
+            );
+          }
+
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('volunteer_posts')
+                .where('communityId', isEqualTo: communityId)
+                .orderBy('date', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
                   child: Text(
-                    'Total Posts: ${_volunteerPosts.length}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    'Error loading posts',
+                    style: TextStyle(color: Colors.grey.shade700),
                   ),
-                ),
-                Expanded(
-                  child: _volunteerPosts.isEmpty
-                      ? const Center(child: Text('No volunteer posts'))
-                      : ListView.builder(
-                          itemCount: _volunteerPosts.length,
-                          padding: const EdgeInsets.all(16),
-                          itemBuilder: (context, index) {
-                            final post = _volunteerPosts[index];
-                            return Card(
-                              child: ListTile(
-                                title: Text(post['title']),
-                                subtitle: Text(
-                                  post['description'],
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.more_vert),
-                                  onPressed: () => _showPostOptions(post),
+                );
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                  ),
+                );
+              }
+
+              final posts = snapshot.data?.docs ?? [];
+
+              if (posts.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.volunteer_activism,
+                        size: 48,
+                        color: const Color(0xFF00C49A).withOpacity(0.5),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No volunteer posts yet',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF2D3748),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Create your first volunteer post',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: _showCreatePostDialog,
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Create Post'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00C49A),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                itemCount: posts.length,
+                padding: const EdgeInsets.all(16),
+                itemBuilder: (context, index) {
+                  final post = VolunteerPost.fromMap(
+                    posts[index].data() as Map<String, dynamic>,
+                    posts[index].id,
+                  );
+
+                  final isPastEvent = post.eventDate.isBefore(DateTime.now());
+
+                  return Card(
+                    elevation: 0,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isPastEvent
+                                ? Colors.grey.shade300
+                                : const Color(0xFF00C49A),
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(12),
+                              topRight: Radius.circular(12),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  post.title,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    decoration: isPastEvent
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                                  ),
                                 ),
                               ),
-                            );
-                          },
+                              Row(
+                                children: [
+                                  if (isPastEvent)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Text(
+                                        'Past',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  const SizedBox(width: 8),
+                                  GestureDetector(
+                                    onTap: () =>
+                                        _deletePost(post.id, post.title),
+                                    child: const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                ),
-              ],
-            ),
-    );
-  }
-
-  Future<void> _loadVolunteerPosts() async {
-    if (mounted) {
-      setState(() => _isLoading = true);
-    }
-
-    try {
-      // TODO: Implement loading volunteer posts from Firestore
-      setState(() {
-        _volunteerPosts = [
-          {
-            'id': '1',
-            'title': 'Sample Volunteer Post',
-            'description': 'This is a sample volunteer post.',
-            'userId': 'user1',
-            'userName': 'Sample User',
-            'location': 'Sample Location',
-            'spotLimit': 10,
-            'spotsLeft': 10,
-            'communityId': 'community1',
-            'date': DateTime.now().toIso8601String(),
-            'createdAt': DateTime.now().toIso8601String(),
-            'imageUrl': 'https://example.com/image.jpg',
-            'organizerName': 'Sample User'
-          },
-        ];
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading volunteer posts: $e')),
-        );
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _showPostOptions(Map<String, dynamic> post) async {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Manage Post'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.visibility),
-              title: const Text('View Details'),
-              onTap: () {
-                Navigator.pop(context);
-                _viewPostDetails(post);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.warning),
-              title: const Text('Remove Post'),
-              onTap: () {
-                Navigator.pop(context);
-                _removePost(post['id']);
-              },
-            ),
-          ],
-        ),
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                post.description,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 16),
+                              _buildPostDetailRow(
+                                icon: Icons.location_on,
+                                text: post.location,
+                              ),
+                              const Divider(height: 16, thickness: 0.5),
+                              _buildPostDetailRow(
+                                icon: Icons.calendar_today,
+                                text: DateFormat('EEEE, MMMM d, yyyy')
+                                    .format(post.eventDate),
+                              ),
+                              const Divider(height: 16, thickness: 0.5),
+                              _buildPostDetailRow(
+                                icon: Icons.access_time,
+                                text: post.formattedTime,
+                              ),
+                              const Divider(height: 16, thickness: 0.5),
+                              _buildPostDetailRow(
+                                icon: Icons.people,
+                                text:
+                                    '${post.joinedUsers.length}/${post.maxVolunteers} volunteers',
+                                trailing: SizedBox(
+                                  width: 50,
+                                  height: 4,
+                                  child: LinearProgressIndicator(
+                                    value: post.maxVolunteers > 0
+                                        ? post.joinedUsers.length /
+                                            post.maxVolunteers
+                                        : 0,
+                                    backgroundColor: Colors.grey[200],
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      post.joinedUsers.length >=
+                                              post.maxVolunteers
+                                          ? Colors.redAccent
+                                          : const Color(0xFF00C49A),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showCreatePostDialog,
+        backgroundColor: const Color(0xFF00C49A),
+        elevation: 2,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
 
-  Future<void> _viewPostDetails(Map<String, dynamic> post) async {
-    try {
-      // Show post details dialog
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(post['title']),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Image.network(post['imageUrl']),
-                const SizedBox(height: 16),
-                Text('Description: ${post['description']}'),
-                const SizedBox(height: 8),
-                Text('Location: ${post['location']}'),
-                const SizedBox(height: 8),
-                Text('Date: ${post['date']}'),
-                const SizedBox(height: 8),
-                Text('Organizer: ${post['organizerName']}'),
-              ],
+  Widget _buildPostDetailRow({
+    required IconData icon,
+    required String text,
+    Widget? trailing,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: const Color(0xFF00C49A),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: Colors.grey[800],
+              fontSize: 13,
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-            ],
           ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error viewing post details: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _removePost(String postId) async {
-    try {
-      await _adminService.removeVolunteerPost(postId);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Post removed successfully')),
-        );
-        _loadVolunteerPosts();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error removing post: $e')),
-        );
-      }
-    }
+        ),
+        if (trailing != null) trailing,
+      ],
+    );
   }
 }

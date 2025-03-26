@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/volunteer_post.dart';
-import 'add_volunteer_post_page.dart';
 import '../services/community_service.dart';
 import 'package:intl/intl.dart';
+import '../services/auth_service.dart';
 
 class VolunteerPage extends StatefulWidget {
   const VolunteerPage({super.key});
@@ -62,15 +62,17 @@ class _VolunteerPageState extends State<VolunteerPage> {
     try {
       final query = _firestore
           .collection('volunteer_posts')
-          .where('communityId', isEqualTo: _currentUserCommunityId);
+          .where('communityId', isEqualTo: _currentUserCommunityId)
+          .orderBy('date', descending: true)
+          .orderBy(FieldPath.documentId, descending: true);
 
       // Create the stream
       _postsStream = query.snapshots().map((snapshot) {
         return snapshot.docs
-            .map((doc) => VolunteerPost.fromFirestore(doc))
-            .where((post) => post.date.isAfter(DateTime.now()))
-            .toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
+            .map((doc) => VolunteerPost.fromMap(
+                doc.data() as Map<String, dynamic>, doc.id))
+            .where((post) => post.eventDate.isAfter(DateTime.now()))
+            .toList();
       });
 
       print("Stream initialized successfully");
@@ -79,223 +81,312 @@ class _VolunteerPageState extends State<VolunteerPage> {
     }
   }
 
-  // Post is already created in AddVolunteerPostPage
-  void _handleNewPost(VolunteerPost post) {
-    // Only show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Post created successfully!')),
-    );
-  }
-
-  Future<void> _signUpForVolunteer(VolunteerPost post) async {
-    if (_currentUserCommunityId == null) return;
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) return;
-
+  Future<void> _joinVolunteerPost(
+      BuildContext context, VolunteerPost post) async {
     try {
-      final docRef = _firestore.collection('volunteer_posts').doc(post.id);
+      final currentUser = AuthService().currentUser;
+      if (currentUser == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Please login to join volunteer activities')),
+        );
+        return;
+      }
 
-      await _firestore.runTransaction((transaction) async {
-        final snapshot = await transaction.get(docRef);
-        if (!snapshot.exists) return;
+      if (post.joinedUsers.contains(currentUser.uid)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('You have already joined this activity')),
+        );
+        return;
+      }
 
-        final data = snapshot.data() as Map<String, dynamic>;
-        final currentSpotsLeft = data['spotsLeft'] as int;
-        final participants = List<String>.from(data['participants'] ?? []);
+      if (post.joinedUsers.length >= post.maxVolunteers) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This activity is already full')),
+        );
+        return;
+      }
 
-        if (participants.contains(currentUser.uid)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('You are already signed up!')),
-          );
-          return;
-        }
-
-        if (currentSpotsLeft > 0) {
-          participants.add(currentUser.uid);
-          transaction.update(docRef, {
-            'spotsLeft': currentSpotsLeft - 1,
-            'participants': participants,
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Successfully signed up!')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No spots left!')),
-          );
-        }
+      await FirebaseFirestore.instance
+          .collection('volunteer_posts')
+          .doc(post.id)
+          .update({
+        'joinedUsers': FieldValue.arrayUnion([currentUser.uid]),
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Successfully joined the volunteer activity!')),
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error signing up: $e')),
+        SnackBar(content: Text('Error joining activity: $e')),
       );
     }
   }
 
-  Future<void> _cancelVolunteerSignup(VolunteerPost post) async {
-    if (_currentUserCommunityId == null) return;
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) return;
-
+  // New function to cancel volunteer registration
+  Future<void> _cancelVolunteerPost(
+      BuildContext context, VolunteerPost post) async {
     try {
-      final docRef = _firestore.collection('volunteer_posts').doc(post.id);
-
-      await _firestore.runTransaction((transaction) async {
-        final snapshot = await transaction.get(docRef);
-        if (!snapshot.exists) return;
-
-        final data = snapshot.data() as Map<String, dynamic>;
-        final currentSpotsLeft = data['spotsLeft'] as int;
-        final participants = List<String>.from(data['participants'] ?? []);
-
-        if (!participants.contains(currentUser.uid)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('You are not signed up for this event!')),
-          );
-          return;
-        }
-
-        participants.remove(currentUser.uid);
-        transaction.update(docRef, {
-          'spotsLeft': currentSpotsLeft + 1,
-          'participants': participants,
-        });
-
+      final currentUser = AuthService().currentUser;
+      if (currentUser == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Successfully cancelled signup!')),
+          const SnackBar(
+              content: Text('Please login to manage your activities')),
         );
+        return;
+      }
+
+      if (!post.joinedUsers.contains(currentUser.uid)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('You have not joined this activity')),
+        );
+        return;
+      }
+
+      // Show confirmation dialog
+      final bool confirm = await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Cancel Registration'),
+          content: const Text('Are you sure you want to cancel your registration for this volunteer activity?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('No'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Yes'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+            ),
+          ],
+        ),
+      ) ?? false;
+
+      if (!confirm) return;
+
+      await FirebaseFirestore.instance
+          .collection('volunteer_posts')
+          .doc(post.id)
+          .update({
+        'joinedUsers': FieldValue.arrayRemove([currentUser.uid]),
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Successfully cancelled your registration')),
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error cancelling signup: $e')),
+        SnackBar(content: Text('Error cancelling registration: $e')),
       );
     }
   }
 
   Widget _buildVolunteerCard(VolunteerPost post) {
+    final spotsLeft = post.maxVolunteers - post.joinedUsers.length;
+    final currentUser = AuthService().currentUser;
+    final bool hasJoined = currentUser != null && post.joinedUsers.contains(currentUser.uid);
+    final bool isFull = spotsLeft <= 0;
+
     return Card(
-      elevation: 2,
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              post.title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title section with teal background
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFF00C49A),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Posted ${post.getTimeAgo()}',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  post.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$spotsLeft spots left',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
+          ),
+          
+          // Description
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Text(
               post.description,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 16),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.calendar_today, size: 16),
-                      const SizedBox(width: 8),
-                      Text(DateFormat('MMM dd, yyyy').format(post.date)),
-                    ],
-                  ),
-                  const SizedBox(width: 16),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.location_on, size: 16),
-                      const SizedBox(width: 8),
-                      Text(post.location),
-                    ],
-                  ),
-                  const SizedBox(width: 16),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.person, size: 16),
-                      const SizedBox(width: 4),
-                      Text('${post.spotsLeft} spots left'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: StreamBuilder<User?>(
-                stream: _auth.authStateChanges(),
-                builder: (context, snapshot) {
-                  final currentUser = snapshot.data;
-                  if (currentUser == null) {
-                    return ElevatedButton(
-                      onPressed: null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00C49A),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text('Sign in to Volunteer'),
-                    );
-                  }
-
-                  final isParticipant = post.hasParticipant(currentUser.uid);
-
-                  if (isParticipant) {
-                    return ElevatedButton(
-                      onPressed: () => _cancelVolunteerSignup(post),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text('Cancel Signup'),
-                    );
-                  }
-
-                  return ElevatedButton(
-                    onPressed: post.spotsLeft > 0
-                        ? () => _signUpForVolunteer(post)
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00C49A),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+          ),
+          
+          // Details
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // Location
+                _buildDetailRow(
+                  Icons.location_on,
+                  post.location,
+                ),
+                const Divider(height: 16, thickness: 0.5),
+                
+                // Date
+                _buildDetailRow(
+                  Icons.calendar_today,
+                  DateFormat('EEEE, MMMM d, yyyy').format(post.eventDate),
+                ),
+                const Divider(height: 16, thickness: 0.5),
+                
+                // Time
+                _buildDetailRow(
+                  Icons.access_time,
+                  post.formattedTime,
+                ),
+                const Divider(height: 16, thickness: 0.5),
+                
+                // Volunteers count
+                _buildDetailRow(
+                  Icons.people,
+                  '${post.joinedUsers.length}/${post.maxVolunteers} volunteers joined',
+                  trailing: SizedBox(
+                    width: 50,
+                    height: 4,
+                    child: LinearProgressIndicator(
+                      value: post.maxVolunteers > 0 
+                          ? post.joinedUsers.length / post.maxVolunteers 
+                          : 0,
+                      backgroundColor: Colors.grey[200],
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        post.joinedUsers.length >= post.maxVolunteers 
+                            ? Colors.redAccent 
+                            : const Color(0xFF00C49A),
                       ),
                     ),
-                    child: const Text('Sign Up to Volunteer'),
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          
+          // Join/Cancel button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: SizedBox(
+              width: double.infinity,
+              child: hasJoined 
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => _cancelVolunteerPost(context, post),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: const Text(
+                              'Cancel Registration',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ElevatedButton(
+                      onPressed: isFull ? null : () => _joinVolunteerPost(context, post),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00C49A),
+                        disabledBackgroundColor: Colors.grey[300],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text(
+                        isFull ? 'Activity Full' : 'Join Activity',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: !isFull ? Colors.white : Colors.grey[600],
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String text, {Widget? trailing}) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: const Color(0xFF00C49A),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: Colors.grey[800],
+              fontSize: 13,
+            ),
+          ),
+        ),
+        if (trailing != null) trailing,
+      ],
     );
   }
 
@@ -306,21 +397,39 @@ class _VolunteerPageState extends State<VolunteerPage> {
         automaticallyImplyLeading: false,
         title: const Text(
           'Volunteer Opportunities',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white, 
+            fontWeight: FontWeight.w500,
+            fontSize: 18,
+          ),
         ),
         backgroundColor: const Color(0xFF00C49A),
+        elevation: 0,
       ),
       body: _currentUserCommunityId == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+              ),
+            )
           : StreamBuilder<List<VolunteerPost>>(
               stream: _postsStream,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
+                  return Center(
+                    child: Text(
+                      'Error loading opportunities',
+                      style: TextStyle(color: Colors.grey[700]),
+                    ),
+                  );
                 }
 
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                    ),
+                  );
                 }
 
                 final posts = snapshot.data ?? [];
@@ -332,31 +441,26 @@ class _VolunteerPageState extends State<VolunteerPage> {
                       children: [
                         Icon(
                           Icons.volunteer_activism,
-                          size: 80,
-                          color: Color(0xFF00C49A).withOpacity(0.5),
+                          size: 48,
+                          color: const Color(0xFF00C49A).withOpacity(0.5),
                         ),
                         const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 32),
-                          child: const Text(
-                            'No Volunteer Opportunities',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF2D3748),
-                            ),
-                            textAlign: TextAlign.center,
+                        const Text(
+                          'No Volunteer Opportunities',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF2D3748),
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 40),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
                           child: Text(
                             'Wait for your community administrator to create a volunteer opportunity.',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 14,
                               color: Colors.grey[600],
-                              height: 1.4,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -370,32 +474,11 @@ class _VolunteerPageState extends State<VolunteerPage> {
                   padding: const EdgeInsets.all(16),
                   itemCount: posts.length,
                   itemBuilder: (context, index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: _buildVolunteerCard(posts[index]),
-                    );
+                    return _buildVolunteerCard(posts[index]);
                   },
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _isLoading || _currentUserCommunityId == null
-            ? null
-            : () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AddVolunteerPostPage(
-                      onPostAdded: _handleNewPost,
-                    ),
-                  ),
-                );
-              },
-        backgroundColor: const Color(0xFF00C49A),
-        child: _isLoading
-            ? const CircularProgressIndicator(color: Colors.white)
-            : const Icon(Icons.add, color: Colors.white),
-      ),
     );
   }
 }
