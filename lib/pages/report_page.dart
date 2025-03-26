@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import '../widgets/report_stepper.dart';
+import '../widgets/report_form_field.dart';
+import '../widgets/searchable_dropdown.dart';
+import '../widgets/user_report_card.dart';
+import '../widgets/report_filter_chip.dart';
+import '../widgets/report_success_dialog.dart';
+import '../widgets/report_review_item.dart';
 
 class ReportPage extends StatefulWidget {
   const ReportPage({super.key});
@@ -33,6 +40,7 @@ class _ReportPageState extends State<ReportPage>
   int _currentStep = 0;
   late TabController _tabController;
   final List<String> _tabs = ['New Report', 'My Reports'];
+  String _selectedFilter = 'All';
 
   @override
   void initState() {
@@ -91,7 +99,9 @@ class _ReportPageState extends State<ReportPage>
       });
 
       // Show success dialog
-      _showSuccessDialog();
+      ReportSuccessDialog.show(context, () {
+        _tabController.animateTo(1);
+      });
 
       // Reset form
       setState(() {
@@ -102,68 +112,6 @@ class _ReportPageState extends State<ReportPage>
         _currentStep = 0;
       });
     });
-  }
-
-  void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF00C49A).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.check_circle,
-                color: Color(0xFF00C49A),
-                size: 48,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Report Submitted',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Your report has been submitted successfully. We will review it shortly.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  // Switch to My Reports tab
-                  _tabController.animateTo(1);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00C49A),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('View My Reports'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _showSnackBar(String message) {
@@ -229,37 +177,14 @@ class _ReportPageState extends State<ReportPage>
           child: Column(
             children: [
               // Progress Stepper
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                color: Colors.grey.shade50,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _buildStepIndicator(
-                        step: 0,
-                        title: 'Details',
-                        isActive: _currentStep >= 0,
-                        isCompleted: _currentStep > 0,
-                      ),
-                    ),
-                    Expanded(
-                      child: _buildStepIndicator(
-                        step: 1,
-                        title: 'Location',
-                        isActive: _currentStep >= 1,
-                        isCompleted: _currentStep > 1,
-                      ),
-                    ),
-                    Expanded(
-                      child: _buildStepIndicator(
-                        step: 2,
-                        title: 'Review',
-                        isActive: _currentStep >= 2,
-                        isCompleted: _currentStep > 2,
-                      ),
-                    ),
-                  ],
-                ),
+              ReportStepper(
+                currentStep: _currentStep,
+                maxAllowedStep: _getMaxAllowedStep(),
+                onStepTapped: (step) {
+                  setState(() {
+                    _currentStep = step;
+                  });
+                },
               ),
 
               // Form Content
@@ -281,95 +206,6 @@ class _ReportPageState extends State<ReportPage>
               ),
             ),
           ),
-      ],
-    );
-  }
-
-  Widget _buildStepIndicator({
-    required int step,
-    required String title,
-    required bool isActive,
-    required bool isCompleted,
-  }) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Line before (except for first step)
-            if (step > 0)
-              Expanded(
-                child: Container(
-                  height: 2,
-                  color:
-                      isActive ? const Color(0xFF00C49A) : Colors.grey.shade300,
-                ),
-              ),
-
-            // Circle indicator
-            GestureDetector(
-              onTap: () {
-                if (step <= _getMaxAllowedStep()) {
-                  setState(() {
-                    _currentStep = step;
-                  });
-                }
-              },
-              child: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isCompleted
-                      ? const Color(0xFF00C49A)
-                      : isActive
-                          ? Colors.white
-                          : Colors.grey.shade300,
-                  border: Border.all(
-                    color: isActive
-                        ? const Color(0xFF00C49A)
-                        : Colors.grey.shade300,
-                    width: 2,
-                  ),
-                ),
-                child: Center(
-                  child: isCompleted
-                      ? const Icon(Icons.check, size: 14, color: Colors.white)
-                      : Text(
-                          '${step + 1}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isActive
-                                ? const Color(0xFF00C49A)
-                                : Colors.grey,
-                          ),
-                        ),
-                ),
-              ),
-            ),
-
-            // Line after (except for last step)
-            if (step < 2)
-              Expanded(
-                child: Container(
-                  height: 2,
-                  color: isCompleted
-                      ? const Color(0xFF00C49A)
-                      : Colors.grey.shade300,
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            color: isActive ? const Color(0xFF00C49A) : Colors.grey,
-          ),
-        ),
       ],
     );
   }
@@ -422,14 +258,26 @@ class _ReportPageState extends State<ReportPage>
         const SizedBox(height: 20),
 
         // Issue Type Field
-        _buildFormField(
+        ReportFormField(
           label: 'Issue Type',
           isRequired: true,
-          child: _buildSearchableDropdown(),
+          child: SearchableDropdown(
+            controller: _issueTypeController,
+            items: _filteredIssueTypes,
+            selectedItem: _selectedIssueType,
+            hintText: 'Select or type issue type',
+            onSearch: _filterIssueTypes,
+            onItemSelected: (value) {
+              setState(() {
+                _selectedIssueType = value;
+                _issueTypeController.text = value;
+              });
+            },
+          ),
         ),
 
         // Description Field
-        _buildFormField(
+        ReportFormField(
           label: 'Description',
           isRequired: true,
           child: TextFormField(
@@ -533,7 +381,7 @@ class _ReportPageState extends State<ReportPage>
         const SizedBox(height: 20),
 
         // Address Field
-        _buildFormField(
+        ReportFormField(
           label: 'Address',
           isRequired: true,
           child: Column(
@@ -685,26 +533,29 @@ class _ReportPageState extends State<ReportPage>
           child: Column(
             children: [
               // Issue Type
-              _buildReviewItem(
+              ReportReviewItem(
                 icon: Icons.report_problem_outlined,
                 label: 'Issue Type',
                 value: _selectedIssueType ?? '',
+                onEdit: () => setState(() => _currentStep = 0),
               ),
               const Divider(height: 24),
 
               // Description
-              _buildReviewItem(
+              ReportReviewItem(
                 icon: Icons.description_outlined,
                 label: 'Description',
                 value: _descriptionController.text,
+                onEdit: () => setState(() => _currentStep = 0),
               ),
               const Divider(height: 24),
 
               // Location
-              _buildReviewItem(
+              ReportReviewItem(
                 icon: Icons.location_on_outlined,
                 label: 'Location',
                 value: _addressController.text,
+                onEdit: () => setState(() => _currentStep = 1),
               ),
             ],
           ),
@@ -774,68 +625,32 @@ class _ReportPageState extends State<ReportPage>
     );
   }
 
-  Widget _buildReviewItem({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF00C49A).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: const Color(0xFF00C49A),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-        IconButton(
-          onPressed: () {
-            setState(() {
-              _currentStep = label == 'Location' ? 1 : 0;
-            });
-          },
-          icon: const Icon(
-            Icons.edit,
-            size: 16,
-            color: Color(0xFF00C49A),
-          ),
-          constraints: const BoxConstraints(),
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-        ),
-      ],
-    );
-  }
-
   Widget _buildMyReportsTab() {
+    // Mock data for reports
+    final List<Map<String, dynamic>> reports = [
+      {
+        'title': 'Street Light Out',
+        'location': 'Niog, Pavillion',
+        'date': 'Today, 2:30 PM',
+        'status': 'Pending',
+        'statusColor': Colors.orange,
+      },
+      {
+        'title': 'Pothole on Main Street',
+        'location': '123 Main St, Downtown',
+        'date': 'Yesterday, 10:15 AM',
+        'status': 'In Progress',
+        'statusColor': Colors.blue,
+      },
+      {
+        'title': 'Garbage Collection Issue',
+        'location': '45 Park Avenue',
+        'date': 'Mar 15, 2023',
+        'status': 'Resolved',
+        'statusColor': Colors.green,
+      },
+    ];
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -844,317 +659,67 @@ class _ReportPageState extends State<ReportPage>
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              _buildFilterChip(label: 'All', isSelected: true),
-              _buildFilterChip(label: 'Pending'),
-              _buildFilterChip(label: 'In Progress'),
-              _buildFilterChip(label: 'Resolved'),
-              _buildFilterChip(label: 'Rejected'),
+              ReportFilterChip(
+                label: 'All',
+                isSelected: _selectedFilter == 'All',
+                onSelected: (selected) {
+                  setState(() {
+                    _selectedFilter = 'All';
+                  });
+                },
+              ),
+              ReportFilterChip(
+                label: 'Pending',
+                isSelected: _selectedFilter == 'Pending',
+                onSelected: (selected) {
+                  setState(() {
+                    _selectedFilter = 'Pending';
+                  });
+                },
+              ),
+              ReportFilterChip(
+                label: 'In Progress',
+                isSelected: _selectedFilter == 'In Progress',
+                onSelected: (selected) {
+                  setState(() {
+                    _selectedFilter = 'In Progress';
+                  });
+                },
+              ),
+              ReportFilterChip(
+                label: 'Resolved',
+                isSelected: _selectedFilter == 'Resolved',
+                onSelected: (selected) {
+                  setState(() {
+                    _selectedFilter = 'Resolved';
+                  });
+                },
+              ),
+              ReportFilterChip(
+                label: 'Rejected',
+                isSelected: _selectedFilter == 'Rejected',
+                onSelected: (selected) {
+                  setState(() {
+                    _selectedFilter = 'Rejected';
+                  });
+                },
+              ),
             ],
           ),
         ),
         const SizedBox(height: 16),
 
         // Reports List
-        _buildReportItem(
-          title: 'Street Light Out',
-          location: 'Niog, Pavillion',
-          date: 'Today, 2:30 PM',
-          status: 'Pending',
-          statusColor: Colors.orange,
-        ),
-        _buildReportItem(
-          title: 'Pothole on Main Street',
-          location: '123 Main St, Downtown',
-          date: 'Yesterday, 10:15 AM',
-          status: 'In Progress',
-          statusColor: Colors.blue,
-        ),
-        _buildReportItem(
-          title: 'Garbage Collection Issue',
-          location: '45 Park Avenue',
-          date: 'Mar 15, 2023',
-          status: 'Resolved',
-          statusColor: Colors.green,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFilterChip({required String label, bool isSelected = false}) {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (selected) {},
-        backgroundColor: Colors.grey.shade100,
-        selectedColor: const Color(0xFF00C49A).withOpacity(0.1),
-        labelStyle: TextStyle(
-          color: isSelected ? const Color(0xFF00C49A) : Colors.black,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: isSelected ? const Color(0xFF00C49A) : Colors.transparent,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReportItem({
-    required String title,
-    required String location,
-    required String date,
-    required String status,
-    required Color statusColor,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Report #${1000 + (title.hashCode % 1000)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    status,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on,
-                      size: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        location,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today,
-                      size: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      date,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () {},
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF00C49A),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text('View Details'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFormField({
-    required String label,
-    required Widget child,
-    bool isRequired = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-              if (isRequired)
-                Text(
-                  ' *',
-                  style: TextStyle(
-                    color: Colors.red.shade700,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          child,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchableDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Input field
-        TextFormField(
-          controller: _issueTypeController,
-          onTap: () {
-            setState(() {
-              _isSearching = true;
-            });
-          },
-          onChanged: (value) {
-            _filterIssueTypes(value);
-          },
-          decoration: InputDecoration(
-            hintText: 'Select or type issue type',
-            suffixIcon: Icon(
-              _isSearching ? Icons.close : Icons.arrow_drop_down,
-              color: Colors.grey,
-              size: 20,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            filled: true,
-            fillColor: Colors.grey.shade50,
-          ),
-          readOnly: false,
-        ),
-
-        // Dropdown options
-        if (_isSearching)
-          Container(
-            margin: const EdgeInsets.only(top: 2),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            constraints: const BoxConstraints(
-              maxHeight: 180,
-            ),
-            child: ListView.builder(
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemCount: _filteredIssueTypes.length,
-              itemBuilder: (context, index) {
-                final type = _filteredIssueTypes[index];
-                return ListTile(
-                  dense: true,
-                  visualDensity: VisualDensity.compact,
-                  title: Text(
-                    type,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  onTap: () {
-                    setState(() {
-                      _selectedIssueType = type;
-                      _issueTypeController.text = type;
-                      _isSearching = false;
-                    });
-                  },
-                );
+        ...reports.map((report) => UserReportCard(
+              title: report['title'],
+              location: report['location'],
+              date: report['date'],
+              status: report['status'],
+              statusColor: report['statusColor'],
+              onViewDetails: () {
+                // Implement view details functionality
               },
-            ),
-          ),
+            )),
       ],
     );
   }
