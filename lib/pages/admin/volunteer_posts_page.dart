@@ -525,7 +525,7 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, size: 20),
+            icon: const Icon(Icons.refresh),
             onPressed: () => setState(() {}),
           ),
         ],

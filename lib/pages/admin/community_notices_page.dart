@@ -177,12 +177,6 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Community Notices'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadNotices,
-          ),
-        ],
       ),
       drawer: const AdminDrawer(),
       body: Column(

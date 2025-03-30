@@ -440,6 +440,12 @@ class _AdminReportsPageState extends State<AdminReportsPage>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reports'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadInitialData,
+          ),
+        ],
       ),
       drawer: const AdminDrawer(),
       body: _isLoading
@@ -480,10 +486,6 @@ class _AdminReportsPageState extends State<AdminReportsPage>
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.white),
-                  onPressed: _loadInitialData,
                 ),
               ],
             ),

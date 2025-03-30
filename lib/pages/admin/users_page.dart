@@ -604,12 +604,6 @@ class _UsersPageState extends State<UsersPage>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Users'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadUsers,
-          ),
-        ],
       ),
       drawer: const AdminDrawer(),
       body: _isLoading
