@@ -192,7 +192,7 @@ class _LoginPageState extends State<LoginPage> {
                                 } catch (e) {
                                   print('LoginPage: Login error: $e');
                                   if (mounted) {
-                                    String errorMessage = 'Invalid password. Please check your credentials and try again.';
+                                    String errorMessage = 'Invalid email or password. Please check your credentials and try again.';
                                     if (e.toString().contains('user-not-found')) {
                                       errorMessage = 'No account found with these credentials. Please check your details.';
                                     } else if (e.toString().contains('network-request-failed')) {

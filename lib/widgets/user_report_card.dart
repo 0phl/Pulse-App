@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/report_styles.dart';
 
 class UserReportCard extends StatelessWidget {
   final String title;
@@ -22,18 +23,7 @@ class UserReportCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: ReportStyles.cardDecoration,
       child: Column(
         children: [
           // Header
@@ -42,8 +32,8 @@ class UserReportCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
+                topLeft: Radius.circular(ReportStyles.cardBorderRadius),
+                topRight: Radius.circular(ReportStyles.cardBorderRadius),
               ),
             ),
             child: Row(
@@ -57,18 +47,14 @@ class UserReportCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    status,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      chipTheme: ReportStyles.statusChipTheme(statusColor),
+                    ),
+                    child: Chip(
+                      label: Text(status),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: EdgeInsets.zero,
                     ),
                   ),
                 ),
@@ -134,7 +120,7 @@ class UserReportCard extends StatelessWidget {
                     TextButton(
                       onPressed: onViewDetails,
                       style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF00C49A),
+                      foregroundColor: ReportStyles.primaryColor,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 8),
                         shape: RoundedRectangleBorder(

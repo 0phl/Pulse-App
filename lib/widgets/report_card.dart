@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../constants/report_styles.dart';
 
 class ReportCard extends StatelessWidget {
   final Map<String, dynamic> report;
@@ -25,29 +26,27 @@ class ReportCard extends StatelessWidget {
     final String formattedDate =
         DateFormat('MMM d, y • h:mm a').format(createdAt.toDate());
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: ReportStyles.cardDecoration,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header with type and status
           Container(
             decoration: BoxDecoration(
-              color: _getStatusColor(status).withOpacity(0.1),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+              color: ReportStyles.getStatusColor(status).withOpacity(0.1),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(ReportStyles.cardBorderRadius),
+                topRight: Radius.circular(ReportStyles.cardBorderRadius),
               ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
                 Icon(
-                  _getReportTypeIcon(report['type']),
-                  color: _getStatusColor(status),
+                  ReportStyles.getReportTypeIcon(report['type']),
+                  color: ReportStyles.getStatusColor(status),
                   size: 20,
                 ),
                 const SizedBox(width: 8),
@@ -60,22 +59,14 @@ class ReportCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+                Theme(
+                  data: Theme.of(context).copyWith(
+                    chipTheme: ReportStyles.statusChipTheme(ReportStyles.getStatusColor(status)),
                   ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(status).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _getStatusText(status),
-                    style: TextStyle(
-                      color: _getStatusColor(status),
-                      fontWeight: FontWeight.w500,
-                      fontSize: 12,
-                    ),
+                  child: Chip(
+                    label: Text(ReportStyles.getStatusText(status)),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: EdgeInsets.zero,
                   ),
                 ),
               ],
@@ -84,7 +75,7 @@ class ReportCard extends StatelessWidget {
 
           // Report content
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(ReportStyles.cardPadding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -202,7 +193,7 @@ class ReportCard extends StatelessWidget {
                       icon: const Icon(Icons.visibility, size: 16),
                       label: const Text('View'),
                       style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF00C49A),
+                        foregroundColor: ReportStyles.primaryColor,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         visualDensity: VisualDensity.compact,
                       ),
@@ -217,54 +208,4 @@ class ReportCard extends StatelessWidget {
     );
   }
 
-  IconData _getReportTypeIcon(String? type) {
-    switch (type) {
-      case 'Street Light Damage':
-        return Icons.lightbulb_outline;
-      case 'Road Damage/Potholes':
-        return Icons.wrong_location;
-      case 'Garbage Collection Problems':
-        return Icons.delete_outline;
-      case 'Flooding/Drainage Issues':
-        return Icons.water_damage;
-      case 'Vandalism':
-        return Icons.broken_image;
-      case 'Noise Complaint':
-        return Icons.volume_up;
-      case 'Safety Hazard':
-        return Icons.warning;
-      default:
-        return Icons.report_problem;
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'pending':
-        return Colors.orange;
-      case 'in_progress':
-        return Colors.blue;
-      case 'resolved':
-        return Colors.green;
-      case 'rejected':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'pending':
-        return 'Pending';
-      case 'in_progress':
-        return 'In Progress';
-      case 'resolved':
-        return 'Resolved';
-      case 'rejected':
-        return 'Rejected';
-      default:
-        return 'Unknown';
-    }
-  }
 }

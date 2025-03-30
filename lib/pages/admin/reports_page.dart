@@ -9,6 +9,8 @@ import '../../widgets/pie_chart_painter.dart';
 import '../../widgets/report_detail_dialog.dart';
 import '../../widgets/report_action_dialogs.dart';
 import '../../widgets/reports_analytics.dart';
+import '../../widgets/report_filter_chip.dart';
+import '../../constants/report_styles.dart';
 
 class AdminReportsPage extends StatefulWidget {
   const AdminReportsPage({super.key});
@@ -526,37 +528,48 @@ class _AdminReportsPageState extends State<AdminReportsPage>
                   },
                 ),
               ),
-              const SizedBox(width: 16),
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.filter_list),
-                onSelected: (value) {
-                  setState(() {
-                    _selectedFilter = value;
-                    // TODO: Implement filtering
-                  });
+            ],
+          ),
+        ),
+
+        // Filter chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              ReportFilterChip(
+                label: 'All',
+                isSelected: _selectedFilter == 'All',
+                onSelected: (selected) {
+                  setState(() => _selectedFilter = 'All');
                 },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'All',
-                    child: Text('All'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'Pending',
-                    child: Text('Pending'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'In Progress',
-                    child: Text('In Progress'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'High Priority',
-                    child: Text('High Priority'),
-                  ),
-                ],
+              ),
+              ReportFilterChip(
+                label: 'Pending',
+                isSelected: _selectedFilter == 'Pending',
+                onSelected: (selected) {
+                  setState(() => _selectedFilter = 'Pending');
+                },
+              ),
+              ReportFilterChip(
+                label: 'In Progress',
+                isSelected: _selectedFilter == 'In Progress',
+                onSelected: (selected) {
+                  setState(() => _selectedFilter = 'In Progress');
+                },
+              ),
+              ReportFilterChip(
+                label: 'High Priority',
+                isSelected: _selectedFilter == 'High Priority',
+                onSelected: (selected) {
+                  setState(() => _selectedFilter = 'High Priority');
+                },
               ),
             ],
           ),
         ),
+        const SizedBox(height: 16),
 
         // Stats cards
         Padding(
@@ -566,7 +579,7 @@ class _AdminReportsPageState extends State<AdminReportsPage>
               Expanded(
                 child: Card(
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(ReportStyles.cardBorderRadius),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -574,10 +587,10 @@ class _AdminReportsPageState extends State<AdminReportsPage>
                       children: [
                         Text(
                           '${_reportStats['pending'] ?? 0}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: Colors.orange,
+                            color: ReportStyles.statusColors['pending'],
                           ),
                         ),
                         const Text(
@@ -604,10 +617,10 @@ class _AdminReportsPageState extends State<AdminReportsPage>
                       children: [
                         Text(
                           '${_reportStats['inProgress'] ?? 0}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: Colors.blue,
+                            color: ReportStyles.statusColors['in_progress'],
                           ),
                         ),
                         const Text(
@@ -690,10 +703,10 @@ class _AdminReportsPageState extends State<AdminReportsPage>
                       children: [
                         Text(
                           '${_reportStats['resolved'] ?? 0}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green,
+                            color: ReportStyles.statusColors['resolved'],
                           ),
                         ),
                         const Text(
@@ -804,7 +817,7 @@ class _AdminReportsPageState extends State<AdminReportsPage>
                     title: 'Total Reports',
                     value: '${_reportStats['total'] ?? 0}',
                     icon: Icons.assessment,
-                    color: const Color(0xFF00C49A),
+                            color: ReportStyles.primaryColor,
                   ),
                   _buildAnalyticItem(
                     title: 'Avg. Resolution Time',
