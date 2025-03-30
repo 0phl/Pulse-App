@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 import 'comments_sheet.dart';
+import 'image_viewer_page.dart';
 
 class NoticeCard extends StatelessWidget {
   final CommunityNotice notice;
@@ -102,24 +103,38 @@ class NoticeCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 if (notice.imageUrl != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      notice.imageUrl!,
-                      width: double.infinity,
-                      height: 200,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ImageViewerPage(
+                            imageUrl: notice.imageUrl!,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Hero(
+                      tag: notice.imageUrl!,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          notice.imageUrl!,
                           width: double.infinity,
                           height: 200,
-                          color: Colors.grey[100],
-                          child: const Center(
-                            child:
-                                Icon(Icons.error_outline, color: Colors.grey),
-                          ),
-                        );
-                      },
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: double.infinity,
+                              height: 200,
+                              color: Colors.grey[100],
+                              child: const Center(
+                                child: Icon(Icons.error_outline, color: Colors.grey),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),

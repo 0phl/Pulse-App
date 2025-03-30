@@ -4,6 +4,7 @@ import 'package:firebase_database/firebase_database.dart';
 import '../models/community_notice.dart' show CommunityNotice, Comment;
 import '../services/community_notice_service.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'image_viewer_page.dart';
 
 class CommentsPage extends StatefulWidget {
   final CommunityNotice notice;
@@ -452,24 +453,38 @@ class CommunityNoticeCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 if (notice.imageUrl != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      notice.imageUrl!,
-                      width: double.infinity,
-                      height: 200,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ImageViewerPage(
+                            imageUrl: notice.imageUrl!,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Hero(
+                      tag: notice.imageUrl!,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          notice.imageUrl!,
                           width: double.infinity,
                           height: 200,
-                          color: Colors.grey[100],
-                          child: const Center(
-                            child:
-                                Icon(Icons.error_outline, color: Colors.grey),
-                          ),
-                        );
-                      },
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: double.infinity,
+                              height: 200,
+                              color: Colors.grey[100],
+                              child: const Center(
+                                child: Icon(Icons.error_outline, color: Colors.grey),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),

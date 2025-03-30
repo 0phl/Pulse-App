@@ -254,10 +254,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
         title: const Text('Admin Dashboard'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadCommunityAndStats,
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _signOut,
           ),
