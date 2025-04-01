@@ -1,10 +1,21 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/report.dart';
+import '../models/report_status.dart';
+import '../services/report_service.dart';
+import '../services/cloudinary_service.dart';
+import '../services/auth_service.dart';
 import '../widgets/report_stepper.dart';
 import '../widgets/report_form_field.dart';
 import '../widgets/searchable_dropdown.dart';
 import '../widgets/user_report_card.dart';
 import '../widgets/report_filter_chip.dart';
 import '../widgets/report_success_dialog.dart';
+import '../widgets/report_map.dart';
 import '../widgets/report_review_item.dart';
 
 class ReportPage extends StatefulWidget {
@@ -16,6 +27,11 @@ class ReportPage extends StatefulWidget {
 
 class _ReportPageState extends State<ReportPage>
     with SingleTickerProviderStateMixin {
+  // Location details storage
+  String? _street;
+  String? _locality;
+  String? _subAdministrativeArea;
+
   final List<String> _issueTypes = const [
     'Fires',
     'Street Light Damage',
@@ -30,17 +46,25 @@ class _ReportPageState extends State<ReportPage>
     'Others'
   ];
 
+  final ReportService _reportService = ReportService(CloudinaryService());
+  final AuthService _authService = AuthService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? _selectedIssueType;
   final TextEditingController _issueTypeController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _addressDetailsController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   bool _isSearching = false;
+  bool _hasConfirmedInfo = false;
   List<String> _filteredIssueTypes = [];
   bool _isUploading = false;
   int _currentStep = 0;
   late TabController _tabController;
   final List<String> _tabs = ['New Report', 'My Reports'];
   String _selectedFilter = 'All';
+  final List<File> _selectedPhotos = [];
+  final ImagePicker _imagePicker = ImagePicker();
+  LatLng? _selectedLocation;
 
   @override
   void initState() {
@@ -53,6 +77,7 @@ class _ReportPageState extends State<ReportPage>
   void dispose() {
     _issueTypeController.dispose();
     _addressController.dispose();
+    _addressDetailsController.dispose();
     _descriptionController.dispose();
     _tabController.dispose();
     super.dispose();
@@ -70,7 +95,22 @@ class _ReportPageState extends State<ReportPage>
     });
   }
 
-  void _submitReport() {
+  Future<void> _pickImage() async {
+    final List<XFile> images = await _imagePicker.pickMultiImage();
+    if (images.isNotEmpty) {
+      setState(() {
+        _selectedPhotos.addAll(images.map((image) => File(image.path)));
+      });
+    }
+  }
+
+  void _removePhoto(int index) {
+    setState(() {
+      _selectedPhotos.removeAt(index);
+    });
+  }
+
+  Future<void> _submitReport() async {
     // Validate form
     if (_selectedIssueType == null || _selectedIssueType!.isEmpty) {
       _showSnackBar('Please select an issue type');
@@ -87,13 +127,50 @@ class _ReportPageState extends State<ReportPage>
       return;
     }
 
-    // Simulate upload
-    setState(() {
-      _isUploading = true;
-    });
+    try {
+      setState(() {
+        _isUploading = true;
+      });
 
-    // Simulate network delay
-    Future.delayed(const Duration(seconds: 2), () {
+      // Upload photos if any
+      List<String> photoUrls = [];
+      if (_selectedPhotos.isNotEmpty) {
+        photoUrls = await _reportService.uploadReportPhotos(_selectedPhotos);
+      }
+
+      // Get current user
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) {
+        throw 'You must be logged in to submit a report';
+      }
+
+      // Get user's data from Firestore
+      final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+      if (!userDoc.exists) {
+        throw 'User data not found';
+      }
+
+      // Create report with actual user data
+      await _reportService.createReport(
+        userId: currentUser.uid,
+        communityId: userDoc.data()!['communityId'],
+        issueType: _selectedIssueType!,
+        description: _descriptionController.text,
+        address: _addressDetailsController.text.isNotEmpty
+            ? "${_addressController.text} (${_addressDetailsController.text})"
+            : _addressController.text,
+        location: _selectedLocation != null
+            ? {
+                'lat': _selectedLocation!.latitude,
+                'lng': _selectedLocation!.longitude,
+              }
+            : {},
+        photoUrls: photoUrls,
+        street: _street,
+        locality: _locality,
+        subAdministrativeArea: _subAdministrativeArea,
+      );
+
       setState(() {
         _isUploading = false;
       });
@@ -108,10 +185,22 @@ class _ReportPageState extends State<ReportPage>
         _selectedIssueType = null;
         _issueTypeController.clear();
         _addressController.clear();
+        _addressDetailsController.clear();
         _descriptionController.clear();
+        _selectedPhotos.clear();
+        _selectedLocation = null;
+        _street = null;
+        _locality = null;
+        _subAdministrativeArea = null;
         _currentStep = 0;
+        _hasConfirmedInfo = false;
       });
-    });
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+      });
+      _showSnackBar('Failed to submit report: $e');
+    }
   }
 
   void _showSnackBar(String message) {
@@ -296,36 +385,73 @@ class _ReportPageState extends State<ReportPage>
           ),
         ),
 
-        // Add Photo Button
-        Padding(
-          padding: const EdgeInsets.only(top: 4, bottom: 24),
-          child: Row(
+        // Photo Upload Section
+        ReportFormField(
+          label: 'Photos',
+          isRequired: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               OutlinedButton.icon(
-                onPressed: () {
-                  // Photo picker would be implemented here
-                },
+                onPressed: _pickImage,
                 icon: const Icon(Icons.add_a_photo, size: 16),
                 label: const Text('Add Photos'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF00C49A),
                   side: BorderSide(color: Colors.grey.shade300),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                '(Optional)',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                  fontStyle: FontStyle.italic,
+              if (_selectedPhotos.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 100,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _selectedPhotos.length,
+                    itemBuilder: (context, index) {
+                      return Stack(
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              image: DecorationImage(
+                                image: FileImage(_selectedPhotos[index]),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 12,
+                            top: 4,
+                            child: GestureDetector(
+                              onTap: () => _removePhoto(index),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.5),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -420,34 +546,60 @@ class _ReportPageState extends State<ReportPage>
           ),
         ),
 
-        // Map Placeholder
+        // Address Details Field
+        ReportFormField(
+          label: 'Address Details',
+          isRequired: false,
+          showOptionalText: true,
+          child: TextFormField(
+            controller: _addressDetailsController,
+            decoration: InputDecoration(
+              hintText: 'e.g., Street, nearby landmarks, etc.',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+            ),
+          ),
+        ),
+
+        // Map View
         Container(
-          height: 180,
+          height: 300,
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 24),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.map,
-                  size: 48,
-                  color: Colors.grey.shade400,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Map View',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
+          child: ReportMap(
+            initialLocation: _selectedLocation,
+            onLocationSelected: (location, address) async {
+              setState(() {
+                _selectedLocation = location;
+                if (address != null) {
+                  _addressController.text = address;
+                }
+              });
+              
+              // Get detailed location data from geocoding
+              try {
+                final placemarks = await placemarkFromCoordinates(
+                  location.latitude,
+                  location.longitude,
+                );
+                if (placemarks.isNotEmpty) {
+                  final place = placemarks.first;
+                  setState(() {
+                    _street = place.street;
+                    _locality = place.locality;
+                    _subAdministrativeArea = place.subAdministrativeArea;
+                  });
+                }
+              } catch (e) {
+                print('Error getting location details: $e');
+              }
+            },
           ),
         ),
 
@@ -554,7 +706,9 @@ class _ReportPageState extends State<ReportPage>
               ReportReviewItem(
                 icon: Icons.location_on_outlined,
                 label: 'Location',
-                value: _addressController.text,
+                value: _selectedLocation != null
+                    ? '${_addressController.text}${_addressDetailsController.text.isNotEmpty ? " (${_addressDetailsController.text})" : ""}\nLat: ${_selectedLocation!.latitude.toStringAsFixed(6)}\nLng: ${_selectedLocation!.longitude.toStringAsFixed(6)}'
+                    : '${_addressController.text}${_addressDetailsController.text.isNotEmpty ? " (${_addressDetailsController.text})" : ""}',
                 onEdit: () => setState(() => _currentStep = 1),
               ),
             ],
@@ -566,8 +720,12 @@ class _ReportPageState extends State<ReportPage>
         Row(
           children: [
             Checkbox(
-              value: true,
-              onChanged: (value) {},
+              value: _hasConfirmedInfo,
+              onChanged: (value) {
+                setState(() {
+                  _hasConfirmedInfo = value ?? false;
+                });
+              },
               activeColor: const Color(0xFF00C49A),
             ),
             Expanded(
@@ -607,7 +765,7 @@ class _ReportPageState extends State<ReportPage>
             const SizedBox(width: 16),
             Expanded(
               child: ElevatedButton(
-                onPressed: _submitReport,
+                onPressed: _hasConfirmedInfo ? _submitReport : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00C49A),
                   foregroundColor: Colors.white,
@@ -626,101 +784,157 @@ class _ReportPageState extends State<ReportPage>
   }
 
   Widget _buildMyReportsTab() {
-    // Mock data for reports
-    final List<Map<String, dynamic>> reports = [
-      {
-        'title': 'Street Light Out',
-        'location': 'Niog, Pavillion',
-        'date': 'Today, 2:30 PM',
-        'status': 'Pending',
-        'statusColor': Colors.orange,
-      },
-      {
-        'title': 'Pothole on Main Street',
-        'location': '123 Main St, Downtown',
-        'date': 'Yesterday, 10:15 AM',
-        'status': 'In Progress',
-        'statusColor': Colors.blue,
-      },
-      {
-        'title': 'Garbage Collection Issue',
-        'location': '45 Park Avenue',
-        'date': 'Mar 15, 2023',
-        'status': 'Resolved',
-        'statusColor': Colors.green,
-      },
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return Column(
       children: [
         // Status Filter
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              ReportFilterChip(
-                label: 'All',
-                isSelected: _selectedFilter == 'All',
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedFilter = 'All';
-                  });
-                },
-              ),
-              ReportFilterChip(
-                label: 'Pending',
-                isSelected: _selectedFilter == 'Pending',
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedFilter = 'Pending';
-                  });
-                },
-              ),
-              ReportFilterChip(
-                label: 'In Progress',
-                isSelected: _selectedFilter == 'In Progress',
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedFilter = 'In Progress';
-                  });
-                },
-              ),
-              ReportFilterChip(
-                label: 'Resolved',
-                isSelected: _selectedFilter == 'Resolved',
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedFilter = 'Resolved';
-                  });
-                },
-              ),
-              ReportFilterChip(
-                label: 'Rejected',
-                isSelected: _selectedFilter == 'Rejected',
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedFilter = 'Rejected';
-                  });
-                },
-              ),
-            ],
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                ReportFilterChip(
+                  label: 'All',
+                  isSelected: _selectedFilter == 'All',
+                  onSelected: (selected) {
+                    setState(() {
+                      _selectedFilter = 'All';
+                    });
+                  },
+                ),
+                ...ReportStatus.values.map((status) => ReportFilterChip(
+                      label: status.value
+                          .split('_')
+                          .map((word) => word[0].toUpperCase() + word.substring(1))
+                          .join(' '),
+                      isSelected: _selectedFilter == status.value,
+                      onSelected: (selected) {
+                        setState(() {
+                          _selectedFilter = status.value;
+                        });
+                      },
+                    )),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 16),
 
-        // Reports List
-        ...reports.map((report) => UserReportCard(
-              title: report['title'],
-              location: report['location'],
-              date: report['date'],
-              status: report['status'],
-              statusColor: report['statusColor'],
-              onViewDetails: () {
-                // Implement view details functionality
-              },
-            )),
+        // Reports Stream
+        Expanded(
+          child: StreamBuilder<List<Report>>(
+            stream: () {
+              final currentUser = _authService.currentUser;
+              if (currentUser == null) return Stream<List<Report>>.value([]);
+
+              return Stream.fromFuture(_firestore
+                  .collection('users')
+                  .doc(currentUser.uid)
+                  .get()).asyncExpand((userDoc) {
+                if (!userDoc.exists) return Stream<List<Report>>.value([]);
+
+                return _reportService.getReports(
+                  communityId: userDoc.data()!['communityId'],
+                  status: _selectedFilter != 'All'
+                      ? ReportStatus.fromString(_selectedFilter)
+                      : null,
+                  userId: currentUser.uid,
+                );
+              });
+            }(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    'Error loading reports: ${snapshot.error}',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                );
+              }
+
+              if (!snapshot.hasData) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                  ),
+                );
+              }
+
+              final reports = snapshot.data!;
+              if (reports.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.report_outlined,
+                        size: 64,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No reports found',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                itemCount: reports.length,
+                itemBuilder: (context, index) {
+                  final report = reports[index];
+                  return UserReportCard(
+                    title: report.issueType,
+                    location: report.address,
+                    date: _formatDate(report.createdAt),
+                    status: report.status.value
+                        .split('_')
+                        .map((word) => word[0].toUpperCase() + word.substring(1))
+                        .join(' '),
+                    statusColor: _getStatusColor(report.status),
+                    onViewDetails: () {
+                      // TODO: Implement view details
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
       ],
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      return 'Today, ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday, ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    } else {
+      return '${date.day}/${date.month}/${date.year}, ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    }
+  }
+
+  Color _getStatusColor(ReportStatus status) {
+    switch (status) {
+      case ReportStatus.pending:
+        return Colors.orange;
+      case ReportStatus.underReview:
+        return Colors.blue;
+      case ReportStatus.inProgress:
+        return Colors.purple;
+      case ReportStatus.resolved:
+        return Colors.green;
+      case ReportStatus.rejected:
+        return Colors.red;
+    }
   }
 }

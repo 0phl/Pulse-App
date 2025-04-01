@@ -8,6 +8,7 @@ class CloudinaryService {
   late final CloudinaryPublic adminCloudinary;
   late final CloudinaryPublic marketCloudinary;
   late final CloudinaryPublic noticeCloudinary;
+  late final CloudinaryPublic reportCloudinary;
 
   CloudinaryService._internal() {
     adminCloudinary = CloudinaryPublic('dy1jizr52', 'Admin_docs', cache: false);
@@ -15,6 +16,8 @@ class CloudinaryService {
         CloudinaryPublic('dy1jizr52', 'market_images', cache: false);
     noticeCloudinary =
         CloudinaryPublic('dy1jizr52', 'community_notices', cache: false);
+    reportCloudinary =
+        CloudinaryPublic('dy1jizr52', 'community_reports', cache: false);
   }
 
   Future<String> uploadMarketImage(File file) async {
@@ -78,6 +81,30 @@ class CloudinaryService {
     List<String> urls = [];
     for (var file in files) {
       String url = await uploadFile(file);
+      urls.add(url);
+    }
+    return urls;
+  }
+
+  Future<String> uploadReportImage(File file) async {
+    try {
+      final cloudinaryFile = CloudinaryFile.fromFile(
+        file.path,
+        folder: 'reports',
+      );
+
+      CloudinaryResponse response =
+          await reportCloudinary.uploadFile(cloudinaryFile);
+      return response.secureUrl;
+    } catch (e) {
+      throw Exception('Failed to upload report image: $e');
+    }
+  }
+
+  Future<List<String>> uploadReportImages(List<File> files) async {
+    List<String> urls = [];
+    for (var file in files) {
+      String url = await uploadReportImage(file);
       urls.add(url);
     }
     return urls;

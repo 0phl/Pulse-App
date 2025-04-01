@@ -4,12 +4,14 @@ class ReportFormField extends StatelessWidget {
   final String label;
   final Widget child;
   final bool isRequired;
+  final bool showOptionalText;
 
   const ReportFormField({
     Key? key,
     required this.label,
     required this.child,
     this.isRequired = false,
+    this.showOptionalText = false,
   }) : super(key: key);
 
   @override
@@ -34,6 +36,14 @@ class ReportFormField extends StatelessWidget {
                   style: TextStyle(
                     color: Colors.red.shade700,
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+              if (showOptionalText)
+                Text(
+                  ' (optional)',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
                   ),
                 ),
             ],

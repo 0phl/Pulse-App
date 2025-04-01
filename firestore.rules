@@ -1,71 +1,115 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
     // Helper functions
-    function isSuperAdmin(request) {
-      return request.auth != null && 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+
+    function getUserCommunityId() {
+      return getUserData(request.auth.uid).communityId;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+             getUserData(request.auth.uid).role == 'super_admin';
     }
     
-    function isAdmin(request) {
-      return request.auth != null && 
+    function isAdmin() {
+      return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+             getUserData(request.auth.uid).role == 'admin';
     }
     
-    function canAccessStats(request) {
-      return isAdmin(request) || isSuperAdmin(request);
+    function canAccessStats() {
+      return isAdmin() || isSuperAdmin();
     }
-    
-    function getUserCommunityId(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.communityId;
-    }
-    
-    function inSameCommunity(request, targetUserId) {
-      return getUserCommunityId(request.auth.uid) == getUserCommunityId(targetUserId);
+
+    // Report rules
+    match /reports/{reportId} {
+      function isAuthor() {
+        return request.auth.uid == resource.data.userId;
+      }
+
+      function isValidReport() {
+        let report = request.resource.data;
+        return report.issueType is string &&
+               report.issueType.size() > 0 &&
+               report.description is string &&
+               report.description.size() > 0 &&
+               report.address is string &&
+               report.address.size() > 0 &&
+               report.location is map &&
+               report.photoUrls is list &&
+               report.status in ['pending', 'under_review', 'in_progress', 'resolved', 'rejected'] &&
+               report.communityId == getUserCommunityId();
+      }
+      
+      // Create: User must be signed in and report must be for their community
+      allow create: if isSignedIn() &&
+                   request.resource.data.communityId == getUserCommunityId() &&
+                   isValidReport();
+
+      // Read: User must be signed in and report must be from their community
+      allow read: if isSignedIn() &&
+                 resource.data.communityId == getUserCommunityId();
+
+      // Update: Only admin or report creator can update
+      allow update: if isSignedIn() &&
+                   (isAdmin() || isAuthor()) &&
+                   (request.resource.data.diff(resource.data).affectedKeys()
+                    .hasOnly(['status', 'updatedAt']) || isAdmin());
+
+      // Delete: Only admin can delete
+      allow delete: if isSignedIn() && isAdmin();
     }
 
     // Admin requests collection
     match /admin_requests/{requestId} {
-      allow read: if isSuperAdmin(request) || isAdmin(request);
-      allow create: if request.auth != null;  // Anyone can submit a request
-      allow update, delete: if isSuperAdmin(request);
+      allow read: if canAccessStats();
+      allow create: if isSignedIn();  // Anyone can submit a request
+      allow update, delete: if isSuperAdmin();
     }
 
     // Communities collection
     match /communities/{communityId} {
-      allow read: if request.auth != null;
-      allow write: if isSuperAdmin(request) || isAdmin(request);
+      allow read: if isSignedIn();
+      allow write: if canAccessStats();
     }
 
-// Users collection
-match /users/{userId} {
-  // Anyone can read user data for email verification during registration
-  allow read: if true;
-  
-  // Users can create their own documents
-  allow create: if request.auth != null && request.auth.uid == userId;
-  
-  // Users can update their own documents, admins and super admins can update any user
-  allow update: if request.auth != null && (
-    request.auth.uid == userId ||
-    isSuperAdmin(request) ||
-    isAdmin(request)
-  );
-  
-  // Only super admins can delete users
-  allow delete: if isSuperAdmin(request);
-}
+    // Users collection
+    match /users/{userId} {
+      // Anyone can read user data for email verification during registration
+      allow read: if true;
+      
+      // Users can create their own documents
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      
+      // Users can update their own documents, admins and super admins can update any user
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId ||
+        isSuperAdmin() ||
+        isAdmin()
+      );
+      
+      // Only super admins can delete users
+      allow delete: if isSuperAdmin();
+    }
 
     // Market items collection rules
     match /market_items/{itemId} {
-      allow read: if request.auth != null;
+      allow read: if isSignedIn();
       
-      allow create: if request.auth != null && 
+      allow create: if isSignedIn() && 
                    request.resource.data.sellerId == request.auth.uid;
       
-      allow update: if request.auth != null && (
+      allow update: if isSignedIn() && (
         resource.data.sellerId == request.auth.uid ||
         (
           request.resource.data.diff(resource.data).affectedKeys()
@@ -78,38 +122,31 @@ match /users/{userId} {
         )
       );
       
-      allow delete: if request.auth != null && (
+      allow delete: if isSignedIn() && (
                    resource.data.sellerId == request.auth.uid ||
-                   isAdmin(request) ||
-                   isSuperAdmin(request)
+                   canAccessStats()
                    );
     }
 
     // Volunteer posts collection rules
     match /volunteer_posts/{postId} {
-      allow read, list: if request.auth != null;
+      allow read: if isSignedIn();
       
-      allow create: if request.auth != null && (
+      allow create: if isSignedIn() && (
                    request.resource.data.userId == request.auth.uid ||
-                   isAdmin(request) ||
-                   isSuperAdmin(request)
+                   canAccessStats()
                    );
       
-      allow update: if request.auth != null && (
-                   // Allow original conditions (creator, admin, super admin)
+      allow update: if isSignedIn() && (
                    resource.data.userId == request.auth.uid ||
-                   isAdmin(request) ||
-                   isSuperAdmin(request) ||
-                   // Allow users to only update joinedUsers array when joining or canceling
+                   canAccessStats() ||
                    (
                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['joinedUsers']) &&
                      (
-                       // When joining (adding user to array)
                        (
                          request.resource.data.joinedUsers.hasAll(resource.data.joinedUsers) &&
                          request.resource.data.joinedUsers.removeAll(resource.data.joinedUsers).hasOnly([request.auth.uid])
                        ) ||
-                       // When canceling (removing user from array)
                        (
                          resource.data.joinedUsers.hasAll(request.resource.data.joinedUsers) &&
                          resource.data.joinedUsers.removeAll(request.resource.data.joinedUsers).hasOnly([request.auth.uid])
@@ -118,43 +155,38 @@ match /users/{userId} {
                    )
                    );
       
-      allow delete: if request.auth != null && (
+      allow delete: if isSignedIn() && (
                    resource.data.userId == request.auth.uid ||
-                   isAdmin(request) ||
-                   isSuperAdmin(request)
+                   canAccessStats()
                    );
     }
 
     // Audit logs collection
     match /audit_logs/{logId} {
-      function isVolunteerAction(actionType) {
-        return actionType in ['VOLUNTEER_SIGNED_UP', 'VOLUNTEER_CANCELLED'];
-      }
-
-      allow read: if isAdmin(request) || isSuperAdmin(request);
-      allow create: if request.auth != null; // Any authenticated user can create audit logs
+      allow read: if canAccessStats();
+      allow create: if isSignedIn(); // Any authenticated user can create audit logs
       allow update, delete: if false; // Audit logs should never be modified or deleted
     }
 
-    // Collection statistics access
+    // Collection access for statistics
     match /market_items/{document=**} {
-      allow read, count: if canAccessStats(request);
+      allow read: if canAccessStats();
     }
     
     match /volunteer_posts/{document=**} {
-      allow read, count: if canAccessStats(request);
+      allow read: if canAccessStats();
     }
     
     match /community_notices/{document=**} {
-      allow read, count: if canAccessStats(request);
+      allow read: if canAccessStats();
     }
     
     match /chats/{document=**} {
-      allow read, count: if canAccessStats(request);
+      allow read: if canAccessStats();
     }
     
     match /reports/{document=**} {
-      allow read, count: if canAccessStats(request);
+      allow read: if canAccessStats();
     }
 
     // Deny access to other collections by default
