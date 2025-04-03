@@ -71,6 +71,19 @@ class _ReportPageState extends State<ReportPage>
     super.initState();
     _filteredIssueTypes = List.from(_issueTypes);
     _tabController = TabController(length: 2, vsync: this);
+
+    // Listen to tab changes
+    _tabController.addListener(() {
+      if (mounted) {
+        if (_tabController.index == 1) { // My Reports tab
+          // Reset cache when entering My Reports tab
+          setState(() {
+            _cachedReportsStream = null;
+            _lastFilter = null;
+          });
+        }
+      }
+    });
   }
 
   @override
@@ -80,6 +93,8 @@ class _ReportPageState extends State<ReportPage>
     _addressDetailsController.dispose();
     _descriptionController.dispose();
     _tabController.dispose();
+    _cachedReportsStream = null; // Clear the cached stream
+    _lastFilter = null;
     super.dispose();
   }
 
@@ -94,6 +109,36 @@ class _ReportPageState extends State<ReportPage>
       }
     });
   }
+
+  // Cache for the broadcast stream
+  Stream<List<Report>>? _cachedReportsStream;
+  String? _lastFilter;
+
+  // Create a stream for filtered reports based on the current filter
+  Stream<List<Report>> _getFilteredReportsStream() {
+    final currentUser = _authService.currentUser;
+    if (currentUser == null) {
+      return Stream<List<Report>>.value([]);
+    }
+
+    // Always create a new stream - don't use cache since we want fresh data when switching tabs
+    return Stream.fromFuture(_firestore.collection('users').doc(currentUser.uid).get())
+        .asyncExpand((userDoc) {
+          if (!userDoc.exists || userDoc.data() == null || userDoc.data()!['communityId'] == null) {
+            return Stream<List<Report>>.value([]);
+          }
+
+          final communityId = userDoc.data()!['communityId'];
+          return _reportService.getReports(
+            communityId: communityId,
+            status: _selectedFilter != 'All'
+                ? ReportStatus.fromString(_selectedFilter)
+                : null,
+            userId: currentUser.uid,
+          );
+        }).asBroadcastStream();
+  }
+
 
   Future<void> _pickImage() async {
     final List<XFile> images = await _imagePicker.pickMultiImage();
@@ -175,9 +220,13 @@ class _ReportPageState extends State<ReportPage>
         _isUploading = false;
       });
 
+      // Clear cached stream so it refreshes when we switch to My Reports
+      _cachedReportsStream = null;
+      _lastFilter = null;
+
       // Show success dialog
       ReportSuccessDialog.show(context, () {
-        _tabController.animateTo(1);
+        _tabController.animateTo(1); // Switch to My Reports tab
       });
 
       // Reset form
@@ -356,6 +405,7 @@ class _ReportPageState extends State<ReportPage>
             selectedItem: _selectedIssueType,
             hintText: 'Select or type issue type',
             onSearch: _filterIssueTypes,
+            allowCustomValue: true, // Allow users to enter custom issue types
             onItemSelected: (value) {
               setState(() {
                 _selectedIssueType = value;
@@ -581,7 +631,7 @@ class _ReportPageState extends State<ReportPage>
                   _addressController.text = address;
                 }
               });
-              
+
               // Get detailed location data from geocoding
               try {
                 final placemarks = await placemarkFromCoordinates(
@@ -799,6 +849,9 @@ class _ReportPageState extends State<ReportPage>
                   onSelected: (selected) {
                     setState(() {
                       _selectedFilter = 'All';
+                      // Always reset the stream when changing filters
+                      _cachedReportsStream = null;
+                      _lastFilter = null;
                     });
                   },
                 ),
@@ -811,6 +864,9 @@ class _ReportPageState extends State<ReportPage>
                       onSelected: (selected) {
                         setState(() {
                           _selectedFilter = status.value;
+                          // Always reset the stream when changing filters
+                          _cachedReportsStream = null;
+                          _lastFilter = null;
                         });
                       },
                     )),
@@ -822,25 +878,7 @@ class _ReportPageState extends State<ReportPage>
         // Reports Stream
         Expanded(
           child: StreamBuilder<List<Report>>(
-            stream: () {
-              final currentUser = _authService.currentUser;
-              if (currentUser == null) return Stream<List<Report>>.value([]);
-
-              return Stream.fromFuture(_firestore
-                  .collection('users')
-                  .doc(currentUser.uid)
-                  .get()).asyncExpand((userDoc) {
-                if (!userDoc.exists) return Stream<List<Report>>.value([]);
-
-                return _reportService.getReports(
-                  communityId: userDoc.data()!['communityId'],
-                  status: _selectedFilter != 'All'
-                      ? ReportStatus.fromString(_selectedFilter)
-                      : null,
-                  userId: currentUser.uid,
-                );
-              });
-            }(),
+            stream: _getFilteredReportsStream(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(
