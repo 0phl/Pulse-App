@@ -1,13 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 import '../constants/report_styles.dart';
 
 class ReportCard extends StatelessWidget {
+  static final FirebaseDatabase _database = FirebaseDatabase.instance;
+  static final Map<String, String> _userNameCache = {};
+
+  Future<String> _getUserName(String userId) async {
+    // Check cache first
+    if (_userNameCache.containsKey(userId)) {
+      return _userNameCache[userId]!;
+    }
+
+    try {
+      final userSnapshot = await _database.ref().child('users').child(userId).get();
+      if (userSnapshot.exists) {
+        final userData = userSnapshot.value as Map<dynamic, dynamic>;
+        final fullName = userData['fullName'] as String? ?? 'User';
+
+        // Cache the result
+        _userNameCache[userId] = fullName;
+        return fullName;
+      }
+    } catch (e) {
+      print('Error fetching user data: $e');
+    }
+
+    return 'User';
+  }
   final Map<String, dynamic> report;
   final Function(String) onViewDetails;
   final Function(String, String) onHandleReport;
-  final Function(String) onAssign;
   final Function(String) onShowResolveDialog;
 
   const ReportCard({
@@ -15,7 +40,6 @@ class ReportCard extends StatelessWidget {
     required this.report,
     required this.onViewDetails,
     required this.onHandleReport,
-    required this.onAssign,
     required this.onShowResolveDialog,
   }) : super(key: key);
 
@@ -45,14 +69,14 @@ class ReportCard extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  ReportStyles.getReportTypeIcon(report['type']),
+                  ReportStyles.getReportTypeIcon(report['issueType']),
                   color: ReportStyles.getStatusColor(status),
                   size: 20,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    report['type'] ?? 'Unknown Type',
+                    report['issueType'] ?? 'Unknown Type',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -88,11 +112,16 @@ class ReportCard extends StatelessWidget {
                       color: Colors.grey,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      report['reporterName'] ?? 'Anonymous',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                      ),
+                    FutureBuilder<String>(
+                      future: _getUserName(report['userId']),
+                      builder: (context, snapshot) {
+                        return Text(
+                          snapshot.data ?? 'Loading...',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        );
+                      },
                     ),
                     const Spacer(),
                     const Icon(
@@ -154,46 +183,56 @@ class ReportCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     if (status == 'pending')
-                      TextButton.icon(
-                        onPressed: () => onAssign(report['id']),
-                        icon: const Icon(Icons.person_add, size: 16),
-                        label: const Text('Assign'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.indigo,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                    if (status == 'pending')
-                      TextButton.icon(
-                        onPressed: () =>
-                            onHandleReport(report['id'], 'in_progress'),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          final reportId = report['id'];
+                          if (reportId != null) {
+                            // Print debug info removed
+                            onHandleReport(reportId, 'in_progress');
+                          }
+                        },
                         icon: const Icon(Icons.play_arrow, size: 16),
-                        label: const Text('Start'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.blue,
+                        label: const Text('Start Processing'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           visualDensity: VisualDensity.compact,
+                          elevation: 2,
                         ),
                       ),
                     if (status == 'in_progress')
-                      TextButton.icon(
-                        onPressed: () => onShowResolveDialog(report['id']),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          final reportId = report['id'];
+                          if (reportId != null) {
+                            onShowResolveDialog(reportId);
+                          }
+                        },
                         icon: const Icon(Icons.check_circle, size: 16),
-                        label: const Text('Resolve'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.green,
+                        label: const Text('Mark as Resolved'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           visualDensity: VisualDensity.compact,
+                          elevation: 2,
                         ),
                       ),
                     const SizedBox(width: 8),
-                    TextButton.icon(
-                      onPressed: () => onViewDetails(report['id']),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        final reportId = report['id'];
+                        if (reportId != null) {
+                          // Print debug info removed
+                          onViewDetails(reportId);
+                        }
+                      },
                       icon: const Icon(Icons.visibility, size: 16),
-                      label: const Text('View'),
-                      style: TextButton.styleFrom(
+                      label: const Text('View Details'),
+                      style: OutlinedButton.styleFrom(
                         foregroundColor: ReportStyles.primaryColor,
+                        side: const BorderSide(color: ReportStyles.primaryColor),
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         visualDensity: VisualDensity.compact,
                       ),

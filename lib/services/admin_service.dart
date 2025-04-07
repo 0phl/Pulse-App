@@ -6,6 +6,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../models/admin_user.dart';
 import '../models/community.dart';
 import '../models/community_notice.dart';
+import '../models/report.dart';
+import '../models/report_status.dart';
 import '../services/community_service.dart';
 
 class AdminService {
@@ -346,40 +348,160 @@ class AdminService {
     // through the Firebase Console or a separate super admin function
   }
 
-  // Handle a report
-  Future<void> handleReport(String reportId, String action) async {
+  // Get reports for admin's community
+  Stream<List<Report>> getReports({String? status}) async* {
     // Verify admin access first
     if (!await isCurrentUserAdmin()) {
-      throw Exception('Permission denied: Only admins can handle reports');
+      throw Exception('Permission denied: Only admins can access reports');
+    }
+
+    final community = await getCurrentAdminCommunity();
+    if (community == null) throw Exception('Admin community not found');
+
+    var query = _reportsCollection
+        .where('communityId', isEqualTo: community.id)
+        .orderBy('createdAt', descending: true);
+
+    // Add status filter if provided
+    if (status != null) {
+      query = query.where('status', isEqualTo: status);
+    }
+
+    yield* query.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Report.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .toList();
+    }).asBroadcastStream();
+  }
+
+  // Get report statistics for admin's community
+  Future<Map<String, dynamic>> getReportStats() async {
+    // Verify admin access first
+    if (!await isCurrentUserAdmin()) {
+      throw Exception('Permission denied: Only admins can access statistics');
+    }
+
+    final community = await getCurrentAdminCommunity();
+    if (community == null) throw Exception('Admin community not found');
+
+    // Get counts for each status
+    final stats = {
+      'total': 0,
+      'pending': 0,
+      'in_progress': 0,
+      'resolved': 0,
+    };
+
+    // For report types
+    final typeDistribution = <String, int>{};
+
+    // For weekly trend
+    final weeklyData = List<int>.filled(7, 0);
+    final now = DateTime.now();
+    final weekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+
+    final reportsQuery = await _reportsCollection
+        .where('communityId', isEqualTo: community.id)
+        .get();
+
+    for (var doc in reportsQuery.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final status = data['status'] as String? ?? 'pending';
+      final issueType = data['issueType'] as String? ?? 'Unknown';
+
+      // Handle potential null timestamp
+      final createdAt = data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : DateTime.now();
+
+      // Update status counts
+      stats['total'] = (stats['total'] ?? 0) + 1;
+      stats[status] = (stats[status] ?? 0) + 1;
+
+      // Update type distribution
+      typeDistribution[issueType] = (typeDistribution[issueType] ?? 0) + 1;
+
+      // Update weekly data if report was created this week
+      if (createdAt.isAfter(weekStart)) {
+        final dayDiff = createdAt.difference(weekStart).inDays;
+        if (dayDiff >= 0 && dayDiff < 7) {
+          weeklyData[dayDiff]++;
+        }
+      }
+    }
+
+    // Calculate average resolution time
+    double avgResolutionTime = 0;
+    int resolvedCount = 0;
+
+    final resolvedReportsQuery = await _reportsCollection
+        .where('communityId', isEqualTo: community.id)
+        .where('status', isEqualTo: 'resolved')
+        .get();
+
+    for (var doc in resolvedReportsQuery.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      // Handle potential null timestamps
+      final createdAt = data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : DateTime.now();
+
+      final updatedAt = data['updatedAt'] is Timestamp
+          ? (data['updatedAt'] as Timestamp).toDate()
+          : DateTime.now();
+
+      final resolutionTime = updatedAt.difference(createdAt).inHours / 24.0; // in days
+      avgResolutionTime += resolutionTime;
+      resolvedCount++;
+    }
+
+    if (resolvedCount > 0) {
+      avgResolutionTime /= resolvedCount;
+    }
+
+    return {
+      'statusCounts': stats,
+      'typeDistribution': typeDistribution,
+      'weeklyData': weeklyData,
+      'avgResolutionTime': avgResolutionTime.toStringAsFixed(1),
+    };
+  }
+
+  // Update report status
+  Future<void> updateReportStatus(String reportId, String newStatus, {String? resolutionDetails}) async {
+    // Verify admin access first
+    if (!await isCurrentUserAdmin()) {
+      throw Exception('Permission denied: Only admins can update reports');
     }
 
     final reportDoc = await _reportsCollection.doc(reportId).get();
-    if (!reportDoc.exists) {
-      throw Exception('Report not found');
-    }
+    if (!reportDoc.exists) throw Exception('Report not found');
 
     final reportData = reportDoc.data() as Map<String, dynamic>;
-    final adminUser = _auth.currentUser;
-    if (adminUser == null) throw Exception('No admin logged in');
+    final community = await getCurrentAdminCommunity();
+    if (community == null) throw Exception('Admin community not found');
 
-    final adminDoc = await _usersCollection.doc(adminUser.uid).get();
-    if (!adminDoc.exists) throw Exception('Admin not found');
-
-    final adminData = adminDoc.data() as Map<String, dynamic>;
-    final communityId = adminData['communityId'] as String;
-
-    // Verify the report belongs to the admin's community
-    if (reportData['communityId'] != communityId) {
-      throw Exception(
-          'Permission denied: Report belongs to a different community');
+    // Verify the report belongs to admin's community
+    if (reportData['communityId'] != community.id) {
+      throw Exception('Permission denied: Report belongs to a different community');
     }
 
-    // Update report status
-    await _reportsCollection.doc(reportId).update({
-      'status': action,
-      'handledBy': adminUser.uid,
-      'handledAt': FieldValue.serverTimestamp(),
-    });
+    // Create update map
+    final Map<String, dynamic> updates = {
+      'status': newStatus,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    // Add resolution details and timestamp if resolving
+    if (newStatus == 'resolved') {
+      updates['resolvedAt'] = FieldValue.serverTimestamp();
+      if (resolutionDetails != null && resolutionDetails.isNotEmpty) {
+        updates['resolutionDetails'] = resolutionDetails;
+      }
+    }
+
+    // Update report
+    await _reportsCollection.doc(reportId).update(updates);
   }
 
   // Remove a marketplace item

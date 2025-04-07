@@ -13,25 +13,46 @@ class ReportAnalyticsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      elevation: 1.0,
+      margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title bar with subtle background
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(8),
+                topRight: Radius.circular(8),
+              ),
+              border: Border(
+                bottom: BorderSide(color: Colors.grey[200]!, width: 1),
               ),
             ),
-            const SizedBox(height: 16),
-            ...children,
-          ],
-        ),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          // Content area
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -152,7 +173,7 @@ class ReportStatCard extends StatelessWidget {
 }
 
 class ReportTypeDistribution extends StatelessWidget {
-  final Map<String, int> typeDistribution;
+  final Map<String, dynamic> typeDistribution;
 
   const ReportTypeDistribution({
     Key? key,
@@ -161,18 +182,22 @@ class ReportTypeDistribution extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<MapEntry<String, int>> sortedEntries = typeDistribution.entries
-        .toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final entries = typeDistribution.entries.map((entry) =>
+      MapEntry(entry.key, entry.value as int)).toList();
+    entries.sort((a, b) => b.value.compareTo(a.value));
+
+    final total = entries.fold<int>(0, (sum, entry) => sum + entry.value);
+
+    // Professional color for all bars
+    const Color barColor = Color(0xFF2196F3); // Professional blue
+    const Color percentageColor = Color(0xFF757575); // Gray for percentage text
 
     return Column(
-      children: sortedEntries.map((entry) {
-        final double percentage = entry.value /
-            typeDistribution.values.fold(0, (a, b) => a + b) *
-            100;
+      children: entries.map((entry) {
+        final double percentage = total > 0 ? (entry.value / total * 100) : 0;
 
         return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.only(bottom: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -183,8 +208,9 @@ class ReportTypeDistribution extends StatelessWidget {
                     child: Text(
                       entry.key,
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w500,
+                        color: Colors.black87,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -192,20 +218,22 @@ class ReportTypeDistribution extends StatelessWidget {
                   Text(
                     '${percentage.toStringAsFixed(1)}%',
                     style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: percentageColor,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 4),
+              // Progress bar
               ClipRRect(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(2),
                 child: LinearProgressIndicator(
                   value: percentage / 100,
                   backgroundColor: Colors.grey[200],
-                  color: _getColorForType(entry.key),
-                  minHeight: 8,
+                  color: barColor,
+                  minHeight: 5,
                 ),
               ),
             ],
@@ -213,27 +241,6 @@ class ReportTypeDistribution extends StatelessWidget {
         );
       }).toList(),
     );
-  }
-
-  Color _getColorForType(String type) {
-    switch (type) {
-      case 'Street Light Damage':
-        return Colors.amber;
-      case 'Road Damage/Potholes':
-        return Colors.red;
-      case 'Garbage Collection Problems':
-        return Colors.green;
-      case 'Flooding/Drainage Issues':
-        return Colors.blue;
-      case 'Vandalism':
-        return Colors.purple;
-      case 'Noise Complaint':
-        return Colors.orange;
-      case 'Safety Hazard':
-        return Colors.pink;
-      default:
-        return Colors.grey;
-    }
   }
 }
 
@@ -284,11 +291,18 @@ class ReportTrendChart extends StatelessWidget {
                     Container(
                       width: 24,
                       height: height,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF00C49A),
-                        borderRadius: const BorderRadius.vertical(
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF00C49A),
+                        borderRadius: BorderRadius.vertical(
                           top: Radius.circular(4),
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0x2000C49A),
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 4),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:math' show pi;
+import 'dart:math' show pi, min;
 
 class PieChartPainter extends CustomPainter {
   final List<int> values;
@@ -17,21 +17,65 @@ class PieChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final total = values.fold<int>(0, (sum, value) => sum + value);
-    if (total == 0) return;
+    if (total == 0) {
+      // Draw empty state circle with dashed border
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..color = Colors.grey.withOpacity(0.5)
+        ..strokeWidth = 2.0;
 
-    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    double startAngle = 0;
+      canvas.drawCircle(
+        Offset(size.width / 2, size.height / 2),
+        size.width / 2.5,
+        paint,
+      );
+
+      // Draw text in the center
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: 'No Data',
+          style: TextStyle(color: Colors.grey[400], fontSize: 16),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(
+          size.width / 2 - textPainter.width / 2,
+          size.height / 2 - textPainter.height / 2,
+        ),
+      );
+      return;
+    }
+
+    // Calculate the smaller dimension to ensure a perfect circle
+    final diameter = size.width < size.height ? size.width : size.height;
+    final radius = diameter / 2;
+    final center = Offset(size.width / 2, size.height / 2);
+    final rect = Rect.fromCenter(
+      center: center,
+      width: diameter,
+      height: diameter,
+    );
+
+    double startAngle = -pi / 2; // Start from the top (12 o'clock position)
 
     for (int i = 0; i < values.length; i++) {
+      if (values[i] == 0) continue; // Skip zero values
+
       final sweepAngle = values[i] / total * 2 * pi;
       final paint = Paint()
         ..style = PaintingStyle.fill
-        ..color = colors[i];
+        ..color = colors[i]
+        ..strokeWidth = 2.0
+        ..isAntiAlias = true;
 
+      // Draw arc with slight padding between segments
       canvas.drawArc(
         rect,
         startAngle,
-        sweepAngle,
+        sweepAngle - 0.02,
         true,
         paint,
       );
@@ -42,8 +86,8 @@ class PieChartPainter extends CustomPainter {
     // Draw center circle for donut chart
     if (isDonut) {
       canvas.drawCircle(
-        Offset(size.width / 2, size.height / 2),
-        size.width * donutWidth,
+        center,
+        radius * donutWidth,
         Paint()..color = Colors.white,
       );
     }
@@ -73,50 +117,73 @@ class PieChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SizedBox(
-          height: height,
-          child: CustomPaint(
-            painter: PieChartPainter(
-              values: values,
-              colors: colors,
-              isDonut: isDonut,
-              donutWidth: donutWidth,
-            ),
-            size: Size.infinite,
-          ),
-        ),
-        if (labels != null) ...[
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 16,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: List.generate(
-              labels!.length,
-              (index) => Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: colors[index],
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    labels![index],
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate appropriate chart height based on available space
+        final availableHeight = constraints.maxHeight;
+        final double chartHeight = availableHeight > 0 ?
+            min(height, availableHeight * 0.7).toDouble() : // Use 70% of available height
+            150.0; // Fallback minimum height
+
+        // Calculate appropriate label height
+        final double labelHeight = availableHeight > 0 ?
+            min(40.0, availableHeight * 0.3).toDouble() : // Use 30% of available height
+            40.0; // Fallback minimum height
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: chartHeight,
+              child: CustomPaint(
+                painter: PieChartPainter(
+                  values: values,
+                  colors: colors,
+                  isDonut: isDonut,
+                  donutWidth: donutWidth,
+                ),
+                size: Size.infinite,
               ),
             ),
-          ),
-        ],
-      ],
+            if (labels != null) ...[
+              const SizedBox(height: 8), // Reduced spacing
+              SizedBox(
+                height: labelHeight,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      labels!.length,
+                      (index) => Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: colors[index],
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              labels![index],
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

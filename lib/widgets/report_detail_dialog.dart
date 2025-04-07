@@ -1,27 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 
-class ReportDetailDialog extends StatelessWidget {
+class ReportDetailDialog extends StatefulWidget {
   final Map<String, dynamic> report;
   final Function(String, String) onHandleReport;
-  final Function(String) onAssign;
-  final Function(String) onAddNote;
   final Function(String) onShowResolveDialog;
 
   const ReportDetailDialog({
     Key? key,
     required this.report,
     required this.onHandleReport,
-    required this.onAssign,
-    required this.onAddNote,
     required this.onShowResolveDialog,
   }) : super(key: key);
 
   @override
+  State<ReportDetailDialog> createState() => _ReportDetailDialogState();
+}
+
+class _ReportDetailDialogState extends State<ReportDetailDialog> {
+  final FirebaseDatabase _database = FirebaseDatabase.instance;
+  Map<String, dynamic>? _userData;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    try {
+      final userId = widget.report['userId'];
+      if (userId != null) {
+        final userSnapshot = await _database.ref().child('users/$userId').get();
+        if (userSnapshot.exists) {
+          final userData = Map<String, dynamic>.from(userSnapshot.value as Map);
+          setState(() {
+            _userData = userData;
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      print('Error fetching user data: $e');
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final String status = report['status'] ?? 'pending';
-    final Timestamp createdAt = report['createdAt'] as Timestamp;
+    final String status = widget.report['status'] ?? 'pending';
+    final Timestamp createdAt = widget.report['createdAt'] as Timestamp;
     final String formattedDate =
         DateFormat('MMMM d, y • h:mm a').format(createdAt.toDate());
 
@@ -56,7 +91,7 @@ class ReportDetailDialog extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          report['type'] ?? 'Unknown Type',
+                          widget.report['issueType'] ?? 'Unknown Type',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -65,7 +100,7 @@ class ReportDetailDialog extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Report #${report['id']}',
+                          'Report #${widget.report['id']}',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
@@ -105,23 +140,35 @@ class ReportDetailDialog extends StatelessWidget {
                   children: [
                     // Reporter info
                     _buildSectionTitle('Reporter Information'),
-                    _buildInfoRow(
-                      'Name',
-                      report['reporterName'] ?? 'Anonymous',
-                      Icons.person,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInfoRow(
-                      'Email',
-                      report['reporterEmail'] ?? 'N/A',
-                      Icons.email,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInfoRow(
-                      'Phone',
-                      report['reporterPhone'] ?? 'N/A',
-                      Icons.phone,
-                    ),
+                    _isLoading
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8.0),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildInfoRow(
+                              'Name',
+                              _userData?['fullName'] ?? 'Anonymous',
+                              Icons.person,
+                            ),
+                            const SizedBox(height: 8),
+                            _buildInfoRow(
+                              'Email',
+                              _userData?['email'] ?? 'N/A',
+                              Icons.email,
+                            ),
+                            const SizedBox(height: 8),
+                            _buildInfoRow(
+                              'Phone',
+                              _userData?['mobile'] ?? 'N/A',
+                              Icons.phone,
+                            ),
+                          ],
+                        ),
 
                     const SizedBox(height: 16),
 
@@ -135,14 +182,8 @@ class ReportDetailDialog extends StatelessWidget {
                     const SizedBox(height: 8),
                     _buildInfoRow(
                       'Location',
-                      report['address'] ?? 'No location provided',
+                      widget.report['address'] ?? 'No location provided',
                       Icons.location_on,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInfoRow(
-                      'Priority',
-                      _capitalizeFirst(report['priority'] ?? 'medium'),
-                      Icons.flag,
                     ),
 
                     const SizedBox(height: 16),
@@ -150,12 +191,12 @@ class ReportDetailDialog extends StatelessWidget {
                     // Description
                     _buildSectionTitle('Description'),
                     Text(
-                      report['description'] ?? 'No description provided.',
+                      widget.report['description'] ?? 'No description provided.',
                       style: const TextStyle(fontSize: 14),
                     ),
 
-                    if (report['imageUrl'] != null &&
-                        report['imageUrl'].isNotEmpty) ...[
+                    if (widget.report['photoUrls'] != null &&
+                        (widget.report['photoUrls'] as List).isNotEmpty) ...[
                       const SizedBox(height: 16),
                       _buildSectionTitle('Image'),
                       const SizedBox(height: 8),
@@ -163,7 +204,7 @@ class ReportDetailDialog extends StatelessWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Image.network(
-                            report['imageUrl'],
+                            (widget.report['photoUrls'] as List).first,
                             fit: BoxFit.cover,
                             height: 200,
                             errorBuilder: (context, error, stackTrace) {
@@ -179,32 +220,32 @@ class ReportDetailDialog extends StatelessWidget {
                       ),
                     ],
 
-                    if (report['assignedTo'] != null &&
-                        report['assignedTo'].isNotEmpty) ...[
+                    if (widget.report['assignedTo'] != null &&
+                        widget.report['assignedTo'].isNotEmpty) ...[
                       const SizedBox(height: 16),
                       _buildSectionTitle('Assigned To'),
                       Text(
-                        report['assignedTo'],
+                        widget.report['assignedTo'],
                         style: const TextStyle(fontSize: 14),
                       ),
                     ],
 
-                    if (report['notes'] != null &&
-                        report['notes'].isNotEmpty) ...[
+                    if (widget.report['notes'] != null &&
+                        widget.report['notes'].isNotEmpty) ...[
                       const SizedBox(height: 16),
                       _buildSectionTitle('Notes'),
                       Text(
-                        report['notes'],
+                        widget.report['notes'],
                         style: const TextStyle(fontSize: 14),
                       ),
                     ],
 
-                    if (report['resolution'] != null &&
-                        report['resolution'].isNotEmpty) ...[
+                    if (widget.report['resolution'] != null &&
+                        widget.report['resolution'].isNotEmpty) ...[
                       const SizedBox(height: 16),
                       _buildSectionTitle('Resolution'),
                       Text(
-                        report['resolution'],
+                        widget.report['resolution'],
                         style: const TextStyle(fontSize: 14),
                       ),
                     ],
@@ -226,16 +267,7 @@ class ReportDetailDialog extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  if (status == 'pending')
-                    _buildActionButton(
-                      label: 'Assign',
-                      icon: Icons.person_add,
-                      color: Colors.indigo,
-                      onPressed: () {
-                        Navigator.pop(context);
-                        onAssign(report['id']);
-                      },
-                    ),
+                  // Assign button completely removed
                   if (status == 'pending')
                     _buildActionButton(
                       label: 'Start',
@@ -243,7 +275,7 @@ class ReportDetailDialog extends StatelessWidget {
                       color: Colors.blue,
                       onPressed: () {
                         Navigator.pop(context);
-                        onHandleReport(report['id'], 'in_progress');
+                        widget.onHandleReport(widget.report['id'], 'in_progress');
                       },
                     ),
                   if (status == 'in_progress')
@@ -253,17 +285,7 @@ class ReportDetailDialog extends StatelessWidget {
                       color: Colors.green,
                       onPressed: () {
                         Navigator.pop(context);
-                        onShowResolveDialog(report['id']);
-                      },
-                    ),
-                  if (status != 'resolved' && status != 'rejected')
-                    _buildActionButton(
-                      label: 'Add Note',
-                      icon: Icons.note_add,
-                      color: const Color(0xFF00C49A),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        onAddNote(report['id']);
+                        widget.onShowResolveDialog(widget.report['id']);
                       },
                     ),
                   _buildActionButton(
@@ -282,47 +304,73 @@ class ReportDetailDialog extends StatelessWidget {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0, top: 4.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: Colors.black87,
+            ),
           ),
-        ),
-        const Divider(),
-        const SizedBox(height: 8),
-      ],
+          const SizedBox(height: 4),
+          Container(
+            height: 2,
+            width: 40,
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildInfoRow(String label, String value, IconData icon) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 16, color: Colors.grey),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
-              ),
-              Text(
-                value,
-                style: const TextStyle(fontSize: 14),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: Theme.of(context).primaryColor),
           ),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -334,12 +382,19 @@ class ReportDetailDialog extends StatelessWidget {
   }) {
     return ElevatedButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, size: 16),
-      label: Text(label),
+      icon: Icon(icon, size: 18),
+      label: Text(
+        label,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
@@ -355,8 +410,6 @@ class ReportDetailDialog extends StatelessWidget {
         return Colors.blue;
       case 'resolved':
         return Colors.green;
-      case 'rejected':
-        return Colors.red;
       default:
         return Colors.grey;
     }
@@ -370,15 +423,10 @@ class ReportDetailDialog extends StatelessWidget {
         return 'IN PROGRESS';
       case 'resolved':
         return 'RESOLVED';
-      case 'rejected':
-        return 'REJECTED';
       default:
         return 'UNKNOWN';
     }
   }
 
-  String _capitalizeFirst(String text) {
-    if (text.isEmpty) return text;
-    return text[0].toUpperCase() + text.substring(1);
-  }
+  // Helper method removed as it's no longer needed
 }

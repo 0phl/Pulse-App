@@ -13,6 +13,7 @@ class Report {
   final ReportStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? resolutionDetails; // Added field for resolution details
 
   Report({
     required this.id,
@@ -26,10 +27,20 @@ class Report {
     required this.status,
     required this.createdAt,
     required this.updatedAt,
+    this.resolutionDetails,
   });
 
   // Create from Firestore document
   factory Report.fromMap(Map<String, dynamic> map, String documentId) {
+    // Handle potential null timestamps by providing default values
+    final createdAt = map['createdAt'] is Timestamp
+        ? (map['createdAt'] as Timestamp).toDate()
+        : DateTime.now();
+
+    final updatedAt = map['updatedAt'] is Timestamp
+        ? (map['updatedAt'] as Timestamp).toDate()
+        : DateTime.now();
+
     return Report(
       id: documentId,
       userId: map['userId'] as String,
@@ -40,14 +51,16 @@ class Report {
       location: map['location'] as Map<String, dynamic>,
       photoUrls: List<String>.from(map['photoUrls']),
       status: ReportStatus.fromString(map['status'] as String),
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
-      updatedAt: (map['updatedAt'] as Timestamp).toDate(),
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      resolutionDetails: map['resolutionDetails'] as String?,
     );
   }
 
   // Convert to Firestore document
   Map<String, dynamic> toMap() {
-    return {
+    final map = {
+      'id': id, // Include the ID in the map
       'userId': userId,
       'communityId': communityId,
       'issueType': issueType,
@@ -59,6 +72,13 @@ class Report {
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
+
+    // Add resolution details if available
+    if (resolutionDetails != null) {
+      map['resolutionDetails'] = resolutionDetails!;
+    }
+
+    return map;
   }
 
   // Create a copy of the report with modified fields
@@ -74,6 +94,7 @@ class Report {
     ReportStatus? status,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? resolutionDetails,
   }) {
     return Report(
       id: id ?? this.id,
@@ -87,6 +108,7 @@ class Report {
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      resolutionDetails: resolutionDetails ?? this.resolutionDetails,
     );
   }
 }

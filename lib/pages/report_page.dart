@@ -17,6 +17,7 @@ import '../widgets/report_filter_chip.dart';
 import '../widgets/report_success_dialog.dart';
 import '../widgets/report_map.dart';
 import '../widgets/report_review_item.dart';
+import '../widgets/user_report_detail_dialog.dart';
 
 class ReportPage extends StatefulWidget {
   const ReportPage({super.key});
@@ -936,7 +937,10 @@ class _ReportPageState extends State<ReportPage>
                         .join(' '),
                     statusColor: _getStatusColor(report.status),
                     onViewDetails: () {
-                      // TODO: Implement view details
+                      showDialog(
+                        context: context,
+                        builder: (context) => UserReportDetailDialog(report: report),
+                      );
                     },
                   );
                 },
@@ -952,12 +956,17 @@ class _ReportPageState extends State<ReportPage>
     final now = DateTime.now();
     final difference = now.difference(date);
 
+    // Convert to 12-hour format
+    final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+    final formattedTime = '$hour:${date.minute.toString().padLeft(2, '0')} $period';
+
     if (difference.inDays == 0) {
-      return 'Today, ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+      return 'Today, $formattedTime';
     } else if (difference.inDays == 1) {
-      return 'Yesterday, ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+      return 'Yesterday, $formattedTime';
     } else {
-      return '${date.day}/${date.month}/${date.year}, ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+      return '${date.day}/${date.month}/${date.year}, $formattedTime';
     }
   }
 

@@ -55,8 +55,8 @@ class ReportActionDialogs {
               controller: resolutionController,
               maxLines: 3,
               decoration: const InputDecoration(
-                labelText: 'Resolution Details',
-                hintText: 'Describe how the issue was resolved',
+                labelText: 'How Was This Resolved',
+                hintText: 'Describe what was done to fix this issue',
               ),
             ),
           ],
