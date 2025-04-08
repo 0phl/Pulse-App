@@ -244,21 +244,42 @@ class _VolunteerPageState extends State<VolunteerPage> {
               ],
             ),
           ),
-          
+
           // Description
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Text(
-              post.description,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[700],
+            child: GestureDetector(
+              onTap: () => _showDescriptionDialog(context, post),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    post.description,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  // Only show 'Tap to read more' if description is longer than ~100 characters
+                  // which would likely cause it to be truncated in 2 lines
+                  if (post.description.length > 100) ...[
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Tap to read more',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF00C49A),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
           ),
-          
+
           // Details
           Padding(
             padding: const EdgeInsets.all(16),
@@ -270,21 +291,21 @@ class _VolunteerPageState extends State<VolunteerPage> {
                   post.location,
                 ),
                 const Divider(height: 16, thickness: 0.5),
-                
+
                 // Date
                 _buildDetailRow(
                   Icons.calendar_today,
                   DateFormat('EEEE, MMMM d, yyyy').format(post.eventDate),
                 ),
                 const Divider(height: 16, thickness: 0.5),
-                
+
                 // Time
                 _buildDetailRow(
                   Icons.access_time,
                   post.formattedTime,
                 ),
                 const Divider(height: 16, thickness: 0.5),
-                
+
                 // Volunteers count
                 _buildDetailRow(
                   Icons.people,
@@ -293,13 +314,13 @@ class _VolunteerPageState extends State<VolunteerPage> {
                     width: 50,
                     height: 4,
                     child: LinearProgressIndicator(
-                      value: post.maxVolunteers > 0 
-                          ? post.joinedUsers.length / post.maxVolunteers 
+                      value: post.maxVolunteers > 0
+                          ? post.joinedUsers.length / post.maxVolunteers
                           : 0,
                       backgroundColor: Colors.grey[200],
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        post.joinedUsers.length >= post.maxVolunteers 
-                            ? Colors.redAccent 
+                        post.joinedUsers.length >= post.maxVolunteers
+                            ? Colors.redAccent
                             : const Color(0xFF00C49A),
                       ),
                     ),
@@ -308,13 +329,13 @@ class _VolunteerPageState extends State<VolunteerPage> {
               ],
             ),
           ),
-          
+
           // Join/Cancel button
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: SizedBox(
               width: double.infinity,
-              child: hasJoined 
+              child: hasJoined
                   ? Row(
                       children: [
                         Expanded(
@@ -367,6 +388,94 @@ class _VolunteerPageState extends State<VolunteerPage> {
     );
   }
 
+  // Show full description dialog
+  void _showDescriptionDialog(BuildContext context, VolunteerPost post) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: const BoxDecoration(
+                color: Color(0xFF00C49A),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Text(
+                post.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+
+            // Description content
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Description',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF2D3748),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    post.description,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Close button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.grey[100],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text(
+                    'Close',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF2D3748),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDetailRow(IconData icon, String text, {Widget? trailing}) {
     return Row(
       children: [
@@ -398,7 +507,7 @@ class _VolunteerPageState extends State<VolunteerPage> {
         title: const Text(
           'Volunteer Opportunities',
           style: TextStyle(
-            color: Colors.white, 
+            color: Colors.white,
             fontWeight: FontWeight.w500,
             fontSize: 18,
           ),

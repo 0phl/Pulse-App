@@ -5,10 +5,10 @@ class ReportAnalyticsCard extends StatelessWidget {
   final List<Widget> children;
 
   const ReportAnalyticsCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.children,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -46,9 +46,9 @@ class ReportAnalyticsCard extends StatelessWidget {
           ),
           // Content area
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: children,
             ),
           ),
@@ -63,46 +63,58 @@ class ReportAnalyticItem extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
+  final bool isTopRow;
 
   const ReportAnalyticItem({
-    Key? key,
+    super.key,
     required this.title,
     required this.value,
     required this.icon,
     required this.color,
-  }) : super(key: key);
+    this.isTopRow = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
+    return SizedBox(
+      width: isTopRow ? 100 : 75, // Wider for top row items
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: EdgeInsets.all(isTopRow ? 10 : 8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: isTopRow ? 20 : 18),
           ),
-          child: Icon(icon, color: color),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
+          SizedBox(height: isTopRow ? 8 : 6),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: isTopRow ? 12 : 11,
+              color: Colors.grey[600],
+              height: 1.2,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: color,
+          SizedBox(height: isTopRow ? 4 : 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+              height: 1.1,
+            ),
+            textAlign: TextAlign.center,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -115,13 +127,13 @@ class ReportStatCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const ReportStatCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.value,
     required this.icon,
     required this.color,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -176,9 +188,9 @@ class ReportTypeDistribution extends StatelessWidget {
   final Map<String, dynamic> typeDistribution;
 
   const ReportTypeDistribution({
-    Key? key,
+    super.key,
     required this.typeDistribution,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -248,9 +260,9 @@ class ReportTrendChart extends StatelessWidget {
   final List<int> weeklyData;
 
   const ReportTrendChart({
-    Key? key,
+    super.key,
     required this.weeklyData,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

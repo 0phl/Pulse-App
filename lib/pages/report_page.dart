@@ -856,7 +856,9 @@ class _ReportPageState extends State<ReportPage>
                     });
                   },
                 ),
-                ...ReportStatus.values.map((status) => ReportFilterChip(
+                ...ReportStatus.values
+                    .where((status) => status != ReportStatus.underReview) // Exclude Under Review status
+                    .map((status) => ReportFilterChip(
                       label: status.value
                           .split('_')
                           .map((word) => word[0].toUpperCase() + word.substring(1))

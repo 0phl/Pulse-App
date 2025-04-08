@@ -34,6 +34,7 @@ class ReportCard extends StatelessWidget {
   final Function(String) onViewDetails;
   final Function(String, String) onHandleReport;
   final Function(String) onShowResolveDialog;
+  final Function(String)? onShowRejectDialog;
 
   const ReportCard({
     Key? key,
@@ -41,6 +42,7 @@ class ReportCard extends StatelessWidget {
     required this.onViewDetails,
     required this.onHandleReport,
     required this.onShowResolveDialog,
+    this.onShowRejectDialog,
   }) : super(key: key);
 
   @override
@@ -179,10 +181,12 @@ class ReportCard extends StatelessWidget {
                 const SizedBox(height: 16),
 
                 // Action buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8, // horizontal spacing
+                  runSpacing: 8, // vertical spacing
                   children: [
-                    if (status == 'pending')
+                    if (status == 'pending') ...[
                       ElevatedButton.icon(
                         onPressed: () {
                           final reportId = report['id'];
@@ -192,16 +196,36 @@ class ReportCard extends StatelessWidget {
                           }
                         },
                         icon: const Icon(Icons.play_arrow, size: 16),
-                        label: const Text('Start Processing'),
+                        label: const Text('Start'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
                           visualDensity: VisualDensity.compact,
                           elevation: 2,
                         ),
                       ),
-                    if (status == 'in_progress')
+                      if (onShowRejectDialog != null) ...[
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            final reportId = report['id'];
+                            if (reportId != null) {
+                              onShowRejectDialog!(reportId);
+                            }
+                          },
+                          icon: const Icon(Icons.cancel, size: 16),
+                          label: const Text('Reject'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            visualDensity: VisualDensity.compact,
+                            elevation: 2,
+                          ),
+                        ),
+                      ],
+                    ],
+                    if (status == 'in_progress') ...[
                       ElevatedButton.icon(
                         onPressed: () {
                           final reportId = report['id'];
@@ -209,17 +233,37 @@ class ReportCard extends StatelessWidget {
                             onShowResolveDialog(reportId);
                           }
                         },
-                        icon: const Icon(Icons.check_circle, size: 16),
-                        label: const Text('Mark as Resolved'),
+                        icon: const Icon(Icons.task_alt, size: 16),
+                        label: const Text('Mark Resolved'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
                           visualDensity: VisualDensity.compact,
                           elevation: 2,
                         ),
                       ),
-                    const SizedBox(width: 8),
+                      if (onShowRejectDialog != null) ...[
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            final reportId = report['id'];
+                            if (reportId != null) {
+                              onShowRejectDialog!(reportId);
+                            }
+                          },
+                          icon: const Icon(Icons.cancel, size: 16),
+                          label: const Text('Reject'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            visualDensity: VisualDensity.compact,
+                            elevation: 2,
+                          ),
+                        ),
+                      ],
+                    ],
+
                     OutlinedButton.icon(
                       onPressed: () {
                         final reportId = report['id'];
@@ -229,11 +273,11 @@ class ReportCard extends StatelessWidget {
                         }
                       },
                       icon: const Icon(Icons.visibility, size: 16),
-                      label: const Text('View Details'),
+                      label: const Text('View'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: ReportStyles.primaryColor,
                         side: const BorderSide(color: ReportStyles.primaryColor),
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
                         visualDensity: VisualDensity.compact,
                       ),
                     ),

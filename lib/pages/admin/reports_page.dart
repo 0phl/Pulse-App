@@ -19,9 +19,10 @@ class ActiveReportsTab extends StatefulWidget {
   final Function(Map<String, dynamic>) onShowReportDetails;
   final Function(String, String) onHandleReport;
   final Function(String) onShowResolveDialog;
+  final Function(String) onShowRejectDialog;
 
   const ActiveReportsTab({
-    Key? key,
+    super.key,
     required this.adminService,
     required this.selectedFilter,
     required this.onFilterChanged,
@@ -29,7 +30,8 @@ class ActiveReportsTab extends StatefulWidget {
     required this.onShowReportDetails,
     required this.onHandleReport,
     required this.onShowResolveDialog,
-  }) : super(key: key);
+    required this.onShowRejectDialog,
+  });
 
   @override
   State<ActiveReportsTab> createState() => _ActiveReportsTabState();
@@ -208,6 +210,7 @@ class _ActiveReportsTabState extends State<ActiveReportsTab> with AutomaticKeepA
                           onViewDetails: (_) => widget.onShowReportDetails(report.toMap()),
                           onHandleReport: widget.onHandleReport,
                           onShowResolveDialog: widget.onShowResolveDialog,
+                          onShowRejectDialog: widget.onShowRejectDialog,
                         );
                       },
                     ),
@@ -226,15 +229,17 @@ class ResolvedReportsTab extends StatefulWidget {
   final Function(Map<String, dynamic>) onShowReportDetails;
   final Function(String, String) onHandleReport;
   final Function(String) onShowResolveDialog;
+  final Function(String)? onShowRejectDialog;
 
   const ResolvedReportsTab({
-    Key? key,
+    super.key,
     required this.adminService,
     required this.reportStats,
     required this.onShowReportDetails,
     required this.onHandleReport,
     required this.onShowResolveDialog,
-  }) : super(key: key);
+    this.onShowRejectDialog,
+  });
 
   @override
   State<ResolvedReportsTab> createState() => _ResolvedReportsTabState();
@@ -387,6 +392,7 @@ class _ResolvedReportsTabState extends State<ResolvedReportsTab> with AutomaticK
                           onViewDetails: (_) => widget.onShowReportDetails(report.toMap()),
                           onHandleReport: widget.onHandleReport,
                           onShowResolveDialog: widget.onShowResolveDialog,
+                          onShowRejectDialog: widget.onShowRejectDialog,
                         );
                       },
                     ),
@@ -403,12 +409,194 @@ class AnalyticsTab extends StatefulWidget {
   final Map<String, dynamic> reportStats;
 
   const AnalyticsTab({
-    Key? key,
+    super.key,
     required this.reportStats,
-  }) : super(key: key);
+  });
 
   @override
   State<AnalyticsTab> createState() => _AnalyticsTabState();
+}
+
+class RejectedReportsTab extends StatefulWidget {
+  final AdminService adminService;
+  final Map<String, dynamic> reportStats;
+  final Function(Map<String, dynamic>) onShowReportDetails;
+  final Function(String, String) onHandleReport;
+  final Function(String) onShowResolveDialog;
+  final Function(String)? onShowRejectDialog;
+
+  const RejectedReportsTab({
+    super.key,
+    required this.adminService,
+    required this.reportStats,
+    required this.onShowReportDetails,
+    required this.onHandleReport,
+    required this.onShowResolveDialog,
+    this.onShowRejectDialog,
+  });
+
+  @override
+  State<RejectedReportsTab> createState() => _RejectedReportsTabState();
+}
+
+class _RejectedReportsTabState extends State<RejectedReportsTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  Future<void> _refreshData() async {
+    // This will trigger a refresh of the report stats
+    try {
+      await widget.adminService.getReportStats();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error refreshing data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: StreamBuilder<List<Report>>(
+        stream: widget.adminService.getReports(status: 'rejected'),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final rejectedReports = snapshot.data!.where((report) =>
+            report.status.value == 'rejected'
+          ).toList();
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Card(
+                        elevation: 0.5,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${widget.reportStats['statusCounts']?['rejected'] ?? 0}',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: ReportStyles.statusColors['rejected'],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Rejected',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Card(
+                        elevation: 0.5,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${((widget.reportStats['statusCounts']?['rejected'] ?? 0) / (widget.reportStats['statusCounts']?['total'] == 0 ? 1 : widget.reportStats['statusCounts']?['total'] ?? 1) * 100).toStringAsFixed(1)}%',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.red,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Rejection Rate',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: rejectedReports.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.block_outlined,
+                              size: 64,
+                              color: Colors.grey[300],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No rejected reports',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: rejectedReports.length,
+                        padding: const EdgeInsets.all(16),
+                        itemBuilder: (context, index) {
+                          final report = rejectedReports[index];
+                          return ReportCard(
+                            report: report.toMap(),
+                            onViewDetails: (_) => widget.onShowReportDetails(report.toMap()),
+                            onHandleReport: widget.onHandleReport,
+                            onShowResolveDialog: widget.onShowResolveDialog,
+                            onShowRejectDialog: widget.onShowRejectDialog,
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _AnalyticsTabState extends State<AnalyticsTab> with AutomaticKeepAliveClientMixin {
@@ -417,7 +605,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> with AutomaticKeepAliveClie
 
   Map<String, dynamic> get statusCounts {
     final data = widget.reportStats['statusCounts'] as Map<String, dynamic>?;
-    return data ?? {'total': 0, 'pending': 0, 'in_progress': 0, 'resolved': 0};
+    return data ?? {'total': 0, 'pending': 0, 'in_progress': 0, 'resolved': 0, 'rejected': 0};
   }
 
   Map<String, dynamic> get typeDistribution {
@@ -433,6 +621,12 @@ class _AnalyticsTabState extends State<AnalyticsTab> with AutomaticKeepAliveClie
   String get avgResolutionTime =>
       widget.reportStats['avgResolutionTime'] as String? ?? '0.0';
 
+  // Calculate percentage for pie chart labels
+  String _getPercentage(int value, int total) {
+    if (total == 0) return '0.0';
+    return ((value / total) * 100).toStringAsFixed(1);
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -444,27 +638,70 @@ class _AnalyticsTabState extends State<AnalyticsTab> with AutomaticKeepAliveClie
           ReportAnalyticsCard(
             title: 'Reports Summary',
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Column(
                 children: [
-                  ReportAnalyticItem(
-                    title: 'Total Reports',
-                    value: '${statusCounts['total'] ?? 0}',
-                    icon: Icons.assessment,
-                    color: ReportStyles.primaryColor,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        ReportAnalyticItem(
+                          title: 'Total Reports',
+                          value: '${statusCounts['total'] ?? 0}',
+                          icon: Icons.assessment,
+                          color: ReportStyles.primaryColor,
+                          isTopRow: true,
+                        ),
+                        ReportAnalyticItem(
+                          title: 'Avg. Resolution Time',
+                          value: '$avgResolutionTime days',
+                          icon: Icons.timer,
+                          color: Colors.blue,
+                          isTopRow: true,
+                        ),
+                        ReportAnalyticItem(
+                          title: 'Resolution Rate',
+                          value:
+                              '${((statusCounts['resolved'] ?? 0) / (statusCounts['total'] == 0 ? 1 : statusCounts['total'] ?? 1) * 100).toStringAsFixed(1)}%',
+                          icon: Icons.check_circle,
+                          color: Colors.green,
+                          isTopRow: true,
+                        ),
+                      ],
+                    ),
                   ),
-                  ReportAnalyticItem(
-                    title: 'Avg. Resolution Time',
-                    value: '$avgResolutionTime days',
-                    icon: Icons.timer,
-                    color: Colors.blue,
-                  ),
-                  ReportAnalyticItem(
-                    title: 'Resolution Rate',
-                    value:
-                        '${((statusCounts['resolved'] ?? 0) / (statusCounts['total'] == 0 ? 1 : statusCounts['total'] ?? 1) * 100).toStringAsFixed(1)}%',
-                    icon: Icons.check_circle,
-                    color: Colors.green,
+                  const Divider(height: 32, indent: 16, endIndent: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ReportAnalyticItem(
+                          title: 'Pending',
+                          value: '${statusCounts['pending'] ?? 0}',
+                          icon: Icons.pending_actions,
+                          color: Colors.orange,
+                        ),
+                        ReportAnalyticItem(
+                          title: 'In Progress',
+                          value: '${statusCounts['in_progress'] ?? 0}',
+                          icon: Icons.engineering,
+                          color: Colors.blue,
+                        ),
+                        ReportAnalyticItem(
+                          title: 'Resolved',
+                          value: '${statusCounts['resolved'] ?? 0}',
+                          icon: Icons.check_circle_outline,
+                          color: Colors.green,
+                        ),
+                        ReportAnalyticItem(
+                          title: 'Rejected',
+                          value: '${statusCounts['rejected'] ?? 0}',
+                          icon: Icons.block,
+                          color: Colors.red,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -481,14 +718,22 @@ class _AnalyticsTabState extends State<AnalyticsTab> with AutomaticKeepAliveClie
                     statusCounts['pending'] ?? 0,
                     statusCounts['in_progress'] ?? 0,
                     statusCounts['resolved'] ?? 0,
+                    statusCounts['rejected'] ?? 0,
                   ],
                   colors: const [
                     Colors.orange,
                     Colors.blue,
                     Colors.green,
+                    Colors.red,
                   ],
-                  labels: const ['Pending', 'In Progress', 'Resolved'],
+                  labels: [
+                    'Pending (${_getPercentage(statusCounts['pending'] ?? 0, statusCounts['total'] ?? 0)}%)',
+                    'In Progress (${_getPercentage(statusCounts['in_progress'] ?? 0, statusCounts['total'] ?? 0)}%)',
+                    'Resolved (${_getPercentage(statusCounts['resolved'] ?? 0, statusCounts['total'] ?? 0)}%)',
+                    'Rejected (${_getPercentage(statusCounts['rejected'] ?? 0, statusCounts['total'] ?? 0)}%)',
+                  ],
                   height: 160, // Reduced height
+
                 ),
               ),
             ],
@@ -553,11 +798,11 @@ class _AdminReportsPageState extends State<AdminReportsPage>
     'weeklyData': [0, 0, 0, 0, 0, 0, 0],
     'avgResolutionTime': '0.0',
   };
-  final List<String> _tabs = ['Active Reports', 'Resolved', 'Analytics'];
+  final List<String> _tabs = ['Active Reports', 'Resolved', 'Rejected', 'Analytics'];
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadInitialData();
   }
 
@@ -663,6 +908,7 @@ class _AdminReportsPageState extends State<AdminReportsPage>
         report: report,
         onHandleReport: _handleReport,
         onShowResolveDialog: _showResolveDialog,
+        onShowRejectDialog: _showRejectDialog,
       ),
     );
   }
@@ -673,6 +919,13 @@ class _AdminReportsPageState extends State<AdminReportsPage>
     final resolution = await ReportActionDialogs.showResolveDialog(context);
     if (resolution != null) {
       _handleReport(reportId, 'resolved', resolutionDetails: resolution);
+    }
+  }
+
+  void _showRejectDialog(String reportId) async {
+    final rejectionReason = await ReportActionDialogs.showRejectDialog(context);
+    if (rejectionReason != null) {
+      _handleReport(reportId, 'rejected', resolutionDetails: rejectionReason);
     }
   }
 
@@ -724,6 +977,7 @@ class _AdminReportsPageState extends State<AdminReportsPage>
                         onShowReportDetails: _showReportDetails,
                         onHandleReport: _handleReport,
                         onShowResolveDialog: _showResolveDialog,
+                        onShowRejectDialog: _showRejectDialog,
                       ),
                       ResolvedReportsTab(
                         adminService: _adminService,
@@ -731,6 +985,15 @@ class _AdminReportsPageState extends State<AdminReportsPage>
                         onShowReportDetails: _showReportDetails,
                         onHandleReport: _handleReport,
                         onShowResolveDialog: _showResolveDialog,
+                        onShowRejectDialog: _showRejectDialog,
+                      ),
+                      RejectedReportsTab(
+                        adminService: _adminService,
+                        reportStats: _reportStats,
+                        onShowReportDetails: _showReportDetails,
+                        onHandleReport: _handleReport,
+                        onShowResolveDialog: _showResolveDialog,
+                        onShowRejectDialog: _showRejectDialog,
                       ),
                       AnalyticsTab(reportStats: _reportStats),
                     ],

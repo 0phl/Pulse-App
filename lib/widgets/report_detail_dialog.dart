@@ -7,12 +7,14 @@ class ReportDetailDialog extends StatefulWidget {
   final Map<String, dynamic> report;
   final Function(String, String) onHandleReport;
   final Function(String) onShowResolveDialog;
+  final Function(String)? onShowRejectDialog;
 
   const ReportDetailDialog({
     Key? key,
     required this.report,
     required this.onHandleReport,
     required this.onShowResolveDialog,
+    this.onShowRejectDialog,
   }) : super(key: key);
 
   @override
@@ -220,25 +222,7 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
                       ),
                     ],
 
-                    if (widget.report['assignedTo'] != null &&
-                        widget.report['assignedTo'].isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      _buildSectionTitle('Assigned To'),
-                      Text(
-                        widget.report['assignedTo'],
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ],
 
-                    if (widget.report['notes'] != null &&
-                        widget.report['notes'].isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      _buildSectionTitle('Notes'),
-                      Text(
-                        widget.report['notes'],
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ],
 
                     if (widget.report['resolution'] != null &&
                         widget.report['resolution'].isNotEmpty) ...[
@@ -264,11 +248,13 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
                   bottomRight: Radius.circular(16),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              child: Wrap(
+                alignment: WrapAlignment.spaceEvenly,
+                spacing: 8, // horizontal spacing
+                runSpacing: 8, // vertical spacing
                 children: [
                   // Assign button completely removed
-                  if (status == 'pending')
+                  if (status == 'pending') ...[
                     _buildActionButton(
                       label: 'Start',
                       icon: Icons.play_arrow,
@@ -278,16 +264,38 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
                         widget.onHandleReport(widget.report['id'], 'in_progress');
                       },
                     ),
-                  if (status == 'in_progress')
+                    if (widget.onShowRejectDialog != null)
+                      _buildActionButton(
+                        label: 'Reject',
+                        icon: Icons.cancel,
+                        color: Colors.red,
+                        onPressed: () {
+                          Navigator.pop(context);
+                          widget.onShowRejectDialog!(widget.report['id']);
+                        },
+                      ),
+                  ],
+                  if (status == 'in_progress') ...[
                     _buildActionButton(
                       label: 'Resolve',
-                      icon: Icons.check_circle,
+                      icon: Icons.task_alt,
                       color: Colors.green,
                       onPressed: () {
                         Navigator.pop(context);
                         widget.onShowResolveDialog(widget.report['id']);
                       },
                     ),
+                    if (widget.onShowRejectDialog != null)
+                      _buildActionButton(
+                        label: 'Reject',
+                        icon: Icons.cancel,
+                        color: Colors.red,
+                        onPressed: () {
+                          Navigator.pop(context);
+                          widget.onShowRejectDialog!(widget.report['id']);
+                        },
+                      ),
+                  ],
                   _buildActionButton(
                     label: 'Close',
                     icon: Icons.close,
@@ -382,18 +390,18 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
   }) {
     return ElevatedButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, size: 18),
+      icon: Icon(icon, size: 16),
       label: Text(
         label,
         style: const TextStyle(
           fontWeight: FontWeight.bold,
-          fontSize: 14,
+          fontSize: 12,
         ),
       ),
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
@@ -410,6 +418,8 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
         return Colors.blue;
       case 'resolved':
         return Colors.green;
+      case 'rejected':
+        return Colors.red;
       default:
         return Colors.grey;
     }
@@ -423,6 +433,8 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
         return 'IN PROGRESS';
       case 'resolved':
         return 'RESOLVED';
+      case 'rejected':
+        return 'REJECTED';
       default:
         return 'UNKNOWN';
     }

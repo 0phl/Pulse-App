@@ -1,0 +1,42 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/admin_service.dart';
+
+class ReportStatsService {
+  final AdminService _adminService = AdminService();
+  
+  Future<Map<String, dynamic>> getDetailedReportStats() async {
+    // Get the basic report stats from admin service
+    final reportStats = await _adminService.getReportStats();
+    
+    // Extract status counts
+    final statusCounts = reportStats['statusCounts'] as Map<String, dynamic>;
+    
+    // Calculate total reports
+    final totalReports = statusCounts['total'] ?? 0;
+    
+    // Extract resolved and pending counts
+    final resolvedCount = statusCounts['resolved'] ?? 0;
+    final pendingCount = statusCounts['pending'] ?? 0;
+    final inProgressCount = statusCounts['in_progress'] ?? 0;
+    final rejectedCount = statusCounts['rejected'] ?? 0;
+    
+    // Calculate resolution rate
+    double resolutionRate = 0;
+    if (totalReports > 0) {
+      resolutionRate = (resolvedCount / totalReports) * 100;
+    }
+    
+    // Format the average resolution time
+    final avgResolutionTime = reportStats['avgResolutionTime'] ?? '0';
+    
+    return {
+      'totalReports': totalReports,
+      'resolvedCount': resolvedCount,
+      'pendingCount': pendingCount,
+      'inProgressCount': inProgressCount,
+      'rejectedCount': rejectedCount,
+      'resolutionRate': resolutionRate.toStringAsFixed(1),
+      'avgResolutionTime': avgResolutionTime,
+    };
+  }
+}

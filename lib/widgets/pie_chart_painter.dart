@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
-import 'dart:math' show pi, min;
+import 'dart:math' show pi, min, cos, sin;
 
 class PieChartPainter extends CustomPainter {
   final List<int> values;
   final List<Color> colors;
   final bool isDonut;
   final double donutWidth;
+  final bool showValues;
 
   PieChartPainter({
     required this.values,
     required this.colors,
     this.isDonut = true,
     this.donutWidth = 0.3,
+    this.showValues = false,
   });
 
   @override
@@ -80,6 +82,40 @@ class PieChartPainter extends CustomPainter {
         paint,
       );
 
+      // Draw percentage value inside the segment if enabled
+      if (showValues && values[i] > 0) {
+        final percentage = (values[i] / total * 100).toStringAsFixed(0);
+        // Only show percentage if it's at least 5% to avoid clutter
+        if (values[i] / total >= 0.05) {
+          // Calculate position for text (middle of the segment)
+          final segmentAngle = startAngle + (sweepAngle / 2);
+          final textRadius = radius * 0.7; // Position at 70% of radius
+          final x = center.dx + textRadius * cos(segmentAngle);
+          final y = center.dy + textRadius * sin(segmentAngle);
+
+          // Draw text
+          final textPainter = TextPainter(
+            text: TextSpan(
+              text: '$percentage%',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                shadows: [
+                  Shadow(color: Colors.black26, blurRadius: 2, offset: Offset(1, 1))
+                ],
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          );
+          textPainter.layout();
+          textPainter.paint(
+            canvas,
+            Offset(x - textPainter.width / 2, y - textPainter.height / 2),
+          );
+        }
+      }
+
       startAngle += sweepAngle;
     }
 
@@ -104,16 +140,18 @@ class PieChart extends StatelessWidget {
   final bool isDonut;
   final double donutWidth;
   final double height;
+  final bool showValues;
 
   const PieChart({
-    Key? key,
+    super.key,
     required this.values,
     required this.colors,
     this.labels,
     this.isDonut = true,
     this.donutWidth = 0.3,
     this.height = 200,
-  }) : super(key: key);
+    this.showValues = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -141,6 +179,7 @@ class PieChart extends StatelessWidget {
                   colors: colors,
                   isDonut: isDonut,
                   donutWidth: donutWidth,
+                  showValues: showValues,
                 ),
                 size: Size.infinite,
               ),

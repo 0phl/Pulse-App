@@ -117,10 +117,10 @@ class UserReportDetailDialog extends StatelessWidget {
                       style: const TextStyle(fontSize: 14),
                     ),
 
-                    // Resolution details (if resolved and has details)
-                    if (report.status == ReportStatus.resolved && report.resolutionDetails != null) ...[
+                    // Resolution or rejection details
+                    if ((report.status == ReportStatus.resolved || report.status == ReportStatus.rejected) && report.resolutionDetails != null) ...[
                       const SizedBox(height: 16),
-                      _buildSectionTitle('Admin Feedback'),
+                      _buildSectionTitle(report.status == ReportStatus.rejected ? 'Rejection Reason' : 'Resolution Details'),
                       Text(
                         report.resolutionDetails!,
                         style: const TextStyle(fontSize: 14),
