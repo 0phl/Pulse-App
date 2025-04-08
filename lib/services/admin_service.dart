@@ -178,8 +178,6 @@ class AdminService {
       // Get user stats to ensure we have accurate member count
       final userStats = await getUserStats();
       int communityUsers = userStats['communityUsers'] as int? ?? 0;
-      print('DEBUG: Community users from userStats: $communityUsers');
-
       // Use the engagement service to calculate engagement
       final engagementData =
           await _engagementService.calculateEngagement(communityId);
@@ -200,15 +198,12 @@ class AdminService {
         'engagementComponents': engagementData['engagementComponents'],
       };
     } catch (e) {
-      print('DEBUG: Error in getCommunityStats: $e');
       // Get user stats to ensure we have accurate member count even in error case
       int communityUsers = 4; // Default
       try {
         final userStats = await getUserStats();
         communityUsers = userStats['communityUsers'] as int? ?? 4;
       } catch (userStatsError) {
-        print(
-            'DEBUG: Error getting user stats in error handler: $userStatsError');
       }
 
       // Return default values in case of any error
@@ -444,7 +439,6 @@ class AdminService {
 
     try {
       // Get community notices from RTDB instead of Firestore
-      print('DEBUG: Fetching community notices for activity chart');
       final noticesSnapshot = await _database
           .child('community_notices')
           .orderByChild('communityId')
@@ -464,20 +458,16 @@ class AdminService {
                 final dayIndex = createdAtDate.difference(startDate).inDays;
                 if (dayIndex >= 0 && dayIndex < 7) {
                   dailyActivity[dayIndex]++;
-                  print('DEBUG: Added notice to activity chart for day $dayIndex');
                 }
               }
             }
           } catch (e) {
-            print('DEBUG: Error processing notice for activity chart: $e');
             // Skip this notice if there's an error
           }
         });
       } else {
-        print('DEBUG: No community notices found in RTDB for activity chart');
       }
     } catch (e) {
-      print('DEBUG: Error fetching notices for activity chart: $e');
       // Continue with current data
     }
 

@@ -6,6 +6,9 @@ class EngagementService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _database = FirebaseDatabase.instance;
+  
+  // Cache for user roles to reduce database queries
+  final Map<String, String> _userRoleCache = {};
 
   // Collection references
   final CollectionReference _usersCollection;
@@ -30,21 +33,60 @@ class EngagementService {
             FirebaseFirestore.instance.collection('communities'),
         _chatsRef = FirebaseDatabase.instance.ref().child('chats');
 
-  // Check if current user is admin
+  // Check if current user is admin with caching
   Future<bool> isCurrentUserAdmin() async {
     try {
       final user = _auth.currentUser;
       if (user == null) return false;
 
+      // Check cache first
+      if (_userRoleCache.containsKey(user.uid)) {
+        final role = _userRoleCache[user.uid];
+        return role == 'admin' || role == 'super_admin';
+      }
+
       final userDoc = await _usersCollection.doc(user.uid).get();
       if (!userDoc.exists) return false;
 
       final userData = userDoc.data() as Map<String, dynamic>;
-      return userData['role'] == 'admin' || userData['role'] == 'super_admin';
+      final role = userData['role'] as String;
+      
+      // Cache the result
+      _userRoleCache[user.uid] = role;
+      
+      return role == 'admin' || role == 'super_admin';
     } catch (e) {
-      print('Error checking admin status: $e');
       return false;
     }
+  }
+
+  // Get user role with caching
+  Future<String?> _getUserRole(String userId) async {
+    try {
+      // Check cache first
+      if (_userRoleCache.containsKey(userId)) {
+        return _userRoleCache[userId];
+      }
+
+      final userDoc = await _usersCollection.doc(userId).get();
+      if (!userDoc.exists) return null;
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+      final role = userData['role'] as String;
+      
+      // Cache the result
+      _userRoleCache[userId] = role;
+      
+      return role;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Check if a user is admin with caching
+  Future<bool> _isUserAdmin(String userId) async {
+    final role = await _getUserRole(userId);
+    return role == 'admin' || role == 'super_admin';
   }
 
   // Calculate community engagement metrics
@@ -74,7 +116,6 @@ class EngagementService {
           membersCount = usersQuery.count ?? 0;
         }
       } catch (e) {
-        print('Error getting member count: $e');
         // Default to 4 if we can't get the actual count
         membersCount = 4;
       }
@@ -99,7 +140,6 @@ class EngagementService {
 
       // 1. USER INTERACTIONS - Likes and comments on community notices
       try {
-        print('DEBUG: Fetching community notices from RTDB for community: $communityId');
 
         // Get notices directly from RTDB instead of Firestore
         final noticesSnapshot = await _database
@@ -110,7 +150,6 @@ class EngagementService {
             .get();
 
         if (!noticesSnapshot.exists) {
-          print('DEBUG: No community notices found in RTDB');
           // Skip this section if no notices exist
           engagementComponents['userLikesComments'] = 0;
           engagementComponents['adminInteractions'] = 0;
@@ -118,7 +157,6 @@ class EngagementService {
         } else {
 
         final noticesData = noticesSnapshot.value as Map<dynamic, dynamic>;
-        print('DEBUG: Found ${noticesData.length} community notices in RTDB');
 
         // Convert to list of entries for processing
         final noticeEntries = noticesData.entries.toList();
@@ -131,7 +169,6 @@ class EngagementService {
                  DateTime.fromMillisecondsSinceEpoch(createdAt).isAfter(lastMonth);
         }).toList();
 
-        print('DEBUG: Found ${recentNotices.length} recent notices in the last 30 days');
 
         int noticeCount = recentNotices.length;
         int totalLikes = 0;
@@ -150,27 +187,14 @@ class EngagementService {
           if (noticeData.containsKey('likes') && noticeData['likes'] != null) {
             final likes = noticeData['likes'] as Map<dynamic, dynamic>;
             totalLikes += likes.length;
-            print('DEBUG: Found ${likes.length} likes on notice $noticeId');
-
-            // Check for admin likes
+            // Check for admin likes using cache
             for (var userId in likes.keys) {
-              print('DEBUG: Checking like from user: $userId');
               try {
-                final userDoc = await _usersCollection.doc(userId).get();
-                if (userDoc.exists) {
-                  final userData = userDoc.data() as Map<String, dynamic>;
-                  print('DEBUG: User role for $userId: ${userData['role']}');
-                  if (userData['role'] == 'admin' ||
-                      userData['role'] == 'super_admin') {
-                    print('DEBUG: Found admin like');
-                    adminLikes++;
-                    adminInteractions++;
-                  }
-                } else {
-                  print('DEBUG: User doc does not exist for $userId');
+                if (await _isUserAdmin(userId)) {
+                  adminLikes++;
+                  adminInteractions++;
                 }
               } catch (e) {
-                print('DEBUG: Error checking user role for likes: $e');
               }
             }
           }
@@ -179,42 +203,28 @@ class EngagementService {
           if (noticeData.containsKey('comments') && noticeData['comments'] != null) {
             final comments = noticeData['comments'] as Map<dynamic, dynamic>;
             totalComments += comments.length;
-            print('DEBUG: Found ${comments.length} comments on notice $noticeId');
 
             // Check for admin comments
             for (var comment in comments.values) {
               if (comment is Map && comment.containsKey('authorId')) {
                 final authorId = comment['authorId'];
-                print('DEBUG: Checking comment author: $authorId');
-
                 // Check if the author name contains 'Admin' as a quick check
                 if (comment.containsKey('authorName')) {
                   final authorName = comment['authorName'].toString();
                   if (authorName.contains('Admin')) {
-                    print('DEBUG: Found admin comment by name: $authorName');
                     adminComments++;
                     adminInteractions++;
                     continue; // Skip Firestore check if we already identified as admin
                   }
                 }
 
-                // Fallback to Firestore check
+                // Check user role using cache
                 try {
-                  final userDoc = await _usersCollection.doc(authorId).get();
-                  if (userDoc.exists) {
-                    final userData = userDoc.data() as Map<String, dynamic>;
-                    print('DEBUG: User role for $authorId: ${userData['role']}');
-                    if (userData['role'] == 'admin' ||
-                        userData['role'] == 'super_admin') {
-                      print('DEBUG: Found admin comment by role check');
-                      adminComments++;
-                      adminInteractions++;
-                    }
-                  } else {
-                    print('DEBUG: User doc does not exist for $authorId');
+                  if (await _isUserAdmin(authorId)) {
+                    adminComments++;
+                    adminInteractions++;
                   }
                 } catch (e) {
-                  print('DEBUG: Error checking user role: $e');
                 }
               }
             }
@@ -226,21 +236,15 @@ class EngagementService {
         int userComments = totalComments - adminComments;
         int userInteractions = userLikes + userComments;
 
-        print('DEBUG: Total likes: $totalLikes, Admin likes: $adminLikes, User likes: $userLikes');
-        print('DEBUG: Total comments: $totalComments, Admin comments: $adminComments, User comments: $userComments');
-
         engagementComponents['userLikesComments'] = userInteractions;
         engagementComponents['adminInteractions'] = adminInteractions;
         totalActivities += userInteractions + noticeCount + adminInteractions;
-
-        print('DEBUG: User interactions: $userInteractions, Admin interactions: $adminInteractions');
 
         // Each notice could be liked and commented by each member
         possibleActivities +=
             10 + (noticeCount * (membersCount > 0 ? membersCount * 2 : 2));
         }
       } catch (e) {
-        print('Error calculating user interactions: $e');
       }
 
       // 2. VOLUNTEER PARTICIPATION
@@ -273,7 +277,6 @@ class EngagementService {
         possibleActivities +=
             10 + (volunteerPostCount * (membersCount > 0 ? membersCount : 1));
       } catch (e) {
-        print('Error calculating volunteer participation: $e');
       }
 
       // 3. MARKETPLACE ACTIVITY
@@ -304,7 +307,6 @@ class EngagementService {
 
         possibleActivities += membersCount > 0 ? membersCount * 2 : 2;
       } catch (e) {
-        print('Error calculating marketplace activity: $e');
       }
 
       // 4. REPORT SUBMISSIONS
@@ -336,12 +338,10 @@ class EngagementService {
         // Add report interactions to admin interactions
         engagementComponents['adminInteractions'] =
             (engagementComponents['adminInteractions'] ?? 0) + reportInteractions;
-        print('DEBUG: Admin report interactions: $reportInteractions');
 
         totalActivities += reportInteractions;
         possibleActivities += membersCount > 0 ? membersCount : 1;
       } catch (e) {
-        print('Error calculating report submissions: $e');
       }
 
       // Get active users data
@@ -363,7 +363,6 @@ class EngagementService {
           }
         }
       } catch (e) {
-        print('Error counting active users: $e');
         // Default to 1 active user if we can't get the count
         activeUsers = membersCount > 0 ? 1 : 0;
       }
@@ -408,12 +407,6 @@ class EngagementService {
       }
 
       // Debug logs
-      print('DEBUG: Engagement components: $engagementComponents');
-      print(
-          'DEBUG: Total activities: $totalActivities, Possible activities: $possibleActivities');
-      print('DEBUG: Members: $membersCount, Active users: $activeUsers');
-      print('DEBUG: Calculated engagement rate: $engagementRate%');
-      print('DEBUG: Admin interactions count: ${engagementComponents['adminInteractions']}');
 
       return {
         'engagementRate': engagementRate,
@@ -424,7 +417,6 @@ class EngagementService {
         'possibleActivities': possibleActivities
       };
     } catch (e) {
-      print('Error calculating engagement: $e');
       // Return default values
       return {
         'engagementRate': 40,

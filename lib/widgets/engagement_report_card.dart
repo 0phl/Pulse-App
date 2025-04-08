@@ -34,7 +34,7 @@ class EngagementReportCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: const Color(0xFF4A90E2).withOpacity(0.1),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -45,13 +45,13 @@ class EngagementReportCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.2),
+                    color: const Color(0xFF4A90E2).withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
                     Icons.insights,
                     size: 24,
-                    color: Colors.blue,
+                    color: const Color(0xFF4A90E2),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -61,7 +61,7 @@ class EngagementReportCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.blue,
+                      color: const Color(0xFF4A90E2),
                     ),
                     overflow: TextOverflow.visible,
                   ),
@@ -78,13 +78,13 @@ class EngagementReportCard extends StatelessWidget {
                   children: [
                     // Engagement rate circle
                     CircularPercentIndicator(
-                      radius: 60.0,
-                      lineWidth: 10.0,
+                      radius: 50.0,
+                      lineWidth: 8.0,
                       percent: engagementRate / 100,
                       center: Text(
                         '$engagementRate%',
                         style: const TextStyle(
-                          fontSize: 20,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -106,35 +106,35 @@ class EngagementReportCard extends StatelessWidget {
                             'User Interactions',
                             engagementComponents['userLikesComments'] ?? 0,
                             Icons.favorite,
-                            Colors.red,
+                            const Color(0xFFE57373),
                           ),
                           const SizedBox(height: 8),
                           _buildComponentRow(
                             'Volunteer Participation',
                             engagementComponents['volunteerParticipation'] ?? 0,
                             Icons.volunteer_activism,
-                            Colors.green,
+                            const Color(0xFF81C784),
                           ),
                           const SizedBox(height: 8),
                           _buildComponentRow(
                             'Marketplace Activity',
                             engagementComponents['marketplaceActivity'] ?? 0,
                             Icons.shopping_cart,
-                            Colors.orange,
+                            const Color(0xFFF5A623),
                           ),
                           const SizedBox(height: 8),
                           _buildComponentRow(
                             'Report Submissions',
                             engagementComponents['reportSubmissions'] ?? 0,
                             Icons.report_problem,
-                            Colors.purple,
+                            const Color(0xFFBA68C8),
                           ),
                           const SizedBox(height: 8),
                           _buildComponentRow(
                             'Admin Interactions',
                             engagementComponents['adminInteractions'] ?? 0,
                             Icons.admin_panel_settings,
-                            Colors.blue,
+                            const Color(0xFF4A90E2),
                           ),
                         ],
                       ),
@@ -201,13 +201,13 @@ class EngagementReportCard extends StatelessWidget {
 
   Color _getColorForRate(int rate) {
     if (rate >= 75) {
-      return Colors.green;
+      return const Color(0xFF81C784); // Green
     } else if (rate >= 50) {
-      return Colors.blue;
+      return const Color(0xFF4A90E2); // Blue
     } else if (rate >= 25) {
-      return Colors.orange;
+      return const Color(0xFFF5A623); // Orange
     } else {
-      return Colors.red;
+      return const Color(0xFFE57373); // Red
     }
   }
 }

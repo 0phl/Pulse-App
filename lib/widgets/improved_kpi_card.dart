@@ -23,8 +23,8 @@ class ImprovedKpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cardWidget = Container(
-      height: 130, // Increased height to prevent overflow
-      padding: const EdgeInsets.all(12),
+      height: 110, // Reduced height for more compact appearance
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -39,7 +39,7 @@ class ImprovedKpiCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           // Title with proper wrapping
           SizedBox(
@@ -47,62 +47,64 @@ class ImprovedKpiCard extends StatelessWidget {
             child: Text(
               title,
               textAlign: TextAlign.center,
-              maxLines: 2, // Allow two lines for title
-              overflow: TextOverflow.visible,
+              maxLines: 1, // Single line for title to save space
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w500,
                 color: Colors.grey[700],
               ),
             ),
           ),
-          // Value and icon in a row with flexible spacing
-          Flexible(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      value,
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
+          // Value and icon centered together
+          Expanded(
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: color,
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  icon,
-                  size: 24,
-                  color: color,
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Icon(
+                    icon,
+                    size: 22,
+                    color: color,
+                  ),
+                ],
+              ),
             ),
           ),
           // Trend indicator (if available)
           if (trend != null)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  isPositiveTrend ? Icons.trending_up : Icons.trending_down,
-                  size: 14,
-                  color: isPositiveTrend ? Colors.green : Colors.red,
-                ),
-                const SizedBox(width: 2),
-                Text(
-                  trend!,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isPositiveTrend ? Colors.green : Colors.red,
+            SizedBox(
+              height: 16,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    isPositiveTrend ? Icons.trending_up : Icons.trending_down,
+                    size: 12,
+                    color: isPositiveTrend ? Colors.green.shade400 : Colors.red.shade400,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 2),
+                  Text(
+                    trend!,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isPositiveTrend ? Colors.green.shade400 : Colors.red.shade400,
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),

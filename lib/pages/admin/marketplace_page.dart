@@ -7,7 +7,9 @@ import './admin_drawer.dart';
 import 'package:intl/intl.dart';
 
 class AdminMarketplacePage extends StatefulWidget {
-  const AdminMarketplacePage({super.key});
+  final int initialTabIndex;
+
+  const AdminMarketplacePage({super.key, this.initialTabIndex = 0});
 
   @override
   State<AdminMarketplacePage> createState() => _AdminMarketplacePageState();
@@ -34,7 +36,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 4, vsync: this, initialIndex: widget.initialTabIndex);
     _loadInitialData();
   }
 

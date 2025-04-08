@@ -183,7 +183,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     }
   }
 
-  void _showCreatePostDialog({bool keepExistingValues = false}) {
+  void _showCreatePostDialog({bool keepExistingValues = false, BuildContext? context}) {
+    final currentContext = context ?? this.context;
     if (!keepExistingValues) {
       // Only clear values if we're not keeping existing values
       _titleController.clear();
@@ -196,7 +197,7 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     }
 
     showDialog(
-      context: context,
+      context: currentContext,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),

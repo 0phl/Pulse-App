@@ -25,7 +25,6 @@ class AuthService {
         await Future.delayed(_retryDelay);
       }
     } catch (e) {
-      print('AuthService: Error checking connection: $e');
       await Future.delayed(_retryDelay);
     }
   }
@@ -41,8 +40,6 @@ class AuthService {
           .once()
           .then((event) => event.snapshot);
     } catch (e) {
-      print(
-          'AuthService: Error querying username (attempt ${retryCount + 1}): $e');
       if (retryCount < _maxRetries) {
         await Future.delayed(_retryDelay);
         return _queryUsernameWithRetry(username, retryCount + 1);
@@ -55,7 +52,6 @@ class AuthService {
   Future<Map<String, dynamic>> signInWithEmailOrUsername(
       String emailOrUsername, String password) async {
     try {
-      print('AuthService: Attempting login with: $emailOrUsername');
       UserCredential? userCredential;
       // First, check if input is an email
       if (emailOrUsername.contains('@')) {
@@ -63,25 +59,19 @@ class AuthService {
           email: emailOrUsername,
           password: password,
         );
-        print('AuthService: Logged in with email: $emailOrUsername');
       } else {
-        print(
-            'AuthService: Attempting to find user by username: $emailOrUsername');
         // If not email, search for user by username
         final snapshot = await _queryUsernameWithRetry(emailOrUsername, 0);
 
         if (snapshot.value != null) {
           final userData = (snapshot.value as Map).values.first as Map;
           final email = userData['email'] as String;
-          print('AuthService: Found user by username, email: $email');
 
           userCredential = await _auth.signInWithEmailAndPassword(
             email: email,
             password: password,
           );
-          print('AuthService: Logged in with username: $emailOrUsername');
         } else {
-          print('AuthService: No user found with username: $emailOrUsername');
           throw FirebaseAuthException(
             code: 'user-not-found',
             message: 'No user found with this username or email.',
@@ -90,8 +80,6 @@ class AuthService {
       }
 
       // Check if user is an admin
-      print(
-          'AuthService: Checking if user is admin: ${userCredential!.user!.uid}');
       final userDoc = await _firestore
           .collection('users')
           .doc(userCredential.user!.uid)
@@ -99,10 +87,8 @@ class AuthService {
 
       if (userDoc.exists) {
         final userData = userDoc.data()!;
-        print('AuthService: User data: ${userData.toString()}');
         if (userData['role'] == 'admin' || userData['role'] == 'super_admin') {
           final isFirstLogin = userData['isFirstLogin'] ?? false;
-          print('AuthService: User is admin, isFirstLogin: $isFirstLogin');
           return {
             'userCredential': userCredential,
             'userType': 'admin',
@@ -110,10 +96,8 @@ class AuthService {
           };
         }
       } else {
-        print('AuthService: User document does not exist in Firestore');
       }
 
-      print('AuthService: User is not admin, proceeding as regular user');
       // Regular user login
       return {
         'userCredential': userCredential,
@@ -121,10 +105,8 @@ class AuthService {
         'requiresPasswordChange': false,
       };
     } on FirebaseAuthException catch (e) {
-      print('AuthService: Firebase Auth Exception: ${e.code} - ${e.message}');
       throw _handleAuthException(e);
     } catch (e) {
-      print('AuthService: Unexpected error during login: $e');
       rethrow;
     }
   }

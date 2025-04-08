@@ -6,6 +6,7 @@ import '../../widgets/improved_kpi_card.dart';
 import '../../widgets/recent_reports_widget.dart';
 import '../../models/report.dart';
 import './admin_drawer.dart';
+import './marketplace_page.dart';
 import 'package:PULSE/widgets/engagement_report_card.dart';
 
 class AdminDashboardPage extends StatefulWidget {
@@ -104,9 +105,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
       try {
         userStats = await _adminService.getUserStats();
-        print('DEBUG: User stats loaded: $userStats');
+        // User stats loaded successfully
       } catch (e) {
-        print('DEBUG: Error loading user stats: $e');
+        // Error loading user stats
         // Use default values if this fails
         userStats = {
           'communityUsers': 4,
@@ -116,9 +117,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
       try {
         communityStats = await _adminService.getCommunityStats();
-        print('DEBUG: Community stats loaded: $communityStats');
+        // Community stats loaded successfully
       } catch (e) {
-        print('DEBUG: Error loading community stats: $e');
+        // Error loading community stats
         // Use default values if this fails
         communityStats = {
           'membersCount': 4,
@@ -129,9 +130,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
       try {
         activityStats = await _adminService.getActivityStats();
-        print('DEBUG: Activity stats loaded: $activityStats');
+        // Activity stats loaded successfully
       } catch (e) {
-        print('DEBUG: Error loading activity stats: $e');
+        // Error loading activity stats
         // Use default values if this fails
         activityStats = {
           'totalReports': 0,
@@ -161,7 +162,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
       }
     } catch (e) {
       if (mounted) {
-        print('DEBUG: Error in _loadStats: $e');
+        // Error in loading stats
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error loading statistics: $e'),
@@ -248,9 +249,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
               ),
               _buildQuickActionButton(
                 icon: Icons.store_outlined,
-                label: 'Add Item',
-                onTap: () =>
-                    Navigator.pushNamed(context, '/admin/marketplace/add'),
+                label: 'View Listing',
+                onTap: () {
+                  // Navigate to the marketplace page with the Listings tab (index 1) selected
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const AdminMarketplacePage(initialTabIndex: 1),
+                    ),
+                  );
+                },
                 color: const Color(0xFF00C49A),
               ),
               _buildQuickActionButton(
@@ -353,8 +360,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
   // Build KPI cards row at the top of the dashboard
   Widget _buildKpiCards() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
@@ -369,24 +376,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
               isPositiveTrend: true,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Expanded(
             flex: 1,
             child: ImprovedKpiCard(
               title: 'Active Reports',
               value: _activityStats?['totalReports']?.toString() ?? '0',
               icon: Icons.report_problem,
-              color: Colors.orange,
+              color: const Color(0xFFF5A623),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Expanded(
             flex: 1,
             child: ImprovedKpiCard(
               title: 'Engagement',
               value: '${_communityStats?['engagementRate'] ?? 0}%',
               icon: Icons.trending_up,
-              color: Colors.blue,
+              color: const Color(0xFF4A90E2),
               trend: '+5%',
               isPositiveTrend: true,
               tooltip:

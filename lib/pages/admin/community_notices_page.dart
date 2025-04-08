@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../services/admin_service.dart';
-import '../../services/auth_service.dart';
+
 import '../../models/community_notice.dart';
 import '../../widgets/create_notice_sheet.dart';
 import '../../widgets/notice_card.dart';
 import './admin_drawer.dart';
+
 
 class AdminCommunityNoticesPage extends StatefulWidget {
   const AdminCommunityNoticesPage({super.key});
@@ -18,10 +17,8 @@ class AdminCommunityNoticesPage extends StatefulWidget {
 
 class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
   final _adminService = AdminService();
-  final _authService = AuthService();
   final _scrollController = ScrollController();
 
-  String _communityName = '';
   bool _isLoading = true;
   List<CommunityNotice> _notices = [];
   bool _isCreatingNotice = false;
@@ -53,10 +50,7 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
 
   Future<void> _loadCommunity() async {
     try {
-      final community = await _adminService.getCurrentAdminCommunity();
-      if (community != null && mounted) {
-        setState(() => _communityName = community.name);
-      }
+      await _adminService.getCurrentAdminCommunity();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -101,7 +95,7 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
         ],
       ),
       child: InkWell(
-        onTap: _createNotice,
+        onTap: _isCreatingNotice ? null : _createNotice,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
@@ -261,21 +255,5 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
     }
   }
 
-  Future<void> _signOut() async {
-    try {
-      await _authService.signOut();
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error signing out: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
+
 }

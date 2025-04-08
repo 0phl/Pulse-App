@@ -19,6 +19,9 @@ import 'pages/report_page.dart';
 import 'pages/super_admin/dashboard_page.dart';
 import 'pages/super_admin/login_page.dart';
 import 'pages/volunteer_page.dart';
+import 'pages/add_item_page.dart';
+import 'pages/admin/add_volunteer_post_page.dart';
+import 'pages/admin/show_create_notice_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,9 +84,16 @@ class MyApp extends StatelessWidget {
               '/admin/change-password': (context) => const ChangePasswordPage(),
               '/admin/users': (context) => const UsersPage(),
               '/admin/notices': (context) => const AdminCommunityNoticesPage(),
+              '/admin/notices/add': (context) => const ShowCreateNoticeSheet(),
               '/admin/marketplace': (context) => const AdminMarketplacePage(),
+              '/admin/marketplace/add': (context) => AddItemPage(
+                onItemAdded: (item) {
+                  Navigator.pushReplacementNamed(context, '/admin/marketplace');
+                },
+              ),
               '/admin/volunteer-posts': (context) =>
                   const AdminVolunteerPostsPage(),
+              '/admin/volunteer-posts/add': (context) => const AddVolunteerPostPage(),
               '/admin/reports': (context) => const AdminReportsPage(),
 
               // Main app routes
