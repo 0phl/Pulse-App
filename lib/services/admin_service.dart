@@ -389,6 +389,7 @@ class AdminService {
     // Get the start of 7 days ago
     final startDate = DateTime(now.year, now.month, now.day - 6);
     final startTimestamp = Timestamp.fromDate(startDate);
+    final startMillis = startDate.millisecondsSinceEpoch;
 
     try {
       // Get all activity from the past 7 days
@@ -442,27 +443,41 @@ class AdminService {
     }
 
     try {
-      final noticesQuery = await _noticesCollection
-          .where('communityId', isEqualTo: communityId)
-          .where('createdAt', isGreaterThanOrEqualTo: startTimestamp)
+      // Get community notices from RTDB instead of Firestore
+      print('DEBUG: Fetching community notices for activity chart');
+      final noticesSnapshot = await _database
+          .child('community_notices')
+          .orderByChild('communityId')
+          .equalTo(communityId)
           .get();
 
-      // Process notices
-      for (var doc in noticesQuery.docs) {
-        try {
-          final data = doc.data() as Map<String, dynamic>;
-          final createdAt = data['createdAt'] as Timestamp?;
-          if (createdAt != null) {
-            final dayIndex = createdAt.toDate().difference(startDate).inDays;
-            if (dayIndex >= 0 && dayIndex < 7) {
-              dailyActivity[dayIndex]++;
+      if (noticesSnapshot.exists) {
+        final noticesData = noticesSnapshot.value as Map<dynamic, dynamic>;
+
+        // Process notices from RTDB
+        noticesData.forEach((key, value) {
+          try {
+            if (value is Map) {
+              final createdAtMillis = value['createdAt'] as int?;
+              if (createdAtMillis != null && createdAtMillis >= startMillis) {
+                final createdAtDate = DateTime.fromMillisecondsSinceEpoch(createdAtMillis);
+                final dayIndex = createdAtDate.difference(startDate).inDays;
+                if (dayIndex >= 0 && dayIndex < 7) {
+                  dailyActivity[dayIndex]++;
+                  print('DEBUG: Added notice to activity chart for day $dayIndex');
+                }
+              }
             }
+          } catch (e) {
+            print('DEBUG: Error processing notice for activity chart: $e');
+            // Skip this notice if there's an error
           }
-        } catch (e) {
-          // Skip this document if there's an error
-        }
+        });
+      } else {
+        print('DEBUG: No community notices found in RTDB for activity chart');
       }
     } catch (e) {
+      print('DEBUG: Error fetching notices for activity chart: $e');
       // Continue with current data
     }
 
@@ -611,8 +626,6 @@ class AdminService {
   Future<void> deleteAdmin(String adminId) async {
     await _usersCollection.doc(adminId).delete();
 
-    // Note: The associated Firebase Auth user should be deleted by the super admin
-    // through the Firebase Console or a separate super admin function
   }
 
   // Get reports for admin's community

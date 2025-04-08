@@ -63,7 +63,7 @@ class EngagementReportCard extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       color: Colors.blue,
                     ),
-                    overflow: TextOverflow.ellipsis,
+                    overflow: TextOverflow.visible,
                   ),
                 ),
               ],
@@ -184,7 +184,7 @@ class EngagementReportCard extends StatelessWidget {
               fontSize: 12,
               color: Colors.grey,
             ),
-            overflow: TextOverflow.ellipsis,
+            overflow: TextOverflow.visible,
           ),
         ),
         Text(

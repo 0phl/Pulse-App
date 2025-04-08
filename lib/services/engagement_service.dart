@@ -99,82 +99,146 @@ class EngagementService {
 
       // 1. USER INTERACTIONS - Likes and comments on community notices
       try {
-        final noticesQuery = await _noticesCollection
-            .where('communityId', isEqualTo: communityId)
+        print('DEBUG: Fetching community notices from RTDB for community: $communityId');
+
+        // Get notices directly from RTDB instead of Firestore
+        final noticesSnapshot = await _database
+            .ref()
+            .child('community_notices')
+            .orderByChild('communityId')
+            .equalTo(communityId)
             .get();
 
-        final recentNotices = noticesQuery.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final createdAt = data['createdAt'] as Timestamp?;
-          return createdAt != null && createdAt.toDate().isAfter(lastMonth);
+        if (!noticesSnapshot.exists) {
+          print('DEBUG: No community notices found in RTDB');
+          // Skip this section if no notices exist
+          engagementComponents['userLikesComments'] = 0;
+          engagementComponents['adminInteractions'] = 0;
+          // Continue with other engagement calculations instead of returning early
+        } else {
+
+        final noticesData = noticesSnapshot.value as Map<dynamic, dynamic>;
+        print('DEBUG: Found ${noticesData.length} community notices in RTDB');
+
+        // Convert to list of entries for processing
+        final noticeEntries = noticesData.entries.toList();
+
+        // Filter for recent notices (last 30 days)
+        final recentNotices = noticeEntries.where((entry) {
+          final noticeData = entry.value as Map<dynamic, dynamic>;
+          final createdAt = noticeData['createdAt'] as int?;
+          return createdAt != null &&
+                 DateTime.fromMillisecondsSinceEpoch(createdAt).isAfter(lastMonth);
         }).toList();
+
+        print('DEBUG: Found ${recentNotices.length} recent notices in the last 30 days');
 
         int noticeCount = recentNotices.length;
         int totalLikes = 0;
         int totalComments = 0;
+        int adminLikes = 0;
+        int adminComments = 0;
         int adminInteractions = 0;
 
-        for (var doc in recentNotices) {
-          final data = doc.data() as Map<String, dynamic>;
-          final noticeId = doc.id;
+        for (var entry in recentNotices) {
+          final noticeId = entry.key.toString();
+          final noticeData = entry.value as Map<dynamic, dynamic>;
 
-          // Get likes and comments from RTDB
-          final noticeRef =
-              _database.ref().child('community_notices').child(noticeId);
-          final snapshot = await noticeRef.get();
+          // Process likes and comments directly from the notice data
 
-          if (snapshot.exists) {
-            final noticeData = snapshot.value as Map<dynamic, dynamic>;
+          // Count likes
+          if (noticeData.containsKey('likes') && noticeData['likes'] != null) {
+            final likes = noticeData['likes'] as Map<dynamic, dynamic>;
+            totalLikes += likes.length;
+            print('DEBUG: Found ${likes.length} likes on notice $noticeId');
 
-            // Count likes
-            if (noticeData.containsKey('likes')) {
-              final likes = noticeData['likes'] as Map<dynamic, dynamic>;
-              totalLikes += likes.length;
-
-              // Check for admin likes
-              for (var userId in likes.keys) {
+            // Check for admin likes
+            for (var userId in likes.keys) {
+              print('DEBUG: Checking like from user: $userId');
+              try {
                 final userDoc = await _usersCollection.doc(userId).get();
                 if (userDoc.exists) {
                   final userData = userDoc.data() as Map<String, dynamic>;
+                  print('DEBUG: User role for $userId: ${userData['role']}');
                   if (userData['role'] == 'admin' ||
                       userData['role'] == 'super_admin') {
+                    print('DEBUG: Found admin like');
+                    adminLikes++;
                     adminInteractions++;
                   }
+                } else {
+                  print('DEBUG: User doc does not exist for $userId');
                 }
+              } catch (e) {
+                print('DEBUG: Error checking user role for likes: $e');
               }
             }
+          }
 
-            // Count comments
-            if (noticeData.containsKey('comments')) {
-              final comments = noticeData['comments'] as Map<dynamic, dynamic>;
-              totalComments += comments.length;
+          // Count comments
+          if (noticeData.containsKey('comments') && noticeData['comments'] != null) {
+            final comments = noticeData['comments'] as Map<dynamic, dynamic>;
+            totalComments += comments.length;
+            print('DEBUG: Found ${comments.length} comments on notice $noticeId');
 
-              // Check for admin comments
-              for (var comment in comments.values) {
-                if (comment is Map && comment.containsKey('authorId')) {
-                  final authorId = comment['authorId'];
+            // Check for admin comments
+            for (var comment in comments.values) {
+              if (comment is Map && comment.containsKey('authorId')) {
+                final authorId = comment['authorId'];
+                print('DEBUG: Checking comment author: $authorId');
+
+                // Check if the author name contains 'Admin' as a quick check
+                if (comment.containsKey('authorName')) {
+                  final authorName = comment['authorName'].toString();
+                  if (authorName.contains('Admin')) {
+                    print('DEBUG: Found admin comment by name: $authorName');
+                    adminComments++;
+                    adminInteractions++;
+                    continue; // Skip Firestore check if we already identified as admin
+                  }
+                }
+
+                // Fallback to Firestore check
+                try {
                   final userDoc = await _usersCollection.doc(authorId).get();
                   if (userDoc.exists) {
                     final userData = userDoc.data() as Map<String, dynamic>;
+                    print('DEBUG: User role for $authorId: ${userData['role']}');
                     if (userData['role'] == 'admin' ||
                         userData['role'] == 'super_admin') {
+                      print('DEBUG: Found admin comment by role check');
+                      adminComments++;
                       adminInteractions++;
                     }
+                  } else {
+                    print('DEBUG: User doc does not exist for $authorId');
                   }
+                } catch (e) {
+                  print('DEBUG: Error checking user role: $e');
                 }
               }
             }
           }
         }
 
-        int userInteractions = totalLikes + totalComments;
+        // Calculate user interactions by subtracting admin interactions from total
+        int userLikes = totalLikes - adminLikes;
+        int userComments = totalComments - adminComments;
+        int userInteractions = userLikes + userComments;
+
+        print('DEBUG: Total likes: $totalLikes, Admin likes: $adminLikes, User likes: $userLikes');
+        print('DEBUG: Total comments: $totalComments, Admin comments: $adminComments, User comments: $userComments');
+
         engagementComponents['userLikesComments'] = userInteractions;
         engagementComponents['adminInteractions'] = adminInteractions;
         totalActivities += userInteractions + noticeCount + adminInteractions;
 
+        print('DEBUG: User interactions: $userInteractions, Admin interactions: $adminInteractions');
+
         // Each notice could be liked and commented by each member
         possibleActivities +=
             10 + (noticeCount * (membersCount > 0 ? membersCount * 2 : 2));
+        }
       } catch (e) {
         print('Error calculating user interactions: $e');
       }
@@ -259,6 +323,22 @@ class EngagementService {
         engagementComponents['reportSubmissions'] = reportCount;
         totalActivities += reportCount;
 
+        // Count admin interactions with reports (resolutions, rejections)
+        int reportInteractions = 0;
+        for (var doc in recentReports) {
+          final data = doc.data() as Map<String, dynamic>;
+          // If report has been resolved or rejected by admin, count as interaction
+          if (data['status'] == 'resolved' || data['status'] == 'rejected') {
+            reportInteractions++;
+          }
+        }
+
+        // Add report interactions to admin interactions
+        engagementComponents['adminInteractions'] =
+            (engagementComponents['adminInteractions'] ?? 0) + reportInteractions;
+        print('DEBUG: Admin report interactions: $reportInteractions');
+
+        totalActivities += reportInteractions;
         possibleActivities += membersCount > 0 ? membersCount : 1;
       } catch (e) {
         print('Error calculating report submissions: $e');
@@ -333,6 +413,7 @@ class EngagementService {
           'DEBUG: Total activities: $totalActivities, Possible activities: $possibleActivities');
       print('DEBUG: Members: $membersCount, Active users: $activeUsers');
       print('DEBUG: Calculated engagement rate: $engagementRate%');
+      print('DEBUG: Admin interactions count: ${engagementComponents['adminInteractions']}');
 
       return {
         'engagementRate': engagementRate,

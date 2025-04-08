@@ -48,7 +48,7 @@ class ImprovedKpiCard extends StatelessWidget {
               title,
               textAlign: TextAlign.center,
               maxLines: 2, // Allow two lines for title
-              overflow: TextOverflow.ellipsis,
+              overflow: TextOverflow.visible,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
