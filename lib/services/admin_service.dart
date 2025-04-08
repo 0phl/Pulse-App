@@ -673,6 +673,9 @@ class AdminService {
     final weekStart = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: now.weekday - 1));
 
+    print('Week start date: $weekStart');
+    print('Current date: $now');
+
     final reportsQuery = await _reportsCollection
         .where('communityId', isEqualTo: community.id)
         .get();
@@ -697,9 +700,13 @@ class AdminService {
       // Update weekly data if report was created this week
       if (createdAt.isAfter(weekStart)) {
         final dayDiff = createdAt.difference(weekStart).inDays;
+        print('Report created at: $createdAt, day diff from week start: $dayDiff');
         if (dayDiff >= 0 && dayDiff < 7) {
           weeklyData[dayDiff]++;
+          print('Updated weeklyData[$dayDiff] = ${weeklyData[dayDiff]}');
         }
+      } else {
+        print('Report created at: $createdAt is before week start: $weekStart');
       }
     }
 
@@ -733,12 +740,15 @@ class AdminService {
       avgResolutionTime /= resolvedCount;
     }
 
-    return {
+    final result = {
       'statusCounts': stats,
       'typeDistribution': typeDistribution,
       'weeklyData': weeklyData,
       'avgResolutionTime': avgResolutionTime.toStringAsFixed(1),
     };
+
+    print('Final weeklyData: ${result["weeklyData"]}');
+    return result;
   }
 
   // Update report status

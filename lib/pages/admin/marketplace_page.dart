@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
-import '../../services/auth_service.dart';
-import '../../models/market_item.dart';
+// auth_service import removed as it's no longer needed
+// market_item import removed as it's no longer needed
 import './admin_drawer.dart';
 import 'package:intl/intl.dart';
 
@@ -18,7 +18,6 @@ class AdminMarketplacePage extends StatefulWidget {
 class _AdminMarketplacePageState extends State<AdminMarketplacePage>
     with SingleTickerProviderStateMixin {
   final AdminService _adminService = AdminService();
-  final AuthService _authService = AuthService();
   late TabController _tabController;
   String _communityName = '';
   bool _isLoading = true;
@@ -36,7 +35,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this, initialIndex: widget.initialTabIndex);
+    _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTabIndex < 3 ? widget.initialTabIndex : 0);
     _loadInitialData();
   }
 
@@ -148,20 +147,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
     }
   }
 
-  Future<void> _signOut() async {
-    try {
-      await _authService.signOut();
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error signing out: $e')),
-        );
-      }
-    }
-  }
+  // _signOut method removed as it's no longer needed
 
   Future<void> _showItemOptions(Map<String, dynamic> item) async {
     showDialog(
@@ -185,15 +171,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
               title: const Text('Remove Item'),
               onTap: () {
                 Navigator.pop(context);
-                _removeItem(item['id']);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.person_off),
-              title: const Text('Warn Seller'),
-              onTap: () {
-                Navigator.pop(context);
-                _warnSeller(item['sellerId']);
+                _confirmRemoveItem(item['id']);
               },
             ),
           ],
@@ -358,6 +336,33 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
     }
   }
 
+  Future<void> _confirmRemoveItem(String itemId) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Item'),
+        content: const Text('Are you sure you want to remove this item? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await _removeItem(itemId);
+    }
+  }
+
   Future<void> _removeItem(String itemId) async {
     try {
       await _adminService.removeMarketItem(itemId);
@@ -377,159 +382,9 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
     }
   }
 
-  Future<void> _warnSeller(String sellerId) async {
-    try {
-      await _adminService.warnSeller(sellerId);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Seller warned successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error warning seller: $e')),
-        );
-      }
-    }
-  }
+  // Removed _warnSeller method as it's no longer needed
 
-  Future<void> _bulkAction() async {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Bulk Actions'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.delete_sweep),
-              title: const Text('Remove Inactive Listings'),
-              subtitle: const Text('Remove listings older than 30 days'),
-              onTap: () async {
-                Navigator.pop(context);
-                try {
-                  final community =
-                      await _adminService.getCurrentAdminCommunity();
-                  if (community == null) return;
-
-                  final snapshot =
-                      await _adminService.getMarketItems(community.id);
-                  final thirtyDaysAgo =
-                      DateTime.now().subtract(const Duration(days: 30));
-
-                  for (var doc in snapshot.docs) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final createdAt = (data['createdAt'] as Timestamp).toDate();
-                    if (!data['isSold'] && createdAt.isBefore(thirtyDaysAgo)) {
-                      await _adminService.removeMarketItem(doc.id);
-                    }
-                  }
-
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Inactive listings removed')),
-                    );
-                    _loadMarketItems();
-                    _loadMarketStats();
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
-                    );
-                  }
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.report),
-              title: const Text('Flag Suspicious Listings'),
-              subtitle: const Text('Mark listings with unusual prices'),
-              onTap: () async {
-                Navigator.pop(context);
-                try {
-                  final community =
-                      await _adminService.getCurrentAdminCommunity();
-                  if (community == null) return;
-
-                  final snapshot =
-                      await _adminService.getMarketItems(community.id);
-                  final items = snapshot.docs
-                      .map((doc) => {
-                            ...doc.data() as Map<String, dynamic>,
-                            'id': doc.id,
-                          })
-                      .where((item) => item['isSold'] == false)
-                      .toList();
-
-                  double averagePrice = 0;
-                  if (items.isNotEmpty) {
-                    final total = items
-                        .map((item) => (item['price'] as num).toDouble())
-                        .reduce((a, b) => a + b);
-                    averagePrice = total / items.length;
-                  }
-
-                  final suspiciousItems = items
-                      .where((item) =>
-                          (item['price'] as num).toDouble() > averagePrice * 3)
-                      .toList();
-
-                  if (mounted) {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Suspicious Listings'),
-                        content: SizedBox(
-                          width: double.maxFinite,
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: suspiciousItems.length,
-                            itemBuilder: (context, index) {
-                              final item = suspiciousItems[index];
-                              return ListTile(
-                                title: Text(item['title'] ?? ''),
-                                subtitle: Text(
-                                    '₱${item['price'].toStringAsFixed(2)}'),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.delete),
-                                  onPressed: () async {
-                                    await _adminService
-                                        .removeMarketItem(item['id']);
-                                    Navigator.pop(context);
-                                    _loadMarketItems();
-                                    _loadMarketStats();
-                                  },
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Close'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
-                    );
-                  }
-                }
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // _bulkAction method removed as it's no longer needed
 
   Widget _buildSalesChart() {
     return Card(
@@ -812,65 +667,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
     );
   }
 
-  Widget _buildSettingsTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.notifications),
-            title: const Text('Notification Settings'),
-            subtitle: const Text('Configure marketplace notifications'),
-            onTap: () {
-              // TODO: Implement notification settings
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.security),
-            title: const Text('Security Settings'),
-            subtitle: const Text('Configure marketplace security'),
-            onTap: () {
-              // TODO: Implement security settings
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.category),
-            title: const Text('Category Management'),
-            subtitle: const Text('Manage marketplace categories'),
-            onTap: () {
-              // TODO: Implement category management
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.policy),
-            title: const Text('Marketplace Policies'),
-            subtitle: const Text('Update marketplace rules and policies'),
-            onTap: () {
-              // TODO: Implement policy management
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.logout),
-            title: const Text('Sign Out'),
-            subtitle: const Text('Sign out from admin panel'),
-            onTap: _signOut,
-          ),
-        ),
-      ],
-    );
-  }
+  // Settings tab removed as requested
 
   @override
   Widget build(BuildContext context) {
@@ -888,12 +685,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
             icon: const Icon(Icons.refresh),
             onPressed: _loadInitialData,
           ),
-          IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: () {
-              // TODO: Implement share functionality
-            },
-          ),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -904,7 +695,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
             Tab(icon: Icon(Icons.dashboard), text: 'Dashboard'),
             Tab(icon: Icon(Icons.store), text: 'Listings'),
             Tab(icon: Icon(Icons.analytics), text: 'Analytics'),
-            Tab(icon: Icon(Icons.settings), text: 'Settings'),
           ],
         ),
       ),
@@ -917,7 +707,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
             _buildDashboardTab(),
             _buildListingsTab(),
             _buildAnalyticsTab(),
-            _buildSettingsTab(),
           ],
         ),
       ),
@@ -1097,17 +886,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.more_vert, color: Color(0xFF00C49A)),
-                  onPressed: _bulkAction,
-                ),
-              ),
+
             ],
           ),
         ),

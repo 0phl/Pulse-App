@@ -615,7 +615,9 @@ class _AnalyticsTabState extends State<AnalyticsTab> with AutomaticKeepAliveClie
 
   List<dynamic> get weeklyData {
     final data = widget.reportStats['weeklyData'] as List<dynamic>?;
-    return data ?? [0, 0, 0, 0, 0, 0, 0];
+    final result = data ?? [0, 0, 0, 0, 0, 0, 0];
+    print('Weekly Data: $result');
+    return result;
   }
 
   String get avgResolutionTime =>

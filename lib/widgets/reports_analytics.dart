@@ -266,8 +266,10 @@ class ReportTrendChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('ReportTrendChart received weeklyData: $weeklyData');
     final int maxValue =
         weeklyData.isNotEmpty ? weeklyData.reduce((a, b) => a > b ? a : b) : 0;
+    print('Max value for chart: $maxValue');
 
     return SizedBox(
       height: 200,
