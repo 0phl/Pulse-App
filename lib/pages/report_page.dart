@@ -1,8 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:geocoding/geocoding.dart';
+// Removed map-related imports
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/report.dart';
 import '../models/report_status.dart';
@@ -15,7 +14,7 @@ import '../widgets/searchable_dropdown.dart';
 import '../widgets/user_report_card.dart';
 import '../widgets/report_filter_chip.dart';
 import '../widgets/report_success_dialog.dart';
-import '../widgets/report_map.dart';
+// Removed map widget import
 import '../widgets/report_review_item.dart';
 import '../widgets/user_report_detail_dialog.dart';
 
@@ -28,10 +27,7 @@ class ReportPage extends StatefulWidget {
 
 class _ReportPageState extends State<ReportPage>
     with SingleTickerProviderStateMixin {
-  // Location details storage
-  String? _street;
-  String? _locality;
-  String? _subAdministrativeArea;
+  // Location details storage - simplified
 
   final List<String> _issueTypes = const [
     'Fires',
@@ -55,7 +51,6 @@ class _ReportPageState extends State<ReportPage>
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _addressDetailsController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  bool _isSearching = false;
   bool _hasConfirmedInfo = false;
   List<String> _filteredIssueTypes = [];
   bool _isUploading = false;
@@ -65,7 +60,6 @@ class _ReportPageState extends State<ReportPage>
   String _selectedFilter = 'All';
   final List<File> _selectedPhotos = [];
   final ImagePicker _imagePicker = ImagePicker();
-  LatLng? _selectedLocation;
 
   @override
   void initState() {
@@ -78,10 +72,7 @@ class _ReportPageState extends State<ReportPage>
       if (mounted) {
         if (_tabController.index == 1) { // My Reports tab
           // Reset cache when entering My Reports tab
-          setState(() {
-            _cachedReportsStream = null;
-            _lastFilter = null;
-          });
+          setState(() {});
         }
       }
     });
@@ -94,8 +85,6 @@ class _ReportPageState extends State<ReportPage>
     _addressDetailsController.dispose();
     _descriptionController.dispose();
     _tabController.dispose();
-    _cachedReportsStream = null; // Clear the cached stream
-    _lastFilter = null;
     super.dispose();
   }
 
@@ -110,10 +99,6 @@ class _ReportPageState extends State<ReportPage>
       }
     });
   }
-
-  // Cache for the broadcast stream
-  Stream<List<Report>>? _cachedReportsStream;
-  String? _lastFilter;
 
   // Create a stream for filtered reports based on the current filter
   Stream<List<Report>> _getFilteredReportsStream() {
@@ -205,30 +190,20 @@ class _ReportPageState extends State<ReportPage>
         address: _addressDetailsController.text.isNotEmpty
             ? "${_addressController.text} (${_addressDetailsController.text})"
             : _addressController.text,
-        location: _selectedLocation != null
-            ? {
-                'lat': _selectedLocation!.latitude,
-                'lng': _selectedLocation!.longitude,
-              }
-            : {},
+        location: {}, // Map implementation removed
         photoUrls: photoUrls,
-        street: _street,
-        locality: _locality,
-        subAdministrativeArea: _subAdministrativeArea,
       );
 
       setState(() {
         _isUploading = false;
       });
 
-      // Clear cached stream so it refreshes when we switch to My Reports
-      _cachedReportsStream = null;
-      _lastFilter = null;
-
       // Show success dialog
-      ReportSuccessDialog.show(context, () {
-        _tabController.animateTo(1); // Switch to My Reports tab
-      });
+      if (mounted) {
+        ReportSuccessDialog.show(context, () {
+          _tabController.animateTo(1); // Switch to My Reports tab
+        });
+      }
 
       // Reset form
       setState(() {
@@ -238,10 +213,7 @@ class _ReportPageState extends State<ReportPage>
         _addressDetailsController.clear();
         _descriptionController.clear();
         _selectedPhotos.clear();
-        _selectedLocation = null;
-        _street = null;
-        _locality = null;
-        _subAdministrativeArea = null;
+        // Location reset simplified
         _currentStep = 0;
         _hasConfirmedInfo = false;
       });
@@ -289,11 +261,8 @@ class _ReportPageState extends State<ReportPage>
       ),
       body: GestureDetector(
         onTap: () {
-          // Dismiss keyboard and dropdown when tapping outside
+          // Dismiss keyboard when tapping outside
           FocusScope.of(context).unfocus();
-          setState(() {
-            _isSearching = false;
-          });
         },
         child: TabBarView(
           controller: _tabController,
@@ -618,41 +587,8 @@ class _ReportPageState extends State<ReportPage>
           ),
         ),
 
-        // Map View
-        Container(
-          height: 300,
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 24),
-          child: ReportMap(
-            initialLocation: _selectedLocation,
-            onLocationSelected: (location, address) async {
-              setState(() {
-                _selectedLocation = location;
-                if (address != null) {
-                  _addressController.text = address;
-                }
-              });
-
-              // Get detailed location data from geocoding
-              try {
-                final placemarks = await placemarkFromCoordinates(
-                  location.latitude,
-                  location.longitude,
-                );
-                if (placemarks.isNotEmpty) {
-                  final place = placemarks.first;
-                  setState(() {
-                    _street = place.street;
-                    _locality = place.locality;
-                    _subAdministrativeArea = place.subAdministrativeArea;
-                  });
-                }
-              } catch (e) {
-                print('Error getting location details: $e');
-              }
-            },
-          ),
-        ),
+        // Map View removed as requested
+        const SizedBox(height: 16),
 
         // Navigation Buttons
         Row(
@@ -757,9 +693,7 @@ class _ReportPageState extends State<ReportPage>
               ReportReviewItem(
                 icon: Icons.location_on_outlined,
                 label: 'Location',
-                value: _selectedLocation != null
-                    ? '${_addressController.text}${_addressDetailsController.text.isNotEmpty ? " (${_addressDetailsController.text})" : ""}\nLat: ${_selectedLocation!.latitude.toStringAsFixed(6)}\nLng: ${_selectedLocation!.longitude.toStringAsFixed(6)}'
-                    : '${_addressController.text}${_addressDetailsController.text.isNotEmpty ? " (${_addressDetailsController.text})" : ""}',
+                value: '${_addressController.text}${_addressDetailsController.text.isNotEmpty ? " (${_addressDetailsController.text})" : ""}',
                 onEdit: () => setState(() => _currentStep = 1),
               ),
             ],
@@ -850,9 +784,6 @@ class _ReportPageState extends State<ReportPage>
                   onSelected: (selected) {
                     setState(() {
                       _selectedFilter = 'All';
-                      // Always reset the stream when changing filters
-                      _cachedReportsStream = null;
-                      _lastFilter = null;
                     });
                   },
                 ),
@@ -867,9 +798,6 @@ class _ReportPageState extends State<ReportPage>
                       onSelected: (selected) {
                         setState(() {
                           _selectedFilter = status.value;
-                          // Always reset the stream when changing filters
-                          _cachedReportsStream = null;
-                          _lastFilter = null;
                         });
                       },
                     )),
