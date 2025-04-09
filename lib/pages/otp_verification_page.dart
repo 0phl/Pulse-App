@@ -104,53 +104,42 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
           String normalizeString(String input) {
             // Convert to uppercase first since barangay names from LocationService are uppercase
             var normalized = input.toUpperCase();
-            
+
             // Remove 'BARANGAY' prefix
             normalized = normalized.replaceAll(RegExp(r'BARANGAY\s+'), '');
-            
+
             // Convert Roman numerals to numbers
             normalized = normalized
               .replaceAll('III', '3')
               .replaceAll('II', '2');
-            
+
             // Remove all spaces
             normalized = normalized.replaceAll(RegExp(r'\s+'), '');
-            
+
             return normalized;
           }
 
-      // First list all communities and find the matching one
+      // Get all communities to check
       final communitiesRef = FirebaseDatabase.instance.ref().child('communities');
-      final snapshot = await communitiesRef.get();
-      
+      final allCommunitiesSnapshot = await communitiesRef.get();
+
       String? communityId;
-      if (snapshot.exists) {
-        final communities = snapshot.value as Map<dynamic, dynamic>;
-        
-        // Find active community by barangay code
-        for (var entry in communities.entries) {
+      if (allCommunitiesSnapshot.exists) {
+        final allCommunities = allCommunitiesSnapshot.value as Map<dynamic, dynamic>;
+
+        // Get barangay code from registration data
+        final barangayCode = widget.registrationData.location['barangayCode'];
+
+        // Manually check each community since we can't query by locationStatusId without an index
+        for (var entry in allCommunities.entries) {
           final community = entry.value as Map<dynamic, dynamic>;
-          final status = community['status'] as String?;
-          final barangayCode = community['barangayCode'] as String?;
-          
-          // Get the location ID from the community
-          final communityLocationId = community['locationId'] as String?;
-          
-          // Get location codes from registration data
-          final registrationLocationId = widget.registrationData.location['locationId']?.toString();
-          
-          // Debug print to help diagnose the issue
-          print('Checking community:');
-          print('- status: $status');
-          print('- communityLocationId: $communityLocationId');
-          print('- registrationLocationId: $registrationLocationId');
-          print('Registration location data: ${widget.registrationData.location}');
-          
-          // Match by locationId which uniquely identifies the community
-          if (status == 'active' && 
-              communityLocationId != null && 
-              registrationLocationId != null &&
-              communityLocationId == registrationLocationId) {
+
+          // Check if this community matches our barangay code and is active
+          if (community['barangayCode'] == barangayCode &&
+              community['status'] == 'active' &&
+              community['adminId'] != null) {
+
+            // Found an active community for this barangay
             communityId = entry.key;
             break;
           }

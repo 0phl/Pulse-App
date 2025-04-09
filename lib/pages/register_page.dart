@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:dropdown_search/dropdown_search.dart';
-import '../main.dart';
 import '../services/location_service.dart';
-import '../services/auth_service.dart';
-import '../services/community_service.dart';
 import '../models/community.dart';
 import '../models/registration_data.dart';
 import 'otp_verification_page.dart';
@@ -51,50 +48,13 @@ class _RegisterPageState extends State<RegisterPage>
       GlobalKey();
   bool _obscurePassword = true;
   bool _isLoading = false;
-  final AuthService _authService = AuthService();
-  final CommunityService _communityService = CommunityService();
   late AnimationController _shakeController;
   final ScrollController _scrollController = ScrollController();
-  bool _showCurrentPassword = false;
-  bool _showNewPassword = false;
-  bool _showConfirmPassword = false;
-  bool _passwordsMatch = true;
   bool _isEmailAvailable = true;
   bool _isCheckingEmail = false;
   Timer? _emailCheckDebouncer;
 
-  Future<void> _showVerificationDialog() async {
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Verify Your Email'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'A verification link has been sent to your email address. Please check your inbox and click the link to verify your account.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'After verification, you can log in to access your account.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              child: const Text('OK'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
-        );
-      },
-    );
-  }
+
 
   @override
   void initState() {
@@ -193,51 +153,7 @@ class _RegisterPageState extends State<RegisterPage>
     }
   }
 
-  Future<String> _getOrCreateCommunity() async {
-    if (_selectedBarangay == null || _selectedMunicipality == null) {
-      throw Exception('No barangay or municipality selected');
-    }
 
-    // Include municipality name to ensure uniqueness
-    final communityName =
-        'Barangay ${_selectedBarangay!.name} - ${_selectedMunicipality!.name}';
-
-    try {
-      final communitiesRef =
-          FirebaseDatabase.instance.ref().child('communities');
-
-      // Query existing communities
-      final snapshot = await communitiesRef
-          .orderByChild('name')
-          .equalTo(communityName)
-          .get();
-
-      if (snapshot.exists) {
-        // Return existing community ID
-        final Map<dynamic, dynamic> communities =
-            snapshot.value as Map<dynamic, dynamic>;
-        return communities.keys.first;
-      }
-
-      // Create new community
-      final newCommunityRef = communitiesRef.push();
-      await newCommunityRef.set({
-        'name': communityName,
-        'description':
-            'Community for ${_selectedBarangay!.name}, ${_selectedMunicipality!.name}',
-        'createdAt': ServerValue.timestamp,
-        'status': 'pending',
-        'location': {
-          'barangay': _selectedBarangay!.name,
-          'municipality': _selectedMunicipality!.name,
-        }
-      });
-
-      return newCommunityRef.key!;
-    } catch (e) {
-      throw Exception('Error getting/creating community: $e');
-    }
-  }
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -656,11 +572,34 @@ class _RegisterPageState extends State<RegisterPage>
                     },
                   ),
                   _buildNewFields(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+                  // Show community status message
+                  if (_selectedBarangay != null && _communityStatusMessage != null)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _communityStatusMessage!,
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   Container(
                     width: double.infinity,
                     height: 50,
-                    margin: const EdgeInsets.symmetric(vertical: 16),
+                    margin: const EdgeInsets.only(top: 8),
                     child: AnimatedBuilder(
                       animation: _shakeController,
                       builder: (context, child) {
@@ -1010,10 +949,16 @@ class _RegisterPageState extends State<RegisterPage>
                 enabled: _selectedMunicipality != null,
                 items: _barangays,
                 itemAsString: (Barangay? barangay) => barangay?.name ?? '',
-                onChanged: (Barangay? barangay) {
+                onChanged: (Barangay? barangay) async {
                   setState(() {
                     _selectedBarangay = barangay;
                   });
+
+                  // Check if community is active when barangay is selected
+                  if (barangay != null && _selectedRegion != null &&
+                      _selectedProvince != null && _selectedMunicipality != null) {
+                    await _checkCommunityStatus();
+                  }
                 },
                 selectedItem: _selectedBarangay,
                 dropdownDecoratorProps: DropDownDecoratorProps(
@@ -1029,10 +974,13 @@ class _RegisterPageState extends State<RegisterPage>
                   if (value == null) {
                     return 'Please select a barangay';
                   }
+                  // We're showing the community status message in a separate container
+                  // so we don't need to show it here as well
                   return null;
                 },
               ),
               const SizedBox(height: 16),
+
               TextFormField(
                 controller: _addressController,
                 decoration: InputDecoration(
@@ -1061,6 +1009,91 @@ class _RegisterPageState extends State<RegisterPage>
     );
   }
 
+  bool _isCommunityActive = false;
+  String? _communityStatusMessage;
+
+  Future<void> _checkCommunityStatus() async {
+    if (_selectedRegion == null || _selectedProvince == null ||
+        _selectedMunicipality == null || _selectedBarangay == null) {
+      return;
+    }
+
+    setState(() {
+      _isCommunityActive = false;
+      _communityStatusMessage = null;
+    });
+
+    try {
+      // We'll manually check each community for a match
+
+      // Get all communities to check
+      final communitiesRef = FirebaseDatabase.instance.ref().child('communities');
+      final allCommunitiesSnapshot = await communitiesRef.get();
+
+      if (allCommunitiesSnapshot.exists) {
+        final allCommunities = allCommunitiesSnapshot.value as Map<dynamic, dynamic>;
+        bool foundActiveMatch = false;
+
+        // Manually check each community since we can't query by locationStatusId without an index
+        for (var entry in allCommunities.entries) {
+          final community = entry.value as Map<dynamic, dynamic>;
+
+          // Check if this community matches our barangay code and is active
+          if (community['barangayCode'] == _selectedBarangay!.code &&
+              community['status'] == 'active' &&
+              community['adminId'] != null) {
+
+            // Found an active community for this barangay
+            setState(() {
+              _isCommunityActive = true;
+              _communityStatusMessage = null; // Clear any previous error message
+            });
+
+            // Show success message
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Community is active and ready for registration'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+
+            foundActiveMatch = true;
+            break;
+          }
+        }
+
+        // If no active community was found
+        if (!foundActiveMatch) {
+          setState(() {
+            _isCommunityActive = false;
+            _communityStatusMessage = 'This community is not yet active or has no admin. Registration is not available.';
+          });
+        }
+      }
+
+      else {
+        // No communities found at all
+        setState(() {
+          _isCommunityActive = false;
+          _communityStatusMessage = 'No communities found in the database.';
+        });
+      }
+    } catch (e) {
+      // Use ScaffoldMessenger instead of print for errors
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking community status: $e')),
+        );
+      }
+      setState(() {
+        _isCommunityActive = false;
+        _communityStatusMessage = 'Error checking community status';
+      });
+    }
+  }
+
   bool _isFormValid() {
     return _nameController.text.isNotEmpty &&
         _usernameController.text.isNotEmpty &&
@@ -1074,6 +1107,7 @@ class _RegisterPageState extends State<RegisterPage>
         _selectedRegion != null &&
         _selectedProvince != null &&
         _selectedMunicipality != null &&
-        _selectedBarangay != null;
+        _selectedBarangay != null &&
+        _isCommunityActive; // Add check for active community
   }
 }
