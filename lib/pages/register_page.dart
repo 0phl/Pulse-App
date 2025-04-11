@@ -823,9 +823,25 @@ class _RegisterPageState extends State<RegisterPage>
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
-              validator: (_) => _selectedDate == null
-                  ? 'Please select your birth date'
-                  : null,
+              validator: (_) {
+                if (_selectedDate == null) {
+                  return 'Please select your birth date';
+                }
+                
+
+                final today = DateTime.now();
+                final age = today.year - _selectedDate!.year -
+                    (today.month < _selectedDate!.month ||
+                            (today.month == _selectedDate!.month &&
+                                today.day < _selectedDate!.day)
+                        ? 1
+                        : 0);
+                        
+                if (age < 18) {
+                  return 'Registration is only allowed for users 18 years old and above.';
+                }
+                return null;
+              },
             ),
           ),
         ),
