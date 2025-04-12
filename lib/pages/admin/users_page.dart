@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
-import '../../services/auth_service.dart';
 import './admin_drawer.dart';
 import 'dart:async';
 import '../scan_qr_page.dart';
@@ -14,10 +12,8 @@ class UsersPage extends StatefulWidget {
   State<UsersPage> createState() => _UsersPageState();
 }
 
-class _UsersPageState extends State<UsersPage>
-    with TickerProviderStateMixin {
+class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   final _adminService = AdminService();
-  final _authService = AuthService();
   final _searchController = TextEditingController();
   late TabController _tabController;
   late AnimationController _controller;
@@ -63,40 +59,39 @@ class _UsersPageState extends State<UsersPage>
     if (_tabController.indexIsChanging) {
       // Clear search when changing tabs
       _searchController.clear();
+
+      // Refresh data based on the new tab
+      setState(() {
+        _isLoading = true;
+      });
+
+      if (_tabController.index == 0) {
+        _loadUsers().then((_) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+        });
+      } else {
+        _loadPendingUsers().then((_) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+        });
+      }
     }
   }
 
   void _filterUsers() {
-    final searchTerm = _searchController.text.toLowerCase();
     setState(() {
       if (_tabController.index == 0) {
-        // Filter regular users
-        _filteredUsers = _users.where((user) {
-          final matchesSearch =
-              user['fullName'].toString().toLowerCase().contains(searchTerm) ||
-                  user['email'].toString().toLowerCase().contains(searchTerm) ||
-                  user['mobile'].toString().toLowerCase().contains(searchTerm);
-
-          if (_selectedFilter == 'All') return matchesSearch;
-
-          final verificationStatus = user['verificationStatus'] ?? 'pending';
-          final isActive = verificationStatus == 'verified';
-          final joinDate = DateTime.parse(user['createdAt'].toString());
-          final isNew = DateTime.now().difference(joinDate).inDays <= 7;
-
-          switch (_selectedFilter) {
-            case 'Active':
-              return matchesSearch && isActive;
-            case 'Inactive':
-              return matchesSearch && (verificationStatus == 'rejected' || (!isActive && verificationStatus != 'pending'));
-            case 'New':
-              return matchesSearch && isNew;
-            default:
-              return matchesSearch;
-          }
-        }).toList();
+        _applyCurrentFilter();
       } else {
         // Filter pending users
+        final searchTerm = _searchController.text.toLowerCase();
         _filteredPendingUsers = _pendingUsers.where((user) {
           return user.fullName.toLowerCase().contains(searchTerm) ||
               user.email.toLowerCase().contains(searchTerm) ||
@@ -133,38 +128,13 @@ class _UsersPageState extends State<UsersPage>
         setState(() => _isLoading = true);
       }
 
-      // Get all users from RTDB
       final users = await _adminService.getRTDBUsers();
-
-      // We'll check verification status in Firestore for each user
-      List<Map<String, dynamic>> verifiedUsers = [];
-
-      for (var user in users) {
-        final userId = user['uid'];
-        // Check Firestore for verification status
-        try {
-          final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
-          if (userDoc.exists) {
-            final userData = userDoc.data() as Map<String, dynamic>;
-            final verificationStatus = userData['verificationStatus'] ?? 'pending';
-
-            // Only include verified or rejected users in the main list
-            if (verificationStatus != 'pending') {
-              // Update the user data with the verification status from Firestore
-              user['verificationStatus'] = verificationStatus;
-              user['isActive'] = verificationStatus == 'verified';
-              verifiedUsers.add(user);
-            }
-          }
-        } catch (e) {
-          debugPrint('Error checking verification status for user $userId: $e');
-        }
-      }
 
       if (mounted) {
         setState(() {
-          _users = verifiedUsers;
-          _filteredUsers = verifiedUsers;
+          _users = users;
+          // Apply current filter instead of showing all users
+          _applyCurrentFilter();
           _isLoading = false;
           _isInitialLoad = false;
         });
@@ -183,6 +153,36 @@ class _UsersPageState extends State<UsersPage>
         );
       }
     }
+  }
+
+  void _applyCurrentFilter() {
+    final searchTerm = _searchController.text.toLowerCase();
+    _filteredUsers = _users.where((user) {
+      final matchesSearch =
+          user['fullName'].toString().toLowerCase().contains(searchTerm) ||
+              user['email'].toString().toLowerCase().contains(searchTerm) ||
+              user['mobile'].toString().toLowerCase().contains(searchTerm);
+
+      if (_selectedFilter == 'All') return matchesSearch;
+
+      final verificationStatus = user['verificationStatus'] ?? 'pending';
+      final isActive = verificationStatus == 'verified';
+      final joinDate = DateTime.parse(user['createdAt'].toString());
+      final isNew = DateTime.now().difference(joinDate).inDays <= 7;
+
+      switch (_selectedFilter) {
+        case 'Active':
+          return matchesSearch && isActive;
+        case 'Inactive':
+          return matchesSearch &&
+              (verificationStatus == 'rejected' ||
+                  (!isActive && verificationStatus != 'pending'));
+        case 'New':
+          return matchesSearch && isNew;
+        default:
+          return matchesSearch;
+      }
+    }).toList();
   }
 
   Future<void> _loadPendingUsers() async {
@@ -295,37 +295,74 @@ class _UsersPageState extends State<UsersPage>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Verify User'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Row(
+          children: [
+            Icon(
+              Icons.verified_user,
+              color: Color(0xFF00C49A),
+              size: 24,
+            ),
+            SizedBox(width: 8),
+            Text('Verify User'),
+          ],
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Name: ${user.fullName}'),
-              const SizedBox(height: 8),
-              Text('Email: ${user.email}'),
-              const SizedBox(height: 8),
-              Text('Mobile: ${user.mobile}'),
-              const SizedBox(height: 8),
-              Text('Address: ${user.address}'),
-              const SizedBox(height: 8),
+              _buildVerificationField('Name', user.fullName),
+              const SizedBox(height: 12),
+              _buildVerificationField('Email', user.email),
+              const SizedBox(height: 12),
+              _buildVerificationField('Mobile', user.mobile),
+              const SizedBox(height: 12),
+              _buildVerificationField('Address', user.address),
+              const SizedBox(height: 16),
               const Text('Registration ID:'),
               const SizedBox(height: 4),
               Container(
-                padding: const EdgeInsets.all(8),
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(4),
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
                 ),
                 child: Text(
                   user.registrationId,
-                  style: const TextStyle(fontFamily: 'monospace'),
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Please verify this information with the user\'s ID before approving.',
-                style: TextStyle(fontStyle: FontStyle.italic),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[100]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Please verify this information with the user\'s ID before approving.',
+                        style: TextStyle(
+                          color: Colors.blue[700],
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -350,11 +387,40 @@ class _UsersPageState extends State<UsersPage>
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF00C49A),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             child: const Text('Approve'),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildVerificationField(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey[700],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
@@ -364,40 +430,144 @@ class _UsersPageState extends State<UsersPage>
       _isInitialLoad = false; // This is a manual refresh
     });
 
-    await Future.wait([
-      _loadUsers(),
-      _loadPendingUsers(),
-    ]);
-  }
-
-  Future<void> _signOut() async {
-    try {
-      await _authService.signOut();
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error signing out: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    if (_tabController.index == 0) {
+      await _loadUsers();
+    } else {
+      await _loadPendingUsers();
     }
   }
 
-  Widget _buildHeader() {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      drawer: const AdminDrawer(currentPage: 'Manage Users'),
+      appBar: AppBar(
+        title: const Text(
+          'Manage Users',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: const Color(0xFF00C49A),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'All Users'),
+            Tab(text: 'Pending Verification'),
+          ],
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          labelColor: Colors.white,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+          unselectedLabelColor: Colors.white.withOpacity(0.7),
+        ),
+      ),
+      body: Column(
+        children: [
+          _buildSearchSection(),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // All Users Tab
+                _isLoading
+                    ? _buildLoadingIndicator()
+                    : RefreshIndicator(
+                        onRefresh: _refreshData,
+                        color: const Color(0xFF00C49A),
+                        child: _filteredUsers.isEmpty
+                            ? ListView(
+                                children: [
+                                  SizedBox(
+                                      height:
+                                          MediaQuery.of(context).size.height *
+                                              0.3),
+                                  _buildEmptyState(
+                                    icon: Icons.people,
+                                    message: 'No users found',
+                                    subMessage:
+                                        'Try adjusting your search or filters',
+                                  ),
+                                ],
+                              )
+                            : ListView.builder(
+                                padding:
+                                    const EdgeInsets.only(top: 8, bottom: 16),
+                                itemCount: _filteredUsers.length,
+                                itemBuilder: (context, index) {
+                                  return _buildUserCard(_filteredUsers[index]);
+                                },
+                              ),
+                      ),
+
+                // Pending Verification Tab
+                _isLoading
+                    ? _buildLoadingIndicator()
+                    : RefreshIndicator(
+                        onRefresh: _refreshData,
+                        color: const Color(0xFF00C49A),
+                        child: _filteredPendingUsers.isEmpty
+                            ? ListView(
+                                children: [
+                                  SizedBox(
+                                      height:
+                                          MediaQuery.of(context).size.height *
+                                              0.3),
+                                  _buildEmptyState(
+                                    icon: Icons.person_add_disabled,
+                                    message: 'No pending verification users',
+                                    button: ElevatedButton.icon(
+                                      onPressed: _openQRScanner,
+                                      icon: const Icon(Icons.qr_code_scanner),
+                                      label: const Text('Scan QR Code'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            const Color(0xFF00C49A),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 20, vertical: 12),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : ListView.builder(
+                                padding:
+                                    const EdgeInsets.only(top: 8, bottom: 16),
+                                itemCount: _filteredPendingUsers.length,
+                                itemBuilder: (context, index) {
+                                  return _buildPendingUserCard(
+                                      _filteredPendingUsers[index]);
+                                },
+                              ),
+                      ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: _tabController.index == 1
+          ? FloatingActionButton(
+              onPressed: _openQRScanner,
+              backgroundColor: const Color(0xFF00C49A),
+              foregroundColor: Colors.white,
+              elevation: 4,
+              child: const Icon(Icons.qr_code_scanner),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildSearchSection() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
-        ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF00C49A),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,7 +577,7 @@ class _UsersPageState extends State<UsersPage>
               Text(
                 _communityName,
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -415,17 +585,21 @@ class _UsersPageState extends State<UsersPage>
               const Spacer(),
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1,
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.people,
-                      size: 16,
+                      size: 14,
                       color: Colors.white.withOpacity(0.9),
                     ),
                     const SizedBox(width: 4),
@@ -435,6 +609,7 @@ class _UsersPageState extends State<UsersPage>
                           : '${_filteredPendingUsers.length} Pending',
                       style: TextStyle(
                         fontSize: 12,
+                        fontWeight: FontWeight.w500,
                         color: Colors.white.withOpacity(0.9),
                       ),
                     ),
@@ -443,36 +618,45 @@ class _UsersPageState extends State<UsersPage>
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Container(
-            height: 40,
+            height: 36,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(18),
             ),
             child: Row(
               children: [
-                const Icon(Icons.search, size: 20, color: Colors.grey),
+                const Icon(Icons.search, size: 16, color: Colors.grey),
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
                     controller: _searchController,
                     decoration: const InputDecoration(
                       hintText: 'Search members...',
+                      hintStyle: TextStyle(fontSize: 14),
                       border: InputBorder.none,
                       isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 10),
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
                     ),
                   ),
                 ),
+                if (_searchController.text.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      _searchController.clear();
+                    },
+                    child:
+                        const Icon(Icons.close, size: 16, color: Colors.grey),
+                  ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           if (_tabController.index == 0)
             SizedBox(
-              height: 32,
+              height: 28,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: _filterOptions.map((filter) {
@@ -485,7 +669,7 @@ class _UsersPageState extends State<UsersPage>
                         style: TextStyle(
                           fontSize: 12,
                           color: isSelected
-                              ? Theme.of(context).primaryColor
+                              ? const Color(0xFF00C49A)
                               : Colors.black87,
                           fontWeight:
                               isSelected ? FontWeight.bold : FontWeight.normal,
@@ -505,7 +689,7 @@ class _UsersPageState extends State<UsersPage>
                       visualDensity: VisualDensity.compact,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
                   );
@@ -513,22 +697,94 @@ class _UsersPageState extends State<UsersPage>
               ),
             )
           else
-            Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _openQRScanner,
-                  icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-                  label: const Text('Scan QR Code',
-                      style: TextStyle(color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.3),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+            SizedBox(
+              height: 28,
+              child: ElevatedButton.icon(
+                onPressed: _openQRScanner,
+                icon: const Icon(Icons.qr_code_scanner,
+                    color: Colors.white, size: 14),
+                label: const Text('Scan QR Code',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(0.3),
+                  elevation: 0,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                  minimumSize: const Size(0, 28),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(color: Colors.white.withOpacity(0.3)),
                   ),
                 ),
-              ],
+              ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _isInitialLoad ? 'Loading users...' : 'Refreshing...',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String message,
+    String? subMessage,
+    Widget? button,
+  }) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            size: 64,
+            color: Colors.grey[300],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+          ),
+          if (subMessage != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              subMessage,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+          if (button != null) ...[
+            const SizedBox(height: 24),
+            button,
+          ],
         ],
       ),
     );
@@ -541,56 +797,47 @@ class _UsersPageState extends State<UsersPage>
     final isNew = DateTime.now().difference(joinDate).inDays <= 7;
 
     // Determine status display
-    String statusText;
-    Color statusColor;
-
-    // If the user has a verification status in Firestore, use that
-    // Otherwise, fall back to the isActive flag from RTDB
-    if (verificationStatus == 'verified') {
-      statusText = 'Active';
-      statusColor = Colors.green;
-    } else if (verificationStatus == 'rejected') {
-      statusText = 'Rejected';
-      statusColor = Colors.red;
-    } else if (verificationStatus == 'pending') {
-      statusText = 'Pending';
-      statusColor = Colors.orange;
-    } else {
-      // Legacy users might not have a verification status
-      statusText = isActive ? 'Active' : 'Inactive';
-      statusColor = isActive ? Colors.green : Colors.red;
-    }
+    bool isActiveStatus = verificationStatus == 'verified' ||
+        (verificationStatus != 'pending' &&
+            verificationStatus != 'rejected' &&
+            isActive);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
+      elevation: 0,
+      color: Colors.white,
       child: InkWell(
         onTap: () => _viewUserDetails(user),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // User avatar
               Container(
-                width: 50,
-                height: 50,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(25),
+                  color: const Color(0xFF00C49A).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(24),
                 ),
-                child: Icon(
-                  Icons.person,
-                  color: Theme.of(context).primaryColor,
-                  size: 30,
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  color: Color(0xFF00C49A),
+                  size: 24,
                 ),
               ),
               const SizedBox(width: 16),
+              // User information
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // User name and NEW badge
                     Row(
                       children: [
                         Expanded(
@@ -598,65 +845,83 @@ class _UsersPageState extends State<UsersPage>
                             user['fullName'] ?? 'No Name',
                             style: const TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            statusText.toUpperCase(),
-                            style: TextStyle(
-                              color: statusColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                        if (isNew)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'NEW',
+                              style: TextStyle(
+                                color: Colors.blue[700],
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 4),
+                    // Email
                     Text(
                       user['email'] ?? '',
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 14,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
+                    // Status and joined date
                     Row(
                       children: [
-                        if (isNew) ...[
-                          const Icon(
-                            Icons.fiber_new,
-                            size: 16,
-                            color: Colors.blue,
+                        // Status indicator
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isActiveStatus
+                                ? Colors.green[400]
+                                : verificationStatus == 'rejected'
+                                    ? Colors.red[400]
+                                    : Colors.orange[400],
                           ),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'New User',
-                            style: TextStyle(
-                              color: Colors.blue,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                        ],
-                        Icon(
-                          Icons.calendar_today,
-                          size: 16,
-                          color: Colors.grey[600],
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'Joined ${_formatDate(joinDate)}',
+                          isActiveStatus
+                              ? 'Active'
+                              : verificationStatus == 'rejected'
+                                  ? 'Rejected'
+                                  : 'Pending',
                           style: TextStyle(
-                            color: Colors.grey[600],
+                            color: Colors.grey[700],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 12,
+                          color: Colors.grey[500],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatDate(joinDate),
+                          style: TextStyle(
+                            color: Colors.grey[500],
                             fontSize: 12,
                           ),
                         ),
@@ -673,122 +938,166 @@ class _UsersPageState extends State<UsersPage>
   }
 
   Widget _buildPendingUserCard(FirestoreUser user) {
+    final isNew = DateTime.now().difference(user.createdAt).inDays <= 7;
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
+      elevation: 0,
+      color: Colors.white,
       child: InkWell(
         onTap: () => _showUserVerificationDialog(user),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                child: const Icon(
-                  Icons.person_add,
-                  color: Colors.orange,
-                  size: 30,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            user.fullName,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Text(
-                            'PENDING',
-                            style: TextStyle(
-                              color: Colors.orange,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // User avatar
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00C49A).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(24),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      user.email,
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
+                    child: const Icon(
+                      Icons.person_outline_rounded,
+                      color: Color(0xFF00C49A),
+                      size: 24,
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  ),
+                  const SizedBox(width: 16),
+                  // User information
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
+                            Expanded(
+                              child: Text(
+                                user.fullName,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (isNew)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'NEW',
+                                  style: TextStyle(
+                                    color: Colors.blue[700],
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          user.email,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.orange[400],
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Pending Verification',
+                              style: TextStyle(
+                                color: Colors.grey[700],
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
                             Icon(
-                              Icons.phone,
-                              size: 16,
-                              color: Colors.grey[600],
+                              Icons.phone_outlined,
+                              size: 12,
+                              color: Colors.grey[500],
                             ),
                             const SizedBox(width: 4),
                             Text(
                               user.mobile,
                               style: TextStyle(
-                                color: Colors.grey[600],
+                                color: Colors.grey[500],
                                 fontSize: 12,
                               ),
                             ),
                           ],
                         ),
-                        Row(
-                          children: [
-                            TextButton(
-                              onPressed: () => _verifyUser(user, false),
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: const Size(40, 30),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                foregroundColor: Colors.red,
-                              ),
-                              child: const Text('Reject'),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: () => _verifyUser(user, true),
-                              style: ElevatedButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: const Size(40, 30),
-                                backgroundColor: const Color(0xFF00C49A),
-                              ),
-                              child: const Text('Approve'),
-                            ),
-                          ],
-                        ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => _verifyUser(user, false),
+                    child: Text(
+                      'Reject',
+                      style: TextStyle(
+                        color: Colors.red[700],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () => _verifyUser(user, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[900],
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'Approve',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -821,106 +1130,30 @@ class _UsersPageState extends State<UsersPage>
       showModalBottomSheet(
         context: context,
         backgroundColor: Colors.transparent,
+        isScrollControlled: true,
         builder: (context) => Container(
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(20),
-              topRight: Radius.circular(20),
-            ),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Handle bar
               Container(
-                width: 40,
+                width: 32,
                 height: 4,
-                margin: const EdgeInsets.only(top: 8),
+                margin: const EdgeInsets.only(top: 12, bottom: 24),
                 decoration: BoxDecoration(
                   color: Colors.grey[300],
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).primaryColor.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.person,
-                            color: Theme.of(context).primaryColor,
-                            size: 30,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                user['fullName'] ?? 'No Name',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                user['email'] ?? '',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        children: [
-                          _buildDetailTile(
-                            icon: Icons.phone,
-                            title: 'Mobile',
-                            value: user['mobile'] ?? 'Not provided',
-                          ),
-                          Divider(height: 1, color: Colors.grey[200]),
-                          _buildDetailTile(
-                            icon: Icons.location_on,
-                            title: 'Address',
-                            value: user['address'] ?? 'Not provided',
-                          ),
-                          Divider(height: 1, color: Colors.grey[200]),
-                          _buildDetailTile(
-                            icon: Icons.business,
-                            title: 'Barangay',
-                            value: user['barangay'] ?? 'Not provided',
-                          ),
-                          Divider(height: 1, color: Colors.grey[200]),
-                          _buildDetailTile(
-                            icon: Icons.calendar_today,
-                            title: 'Joined',
-                            value: _formatDate(
-                                DateTime.parse(user['createdAt'].toString())),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+              // User details content
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  child: _buildUserDetailsList(user),
                 ),
               ),
             ],
@@ -936,36 +1169,119 @@ class _UsersPageState extends State<UsersPage>
     }
   }
 
-  Widget _buildDetailTile({
+  Widget _buildUserDetailsList(Map<String, dynamic> user) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Profile section
+        Row(
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: const Color(0xFF00C49A).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.person_outline_rounded,
+                color: Color(0xFF00C49A),
+                size: 32,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user['fullName'] ?? 'No Name',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    user['email'] ?? '',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 32),
+        // Details section
+        _buildDetailItem(
+          icon: Icons.phone_outlined,
+          label: 'Mobile',
+          value: user['mobile'] ?? 'Not provided',
+        ),
+        const Divider(height: 1),
+        _buildDetailItem(
+          icon: Icons.location_on_outlined,
+          label: 'Address',
+          value: user['address'] ?? 'Not provided',
+        ),
+        const Divider(height: 1),
+        _buildDetailItem(
+          icon: Icons.business_outlined,
+          label: 'Barangay',
+          value: user['barangay'] ?? 'Not provided',
+        ),
+        const Divider(height: 1),
+        _buildDetailItem(
+          icon: Icons.calendar_today_outlined,
+          label: 'Joined',
+          value: _formatDate(DateTime.parse(user['createdAt'].toString())),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailItem({
     required IconData icon,
-    required String title,
+    required String label,
     required String value,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 20,
-            color: Theme.of(context).primaryColor,
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF00C49A).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(
+              icon,
+              color: const Color(0xFF00C49A),
+              size: 20,
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  label,
                   style: TextStyle(
                     color: Colors.grey[600],
-                    fontSize: 12,
+                    fontSize: 14,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
                   value,
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -974,161 +1290,6 @@ class _UsersPageState extends State<UsersPage>
           ),
         ],
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      drawer: const AdminDrawer(currentPage: 'Manage Users'),
-      appBar: AppBar(
-        title: const Text('Manage Users'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refreshData,
-            tooltip: 'Refresh',
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _signOut,
-            tooltip: 'Logout',
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'All Users'),
-            Tab(text: 'Pending Verification'),
-          ],
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-        ),
-      ),
-      body: Column(
-        children: [
-          _buildHeader(),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                // All Users Tab
-                _isLoading
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const CircularProgressIndicator(),
-                            const SizedBox(height: 16),
-                            Text(
-                              _isInitialLoad ? 'Loading users...' : 'Refreshing...',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : _filteredUsers.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.people,
-                                  size: 48,
-                                  color: Colors.grey[400],
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No users found',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.only(top: 8, bottom: 16),
-                            itemCount: _filteredUsers.length,
-                            itemBuilder: (context, index) {
-                              return _buildUserCard(_filteredUsers[index]);
-                            },
-                          ),
-
-                // Pending Verification Tab
-                _isLoading
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const CircularProgressIndicator(),
-                            const SizedBox(height: 16),
-                            Text(
-                              _isInitialLoad ? 'Loading pending users...' : 'Refreshing...',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : _filteredPendingUsers.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.person_add_disabled,
-                                  size: 48,
-                                  color: Colors.grey[400],
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No pending verification users',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                ElevatedButton.icon(
-                                  onPressed: _openQRScanner,
-                                  icon: const Icon(Icons.qr_code_scanner),
-                                  label: const Text('Scan QR Code'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor:
-                                        Theme.of(context).primaryColor,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.only(top: 8, bottom: 16),
-                            itemCount: _filteredPendingUsers.length,
-                            itemBuilder: (context, index) {
-                              return _buildPendingUserCard(
-                                  _filteredPendingUsers[index]);
-                            },
-                          ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: _tabController.index == 1
-          ? FloatingActionButton(
-              onPressed: _openQRScanner,
-              backgroundColor: Theme.of(context).primaryColor,
-              child: const Icon(Icons.qr_code_scanner, color: Colors.white),
-            )
-          : null,
     );
   }
 }
@@ -1147,7 +1308,7 @@ class FilterChip extends StatelessWidget {
   final OutlinedBorder shape;
 
   const FilterChip({
-    Key? key,
+    super.key,
     required this.label,
     required this.selected,
     required this.onSelected,
@@ -1158,7 +1319,7 @@ class FilterChip extends StatelessWidget {
     required this.visualDensity,
     required this.materialTapTargetSize,
     required this.shape,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1174,9 +1335,8 @@ class FilterChip extends StatelessWidget {
       materialTapTargetSize: materialTapTargetSize,
       shape: shape,
       side: BorderSide(
-        color: selected
-            ? Theme.of(context).primaryColor
-            : Colors.grey.withOpacity(0.3),
+        color:
+            selected ? const Color(0xFF00C49A) : Colors.grey.withOpacity(0.3),
         width: 1,
       ),
       showCheckmark: false,

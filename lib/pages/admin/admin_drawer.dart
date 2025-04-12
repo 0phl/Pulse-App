@@ -151,12 +151,7 @@ class _AdminDrawerState extends State<AdminDrawer> {
                     isActive: currentRoute == '/admin/reports',
                     onTap: () => _navigateTo('/admin/reports'),
                   ),
-                  _buildMenuItem(
-                    icon: Icons.verified_user_outlined,
-                    title: 'User Verification',
-                    isActive: currentRoute == '/admin/user-verification',
-                    onTap: () => _navigateTo('/admin/user-verification'),
-                  ),
+                  // User Verification menu item removed - functionality consolidated into Manage Users
                 ],
               ),
             ),
