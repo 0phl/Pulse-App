@@ -12,6 +12,7 @@ import 'pages/admin/marketplace_page.dart';
 import 'pages/admin/reports_page.dart';
 import 'pages/admin/users_page.dart';
 import 'pages/admin/volunteer_posts_page.dart';
+import 'pages/admin/user_verification_page.dart';
 import 'pages/home_page.dart';
 import 'pages/market_page.dart';
 import 'pages/login_page.dart';
@@ -95,6 +96,7 @@ class MyApp extends StatelessWidget {
                   const AdminVolunteerPostsPage(),
               '/admin/volunteer-posts/add': (context) => const AddVolunteerPostPage(),
               '/admin/reports': (context) => const AdminReportsPage(),
+              '/admin/user-verification': (context) => const UserVerificationPage(),
 
               // Main app routes
               '/home': (context) => const MainScreen(),

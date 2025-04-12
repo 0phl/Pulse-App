@@ -25,22 +25,25 @@
           }
         }
       },
-    "users": {
-      ".read": true,
-      ".indexOn": ["email", "role", "communityId", "username"],
-      "$uid": {
-        ".write": "auth != null && auth.uid === $uid",
-        ".validate": "newData.hasChildren(['email', 'role', 'communityId', 'username'])",
-        "email": { ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$/)" },
-        "username": { ".validate": "newData.isString() && newData.val().length >= 3" },
-        "role": { ".validate": "newData.isString() && (newData.val() === 'member' || newData.val() === 'admin' || newData.val() === 'community_admin')" },
-        "communityId": { ".validate": "newData.isString() || newData.val() === null" }
-      }
-    },
+"users": {
+  ".read": true,
+  ".indexOn": ["email", "role", "communityId", "username"],
+  "$uid": {
+    ".write": "auth != null && (
+      auth.uid === $uid || 
+      root.child('users').child(auth.uid).child('role').val() === 'admin'
+    )",
+    ".validate": "newData.hasChildren(['email', 'role', 'communityId', 'username'])",
+    "email": { ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$/)" },
+    "username": { ".validate": "newData.isString() && newData.val().length >= 3" },
+    "role": { ".validate": "newData.isString() && (newData.val() === 'member' || newData.val() === 'admin' || newData.val() === 'community_admin')" },
+    "communityId": { ".validate": "newData.isString() || newData.val() === null" }
+  }
+},
     "communities": {
       ".read": true,
       ".write": true,
-      ".indexOn": ["name", "status", "adminId", "locationId"],
+      ".indexOn": ["name", "status", "adminId", "locationId", "locationStatusId"],
       "$communityId": {
         ".validate": "newData.hasChildren(['name', 'description', 'status', 'createdAt', 'regionCode', 'provinceCode', 'municipalityCode', 'barangayCode', 'locationId'])",
         "status": {

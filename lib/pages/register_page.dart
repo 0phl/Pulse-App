@@ -9,6 +9,8 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
 import 'dart:async';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -53,8 +55,8 @@ class _RegisterPageState extends State<RegisterPage>
   bool _isEmailAvailable = true;
   bool _isCheckingEmail = false;
   Timer? _emailCheckDebouncer;
-
-
+  bool _isCommunityActive = false;
+  String? _communityStatusMessage;
 
   @override
   void initState() {
@@ -152,8 +154,6 @@ class _RegisterPageState extends State<RegisterPage>
       }
     }
   }
-
-
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -574,7 +574,8 @@ class _RegisterPageState extends State<RegisterPage>
                   _buildNewFields(),
                   const SizedBox(height: 16),
                   // Show community status message
-                  if (_selectedBarangay != null && _communityStatusMessage != null)
+                  if (_selectedBarangay != null &&
+                      _communityStatusMessage != null)
                     Container(
                       padding: const EdgeInsets.all(12),
                       margin: const EdgeInsets.symmetric(vertical: 16),
@@ -645,6 +646,9 @@ class _RegisterPageState extends State<RegisterPage>
                                     'locationId': locationId,
                                   };
 
+                                  // Generate unique registration ID for QR code
+                                  final registrationId = const Uuid().v4();
+
                                   // Create registration data
                                   final registrationData = RegistrationData(
                                     email: _emailController.text.trim(),
@@ -656,6 +660,7 @@ class _RegisterPageState extends State<RegisterPage>
                                     birthDate: _selectedDate!,
                                     address: _addressController.text.trim(),
                                     location: location,
+                                    registrationId: registrationId,
                                   );
 
                                   // Navigate to OTP verification page
@@ -955,8 +960,10 @@ class _RegisterPageState extends State<RegisterPage>
                   });
 
                   // Check if community is active when barangay is selected
-                  if (barangay != null && _selectedRegion != null &&
-                      _selectedProvince != null && _selectedMunicipality != null) {
+                  if (barangay != null &&
+                      _selectedRegion != null &&
+                      _selectedProvince != null &&
+                      _selectedMunicipality != null) {
                     await _checkCommunityStatus();
                   }
                 },
@@ -980,7 +987,6 @@ class _RegisterPageState extends State<RegisterPage>
                 },
               ),
               const SizedBox(height: 16),
-
               TextFormField(
                 controller: _addressController,
                 decoration: InputDecoration(
@@ -1009,12 +1015,11 @@ class _RegisterPageState extends State<RegisterPage>
     );
   }
 
-  bool _isCommunityActive = false;
-  String? _communityStatusMessage;
-
   Future<void> _checkCommunityStatus() async {
-    if (_selectedRegion == null || _selectedProvince == null ||
-        _selectedMunicipality == null || _selectedBarangay == null) {
+    if (_selectedRegion == null ||
+        _selectedProvince == null ||
+        _selectedMunicipality == null ||
+        _selectedBarangay == null) {
       return;
     }
 
@@ -1027,11 +1032,13 @@ class _RegisterPageState extends State<RegisterPage>
       // We'll manually check each community for a match
 
       // Get all communities to check
-      final communitiesRef = FirebaseDatabase.instance.ref().child('communities');
+      final communitiesRef =
+          FirebaseDatabase.instance.ref().child('communities');
       final allCommunitiesSnapshot = await communitiesRef.get();
 
       if (allCommunitiesSnapshot.exists) {
-        final allCommunities = allCommunitiesSnapshot.value as Map<dynamic, dynamic>;
+        final allCommunities =
+            allCommunitiesSnapshot.value as Map<dynamic, dynamic>;
         bool foundActiveMatch = false;
 
         // Manually check each community since we can't query by locationStatusId without an index
@@ -1042,18 +1049,19 @@ class _RegisterPageState extends State<RegisterPage>
           if (community['barangayCode'] == _selectedBarangay!.code &&
               community['status'] == 'active' &&
               community['adminId'] != null) {
-
             // Found an active community for this barangay
             setState(() {
               _isCommunityActive = true;
-              _communityStatusMessage = null; // Clear any previous error message
+              _communityStatusMessage =
+                  null; // Clear any previous error message
             });
 
             // Show success message
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Community is active and ready for registration'),
+                  content:
+                      Text('Community is active and ready for registration'),
                   backgroundColor: Colors.green,
                 ),
               );
@@ -1068,12 +1076,11 @@ class _RegisterPageState extends State<RegisterPage>
         if (!foundActiveMatch) {
           setState(() {
             _isCommunityActive = false;
-            _communityStatusMessage = 'This community is not yet active or has no admin. Registration is not available.';
+            _communityStatusMessage =
+                'This community is not yet active or has no admin. Registration is not available.';
           });
         }
-      }
-
-      else {
+      } else {
         // No communities found at all
         setState(() {
           _isCommunityActive = false;

@@ -12,6 +12,8 @@ class FirestoreUser {
   final String communityId;
   final String role;
   final DateTime createdAt;
+  final String registrationId;
+  final String verificationStatus;
 
   FirestoreUser({
     required this.uid,
@@ -25,6 +27,8 @@ class FirestoreUser {
     required this.communityId,
     required this.role,
     required this.createdAt,
+    required this.registrationId,
+    required this.verificationStatus,
   });
 
   Map<String, dynamic> toMap() {
@@ -40,6 +44,8 @@ class FirestoreUser {
       'communityId': communityId,
       'role': role,
       'createdAt': Timestamp.fromDate(createdAt),
+      'registrationId': registrationId,
+      'verificationStatus': verificationStatus,
     };
   }
 
@@ -56,6 +62,8 @@ class FirestoreUser {
       communityId: map['communityId'] ?? '',
       role: map['role'] ?? '',
       createdAt: (map['createdAt'] as Timestamp).toDate(),
+      registrationId: map['registrationId'] ?? '',
+      verificationStatus: map['verificationStatus'] ?? 'pending',
     );
   }
 }

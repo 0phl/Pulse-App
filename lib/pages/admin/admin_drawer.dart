@@ -3,7 +3,9 @@ import '../../services/auth_service.dart';
 import '../../services/admin_service.dart';
 
 class AdminDrawer extends StatefulWidget {
-  const AdminDrawer({Key? key}) : super(key: key);
+  final String currentPage;
+
+  const AdminDrawer({Key? key, this.currentPage = ''}) : super(key: key);
 
   @override
   State<AdminDrawer> createState() => _AdminDrawerState();
@@ -148,6 +150,12 @@ class _AdminDrawerState extends State<AdminDrawer> {
                     title: 'Reports',
                     isActive: currentRoute == '/admin/reports',
                     onTap: () => _navigateTo('/admin/reports'),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.verified_user_outlined,
+                    title: 'User Verification',
+                    isActive: currentRoute == '/admin/user-verification',
+                    onTap: () => _navigateTo('/admin/user-verification'),
                   ),
                 ],
               ),

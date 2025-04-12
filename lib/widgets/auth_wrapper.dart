@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/admin_service.dart';
 import '../pages/login_page.dart';
 import '../main.dart';
 import '../pages/admin/dashboard_page.dart';
 import '../pages/admin/change_password_page.dart';
 import '../models/admin_user.dart';
+import '../pages/pending_verification_page.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -18,6 +20,7 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   final _adminService = AdminService();
   final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -93,9 +96,45 @@ class _AuthWrapperState extends State<AuthWrapper> {
               );
             }
 
-            print('AuthWrapper: User is not admin, showing regular UI');
-            // Show regular user interface for non-admin users
-            return const MainScreen();
+            // For regular users, check verification status
+            return FutureBuilder<DocumentSnapshot>(
+              future: _firestore.collection('users').doc(user.uid).get(),
+              builder: (context, userSnapshot) {
+                if (userSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (userSnapshot.hasError ||
+                    !userSnapshot.hasData ||
+                    !userSnapshot.data!.exists) {
+                  print(
+                      'AuthWrapper: Error fetching user data: ${userSnapshot.error}');
+                  // Sign out if we can't verify the user status
+                  _auth.signOut();
+                  return const LoginPage();
+                }
+
+                final userData =
+                    userSnapshot.data!.data() as Map<String, dynamic>;
+                final verificationStatus =
+                    userData['verificationStatus'] as String?;
+
+                print(
+                    'AuthWrapper: User verification status: $verificationStatus');
+
+                // If user account is pending verification, show pending screen
+                if (verificationStatus == 'pending') {
+                  print('AuthWrapper: User account is pending verification');
+                  return PendingVerificationPage(
+                    registrationId: userData['registrationId'] as String? ?? '',
+                  );
+                }
+
+                print('AuthWrapper: User is verified, showing regular UI');
+                // User is verified, show regular user interface
+                return const MainScreen();
+              },
+            );
           },
         );
       },

@@ -7,6 +7,7 @@ class RegistrationData {
   final DateTime birthDate;
   final String address;
   final Map<String, String> location;
+  final String registrationId;
 
   RegistrationData({
     required this.fullName,
@@ -17,6 +18,7 @@ class RegistrationData {
     required this.birthDate,
     required this.address,
     required this.location,
+    required this.registrationId,
   });
 
   // Convert to Map for Firebase
@@ -29,6 +31,8 @@ class RegistrationData {
       'birthDate': birthDate.toIso8601String(),
       'address': address,
       'location': location,
+      'registrationId': registrationId,
+      'verificationStatus': 'pending',
     };
   }
 }

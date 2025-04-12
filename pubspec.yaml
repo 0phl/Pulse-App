@@ -40,6 +40,9 @@ dependencies:
   fl_chart: ^0.70.2
   geocoding: ^2.1.1
   percent_indicator: ^4.2.3
+  qr_flutter: ^4.1.0
+  uuid: ^4.0.0
+  mobile_scanner: ^6.0.7
 
 dev_dependencies:
   flutter_test:

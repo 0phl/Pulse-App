@@ -6,7 +6,7 @@ class EngagementService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _database = FirebaseDatabase.instance;
-  
+
   // Cache for user roles to reduce database queries
   final Map<String, String> _userRoleCache = {};
 
@@ -50,10 +50,10 @@ class EngagementService {
 
       final userData = userDoc.data() as Map<String, dynamic>;
       final role = userData['role'] as String;
-      
+
       // Cache the result
       _userRoleCache[user.uid] = role;
-      
+
       return role == 'admin' || role == 'super_admin';
     } catch (e) {
       return false;
@@ -73,10 +73,10 @@ class EngagementService {
 
       final userData = userDoc.data() as Map<String, dynamic>;
       final role = userData['role'] as String;
-      
+
       // Cache the result
       _userRoleCache[userId] = role;
-      
+
       return role;
     } catch (e) {
       return null;
@@ -106,11 +106,12 @@ class EngagementService {
           membersCount = communityData['membersCount'] as int? ?? 0;
         }
 
-        // If we can't get from community doc, try counting users
+        // If we can't get from community doc, try counting verified users only
         if (membersCount == 0) {
           final usersQuery = await _usersCollection
               .where('communityId', isEqualTo: communityId)
               .where('role', whereIn: ['member', 'user'])
+              .where('verificationStatus', isEqualTo: 'verified')
               .count()
               .get();
           membersCount = usersQuery.count ?? 0;
@@ -349,7 +350,9 @@ class EngagementService {
       try {
         final userDocs = await _usersCollection
             .where('communityId', isEqualTo: communityId)
-            .where('role', whereIn: ['member', 'user']).get();
+            .where('role', whereIn: ['member', 'user'])
+            .where('verificationStatus', isEqualTo: 'verified')
+            .get();
 
         for (var doc in userDocs.docs) {
           final data = doc.data() as Map<String, dynamic>;
