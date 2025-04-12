@@ -4,6 +4,7 @@ import '../../services/auth_service.dart';
 import '../../widgets/statistics_card.dart';
 import '../../widgets/improved_kpi_card.dart';
 import '../../widgets/recent_reports_widget.dart';
+import '../../widgets/shimmer_loading.dart';
 import '../../models/report.dart';
 import './admin_drawer.dart';
 import './marketplace_page.dart';
@@ -105,13 +106,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
       try {
         userStats = await _adminService.getUserStats();
-        // User stats loaded successfully
+        // Get pending users count
+        final pendingUsers = await _adminService.getPendingVerificationUsers();
+        userStats = {
+          ...userStats ?? {},
+          'pendingUsers': pendingUsers.length,
+          'newPendingUsers': pendingUsers
+              .where((user) => user.createdAt
+                  .isAfter(DateTime.now().subtract(const Duration(days: 7))))
+              .length,
+        };
       } catch (e) {
         // Error loading user stats
         // Use default values if this fails
         userStats = {
           'communityUsers': 4,
           'newUsersThisWeek': 0,
+          'pendingUsers': 0,
+          'newPendingUsers': 0,
         };
       }
 
@@ -130,7 +142,20 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
       try {
         activityStats = await _adminService.getActivityStats();
-        // Activity stats loaded successfully
+        // Get reports stream to count new reports today
+        final reportsStream = await _adminService.getReports().first;
+        final today = DateTime.now();
+        final newReportsCount = reportsStream
+            .where((report) =>
+                report.createdAt.year == today.year &&
+                report.createdAt.month == today.month &&
+                report.createdAt.day == today.day)
+            .length;
+
+        activityStats = {
+          ...activityStats ?? {},
+          'newReportsToday': newReportsCount,
+        };
       } catch (e) {
         // Error loading activity stats
         // Use default values if this fails
@@ -139,6 +164,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
           'dailyActivity': List<int>.filled(7, 0),
           'newPostsToday': 0,
           'newUsersToday': 0,
+          'newReportsToday': 0,
         };
       }
 
@@ -175,6 +201,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
           _userStats = {
             'communityUsers': 4,
             'newUsersThisWeek': 0,
+            'pendingUsers': 0,
+            'newPendingUsers': 0,
           };
           _communityStats = {
             'membersCount': 4,
@@ -186,6 +214,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
             'dailyActivity': List<int>.filled(7, 0),
             'newPostsToday': 0,
             'newUsersToday': 0,
+            'newReportsToday': 0,
           };
           _isLoading = false;
         });
@@ -254,7 +283,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
                   // Navigate to the marketplace page with the Listings tab (index 1) selected
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => const AdminMarketplacePage(initialTabIndex: 1),
+                      builder: (context) =>
+                          const AdminMarketplacePage(initialTabIndex: 1),
                     ),
                   );
                 },
@@ -323,38 +353,127 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
   }
 
   Widget _buildLoadingSkeleton() {
-    return Column(
-      children: [
-        Container(
-          height: 200,
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: List.generate(
-                4,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Community Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24.0),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor,
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(30),
+                bottomRight: Radius.circular(30),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShimmerLoading(
+                  child: Container(
+                    width: 200,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ShimmerLoading(
+                  child: Container(
+                    width: 150,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Stats Cards
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: List.generate(
+                3,
                 (index) => Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: index == 0 ? 0 : 8,
+                      right: index == 2 ? 0 : 8,
+                    ),
+                    child: ShimmerLoading(
                       child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
+                        height: 120,
                         decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Center(
-                          child: CircularProgressIndicator(),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                       ),
-                    )),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          height: 150,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey[200],
-            borderRadius: BorderRadius.circular(12),
+          const SizedBox(height: 32),
+          // Activity Chart
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: ShimmerLoading(
+              child: Container(
+                height: 200,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 32),
+          // Engagement Report
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: ShimmerLoading(
+              child: Container(
+                height: 180,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 
@@ -367,37 +486,56 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
         children: [
           Expanded(
             flex: 1,
-            child: ImprovedKpiCard(
-              title: 'Community Members',
-              value: _userStats?['communityUsers']?.toString() ?? '0',
-              icon: Icons.people,
-              color: const Color(0xFF00C49A),
-              trend: '+${_userStats?['newUsersThisWeek'] ?? 0}',
-              isPositiveTrend: true,
+            child: GestureDetector(
+              onTap: () => Navigator.pushNamed(context, '/admin/users'),
+              child: ImprovedKpiCard(
+                title: 'Community Members',
+                value: _userStats?['communityUsers']?.toString() ?? '0',
+                icon: Icons.people,
+                color: const Color(0xFF00C49A),
+                trend: '+${_userStats?['newUsersThisWeek'] ?? 0}',
+                isPositiveTrend: true,
+              ),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             flex: 1,
-            child: ImprovedKpiCard(
-              title: 'Active Reports',
-              value: _activityStats?['totalReports']?.toString() ?? '0',
-              icon: Icons.report_problem,
-              color: const Color(0xFFF5A623),
+            child: GestureDetector(
+              onTap: () => Navigator.pushNamed(context, '/admin/reports'),
+              child: ImprovedKpiCard(
+                title: 'Active Reports',
+                value: _activityStats?['totalReports']?.toString() ?? '0',
+                icon: Icons.report_problem,
+                color: const Color(0xFFF5A623),
+                trend: _activityStats?['newReportsToday'] != null
+                    ? '+${_activityStats?['newReportsToday']}'
+                    : null,
+                isPositiveTrend: false,
+                tooltip: 'New reports today',
+              ),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             flex: 1,
-            child: ImprovedKpiCard(
-              title: 'Engagement',
-              value: '${_communityStats?['engagementRate'] ?? 0}%',
-              icon: Icons.trending_up,
-              color: const Color(0xFF4A90E2),
-              trend: '+5%',
-              isPositiveTrend: true,
-              tooltip:
-                  'Based on user interactions, volunteer participation, marketplace activity, report submissions, chat activity, and admin interactions',
+            child: GestureDetector(
+              onTap: () => Navigator.pushNamed(
+                context,
+                '/admin/users',
+                arguments: {'initialTab': 1},
+              ),
+              child: ImprovedKpiCard(
+                title: 'Pending Users',
+                value: _userStats?['pendingUsers']?.toString() ?? '0',
+                icon: Icons.person_add,
+                color: const Color(0xFF4A90E2),
+                trend: _userStats?['newPendingUsers'] != null
+                    ? '+${_userStats?['newPendingUsers']}'
+                    : null,
+                isPositiveTrend: false,
+                tooltip: 'Users waiting for verification',
+              ),
             ),
           ),
         ],

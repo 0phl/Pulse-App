@@ -35,16 +35,33 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(_handleTabChange);
+    _searchController.addListener(_filterUsers);
     _loadCommunity();
     _loadUsers();
     _loadPendingUsers();
-    _searchController.addListener(_filterUsers);
 
     // Start the animation
     _controller.forward();
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Initialize tab controller if not already initialized
+    if (!_isTabControllerInitialized) {
+      final arguments =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final initialTab = arguments?['initialTab'] as int? ?? 0;
+
+      _tabController =
+          TabController(length: 2, vsync: this, initialIndex: initialTab);
+      _tabController.addListener(_handleTabChange);
+      _isTabControllerInitialized = true;
+    }
+  }
+
+  bool _isTabControllerInitialized = false;
 
   @override
   void dispose() {
@@ -56,32 +73,33 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   }
 
   void _handleTabChange() {
-    if (_tabController.indexIsChanging) {
-      // Clear search when changing tabs
-      _searchController.clear();
-
-      // Refresh data based on the new tab
+    // This will trigger for both tap and slide changes
+    if (mounted) {
       setState(() {
-        _isLoading = true;
-      });
+        // Clear search when changing tabs
+        _searchController.clear();
 
-      if (_tabController.index == 0) {
-        _loadUsers().then((_) {
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
-          }
-        });
-      } else {
-        _loadPendingUsers().then((_) {
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
-          }
-        });
-      }
+        // Refresh data based on the new tab
+        _isLoading = true;
+
+        if (_tabController.index == 0) {
+          _loadUsers().then((_) {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+            }
+          });
+        } else {
+          _loadPendingUsers().then((_) {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+            }
+          });
+        }
+      });
     }
   }
 
@@ -462,103 +480,154 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
           unselectedLabelColor: Colors.white.withOpacity(0.7),
         ),
       ),
-      body: Column(
-        children: [
-          _buildSearchSection(),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                // All Users Tab
-                _isLoading
-                    ? _buildLoadingIndicator()
-                    : RefreshIndicator(
-                        onRefresh: _refreshData,
-                        color: const Color(0xFF00C49A),
-                        child: _filteredUsers.isEmpty
-                            ? ListView(
-                                children: [
-                                  SizedBox(
-                                      height:
-                                          MediaQuery.of(context).size.height *
-                                              0.3),
-                                  _buildEmptyState(
-                                    icon: Icons.people,
-                                    message: 'No users found',
-                                    subMessage:
-                                        'Try adjusting your search or filters',
-                                  ),
-                                ],
-                              )
-                            : ListView.builder(
-                                padding:
-                                    const EdgeInsets.only(top: 8, bottom: 16),
-                                itemCount: _filteredUsers.length,
-                                itemBuilder: (context, index) {
-                                  return _buildUserCard(_filteredUsers[index]);
-                                },
-                              ),
-                      ),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: child,
+          );
+        },
+        child: Column(
+          key: ValueKey<int>(_tabController.index),
+          children: [
+            _buildSearchSection(),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  // All Users Tab
+                  _buildTabContent(
+                    isLoading: _isLoading,
+                    isEmpty: _filteredUsers.isEmpty,
+                    onRefresh: _refreshData,
+                    emptyWidget: _buildEmptyState(
+                      icon: Icons.people_outline,
+                      message: 'No users found',
+                      subMessage: 'Try adjusting your search or filters',
+                    ),
+                    contentWidget: ListView.builder(
+                      padding: const EdgeInsets.only(top: 8, bottom: 16),
+                      itemCount: _filteredUsers.length,
+                      itemBuilder: (context, index) {
+                        return _buildUserCard(_filteredUsers[index]);
+                      },
+                    ),
+                  ),
 
-                // Pending Verification Tab
-                _isLoading
-                    ? _buildLoadingIndicator()
-                    : RefreshIndicator(
-                        onRefresh: _refreshData,
-                        color: const Color(0xFF00C49A),
-                        child: _filteredPendingUsers.isEmpty
-                            ? ListView(
-                                children: [
-                                  SizedBox(
-                                      height:
-                                          MediaQuery.of(context).size.height *
-                                              0.3),
-                                  _buildEmptyState(
-                                    icon: Icons.person_add_disabled,
-                                    message: 'No pending verification users',
-                                    button: ElevatedButton.icon(
-                                      onPressed: _openQRScanner,
-                                      icon: const Icon(Icons.qr_code_scanner),
-                                      label: const Text('Scan QR Code'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            const Color(0xFF00C49A),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 20, vertical: 12),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                      ),
-                                    ),
+                  // Pending Verification Tab
+                  _buildTabContent(
+                    isLoading: _isLoading,
+                    isEmpty: _filteredPendingUsers.isEmpty,
+                    onRefresh: _refreshData,
+                    emptyWidget: Stack(
+                      children: [
+                        ListView(
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.2,
+                            ),
+                            _buildEmptyState(
+                              icon: Icons.person_add_outlined,
+                              message: 'No pending verification users',
+                              subMessage: 'Scan a QR code to verify a new user',
+                              button: ElevatedButton.icon(
+                                onPressed: _openQRScanner,
+                                icon: const Icon(Icons.qr_code_scanner),
+                                label: const Text('Scan QR Code'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF00C49A),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
                                   ),
-                                ],
-                              )
-                            : ListView.builder(
-                                padding:
-                                    const EdgeInsets.only(top: 8, bottom: 16),
-                                itemCount: _filteredPendingUsers.length,
-                                itemBuilder: (context, index) {
-                                  return _buildPendingUserCard(
-                                      _filteredPendingUsers[index]);
-                                },
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
-                      ),
-              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    contentWidget: ListView.builder(
+                      padding: const EdgeInsets.only(top: 8, bottom: 16),
+                      itemCount: _filteredPendingUsers.length,
+                      itemBuilder: (context, index) {
+                        return _buildPendingUserCard(
+                            _filteredPendingUsers[index]);
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       floatingActionButton: _tabController.index == 1
           ? FloatingActionButton(
               onPressed: _openQRScanner,
               backgroundColor: const Color(0xFF00C49A),
               foregroundColor: Colors.white,
-              elevation: 4,
+              elevation: 2,
               child: const Icon(Icons.qr_code_scanner),
             )
           : null,
+    );
+  }
+
+  Widget _buildTabContent({
+    required bool isLoading,
+    required bool isEmpty,
+    required Future<void> Function() onRefresh,
+    required Widget emptyWidget,
+    required Widget contentWidget,
+  }) {
+    return isLoading
+        ? _buildLoadingIndicator()
+        : RefreshIndicator(
+            onRefresh: onRefresh,
+            color: const Color(0xFF00C49A),
+            child: isEmpty ? emptyWidget : contentWidget,
+          );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return Container(
+      color: Colors.white,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  const Color(0xFF00C49A).withOpacity(0.8),
+                ),
+                strokeWidth: 3,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _isInitialLoad ? 'Loading users...' : 'Refreshing...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -568,6 +637,10 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       decoration: const BoxDecoration(
         color: Color(0xFF00C49A),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -577,7 +650,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
               Text(
                 _communityName,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -585,10 +658,10 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
               const Spacer(),
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: Colors.white.withOpacity(0.3),
                     width: 1,
@@ -598,7 +671,9 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      Icons.people,
+                      _tabController.index == 0
+                          ? Icons.people
+                          : Icons.pending_outlined,
                       size: 14,
                       color: Colors.white.withOpacity(0.9),
                     ),
@@ -618,45 +693,57 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            height: 40,
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Row(
               children: [
-                const Icon(Icons.search, size: 16, color: Colors.grey),
-                const SizedBox(width: 8),
+                const SizedBox(width: 16),
+                Icon(Icons.search, size: 20, color: Colors.grey[400]),
+                const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
                     controller: _searchController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Search members...',
-                      hintStyle: TextStyle(fontSize: 14),
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 15,
+                      ),
                       border: InputBorder.none,
                       isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ),
                 if (_searchController.text.isNotEmpty)
                   GestureDetector(
-                    onTap: () {
-                      _searchController.clear();
-                    },
-                    child:
-                        const Icon(Icons.close, size: 16, color: Colors.grey),
+                    onTap: () => _searchController.clear(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child:
+                          Icon(Icons.close, size: 20, color: Colors.grey[400]),
+                    ),
                   ),
+                const SizedBox(width: 8),
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           if (_tabController.index == 0)
             SizedBox(
-              height: 28,
+              height: 32,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: _filterOptions.map((filter) {
@@ -667,12 +754,12 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                       label: Text(
                         filter,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: isSelected
-                              ? const Color(0xFF00C49A)
-                              : Colors.black87,
+                              ? Colors.white
+                              : Colors.black.withOpacity(0.7),
                           fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
+                              isSelected ? FontWeight.w600 : FontWeight.normal,
                         ),
                       ),
                       selected: isSelected,
@@ -683,65 +770,25 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                         });
                       },
                       backgroundColor: Colors.white,
-                      selectedColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      selectedColor: const Color(0xFF00C49A),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                       visualDensity: VisualDensity.compact,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(
+                          color: isSelected
+                              ? const Color(0xFF00C49A)
+                              : Colors.grey.withOpacity(0.2),
+                          width: 1,
+                        ),
                       ),
                     ),
                   );
                 }).toList(),
               ),
-            )
-          else
-            SizedBox(
-              height: 28,
-              child: ElevatedButton.icon(
-                onPressed: _openQRScanner,
-                icon: const Icon(Icons.qr_code_scanner,
-                    color: Colors.white, size: 14),
-                label: const Text('Scan QR Code',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withOpacity(0.3),
-                  elevation: 0,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                  minimumSize: const Size(0, 28),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(color: Colors.white.withOpacity(0.3)),
-                  ),
-                ),
-              ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingIndicator() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _isInitialLoad ? 'Loading users...' : 'Refreshing...',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
-          ),
         ],
       ),
     );
@@ -757,16 +804,24 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            size: 64,
-            color: Colors.grey[300],
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 40,
+              color: Colors.grey[400],
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Text(
             message,
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w500,
               color: Colors.grey[600],
             ),
@@ -779,6 +834,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                 fontSize: 14,
                 color: Colors.grey[500],
               ),
+              textAlign: TextAlign.center,
             ),
           ],
           if (button != null) ...[
