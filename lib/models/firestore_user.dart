@@ -15,6 +15,8 @@ class FirestoreUser {
   final String role;
   final DateTime createdAt;
   final String? profileImageUrl;
+  final String registrationId;
+  final String verificationStatus;
 
   // Get full name by combining first, middle, and last names
   String get fullName {
@@ -39,6 +41,8 @@ class FirestoreUser {
     required this.role,
     required this.createdAt,
     this.profileImageUrl,
+    required this.registrationId,
+    required this.verificationStatus,
   });
 
   Map<String, dynamic> toMap() {
@@ -58,6 +62,8 @@ class FirestoreUser {
       'role': role,
       'createdAt': Timestamp.fromDate(createdAt),
       if (profileImageUrl != null) 'profileImageUrl': profileImageUrl,
+      'registrationId': registrationId,
+      'verificationStatus': verificationStatus,
     };
   }
 
@@ -98,6 +104,8 @@ class FirestoreUser {
       role: map['role'] ?? '',
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       profileImageUrl: map['profileImageUrl'],
+      registrationId: map['registrationId'] ?? '',
+      verificationStatus: map['verificationStatus'] ?? 'pending',
     );
   }
 }

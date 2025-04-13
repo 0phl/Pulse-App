@@ -2,9 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import '../models/admin_user.dart';
 import '../models/community.dart';
 import '../models/community_notice.dart';
+import '../models/firestore_user.dart';
 import '../models/report.dart';
 import '../services/community_service.dart';
 import 'engagement_service.dart';
@@ -24,6 +26,7 @@ class AdminService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('No user logged in');
 
+    // Get admin's community ID
     final adminDoc = await _usersCollection.doc(user.uid).get();
     if (!adminDoc.exists) throw Exception('Admin not found');
 
@@ -36,20 +39,41 @@ class AdminService {
 
     final usersData = usersSnapshot.value as Map<dynamic, dynamic>;
     List<Map<String, dynamic>> communityUsers = [];
+    List<String> userIds = [];
 
+    // First pass: Get all users from RTDB
     usersData.forEach((key, value) {
       if (value is Map &&
           value['communityId'] == communityId &&
           value['role'] == 'member') {
+        // Get verification status
+        final verificationStatus = value['verificationStatus'] ?? 'pending';
+
+        // Add to list of user IDs to check in Firestore
+        userIds.add(key);
+
+        // Get basic info from RTDB
+        // Handle both new format (firstName, lastName) and old format (fullName)
+        String fullName = '';
+        if (value['firstName'] != null && value['lastName'] != null) {
+          fullName = value['middleName'] != null && value['middleName'].toString().isNotEmpty
+              ? '${value['firstName']} ${value['middleName']} ${value['lastName']}'
+              : '${value['firstName']} ${value['lastName']}';
+        } else if (value['fullName'] != null) {
+          fullName = value['fullName'];
+        }
+
         communityUsers.add({
           'uid': key,
-          'fullName': value['fullName'] ?? '',
+          'fullName': fullName,
           'email': value['email'] ?? '',
           'mobile': value['mobile'] ?? '',
           'address': value['address'] ?? '',
           'barangay': value['location']?['barangay'] ?? '',
           'createdAt':
               DateTime.fromMillisecondsSinceEpoch(value['createdAt'] ?? 0),
+          'isActive': value['isActive'] ?? false,
+          'verificationStatus': verificationStatus,
         });
       }
     });
@@ -58,13 +82,59 @@ class AdminService {
     communityUsers.sort((a, b) =>
         (b['createdAt'] as DateTime).compareTo(a['createdAt'] as DateTime));
 
+    // Check Firestore for verification status for all users
+    // This is important to ensure we have the most accurate status
+    await _checkAllUsersVerificationStatus(userIds, communityUsers);
+
     return communityUsers;
+  }
+
+  // Helper method to check Firestore for verification statuses for all users
+  Future<void> _checkAllUsersVerificationStatus(
+      List<String> userIds, List<Map<String, dynamic>> communityUsers) async {
+    // Process in batches to avoid overloading Firestore
+    const batchSize = 10;
+    for (var i = 0; i < userIds.length; i += batchSize) {
+      final end = (i + batchSize < userIds.length) ? i + batchSize : userIds.length;
+      final batch = userIds.sublist(i, end);
+
+      // Process each batch in parallel
+      await Future.wait(batch.map((userId) async {
+        try {
+          // Find the user in our local list
+          final userIndex = communityUsers.indexWhere((user) => user['uid'] == userId);
+          if (userIndex == -1) return; // Skip if user not found in our list
+
+          // Check Firestore for verification status
+          final userDoc = await _usersCollection.doc(userId).get();
+          if (userDoc.exists) {
+            final userData = userDoc.data() as Map<String, dynamic>;
+            final verificationStatus = userData['verificationStatus'] ?? 'pending';
+            final isActive = verificationStatus == 'verified';
+
+            // Update our local list for immediate UI update
+            communityUsers[userIndex]['verificationStatus'] = verificationStatus;
+            communityUsers[userIndex]['isActive'] = isActive;
+
+            // Update RTDB with the verification status if it's different
+            if (communityUsers[userIndex]['verificationStatus'] != verificationStatus ||
+                communityUsers[userIndex]['isActive'] != isActive) {
+              await _database.child('users').child(userId).update({
+                'isActive': isActive,
+                'verificationStatus': verificationStatus,
+              });
+            }
+          }
+        } catch (e) {
+          // Just log errors but don't interrupt the process
+          debugPrint('Firestore verification check error for user $userId: $e');
+        }
+      }));
+    }
   }
 
   // Collection references
   CollectionReference get _usersCollection => _firestore.collection('users');
-  CollectionReference get _communitiesCollection =>
-      _firestore.collection('communities');
   CollectionReference get _reportsCollection =>
       _firestore.collection('reports');
   CollectionReference get _volunteerPostsCollection =>
@@ -116,28 +186,63 @@ class AdminService {
     final usersData = usersSnapshot.value as Map<dynamic, dynamic>;
     final lastWeek = DateTime.now().subtract(const Duration(days: 7));
 
-    int totalUsers = 0;
-    int communityUsers = 0;
-    int newUsersThisWeek = 0;
+    // First collect all users from RTDB
+    List<String> communityUserIds = [];
+    List<String> allUserIds = [];
+    Map<String, DateTime> userCreationDates = {};
 
     usersData.forEach((key, value) {
       if (value is Map && value['role'] == 'member') {
-        totalUsers++;
+        allUserIds.add(key);
       }
+
       if (value is Map &&
           value['communityId'] == communityId &&
           value['role'] != 'admin' &&
           value['role'] != 'super_admin') {
-        communityUsers++;
+        communityUserIds.add(key);
 
-        // Count new users in the last 7 days
-        final createdAt =
-            DateTime.fromMillisecondsSinceEpoch(value['createdAt'] ?? 0);
-        if (createdAt.isAfter(lastWeek)) {
-          newUsersThisWeek++;
-        }
+        // Store creation date for later use
+        final createdAt = DateTime.fromMillisecondsSinceEpoch(value['createdAt'] ?? 0);
+        userCreationDates[key] = createdAt;
       }
     });
+
+    // Variables to track counts
+    int totalUsers = 0;
+    int communityUsers = 0;
+    int newUsersThisWeek = 0;
+
+    // Now check Firestore for verification status
+    // Process in batches to avoid overloading Firestore
+    const batchSize = 10;
+    for (var i = 0; i < communityUserIds.length; i += batchSize) {
+      final end = (i + batchSize < communityUserIds.length) ? i + batchSize : communityUserIds.length;
+      final batch = communityUserIds.sublist(i, end);
+
+      await Future.wait(batch.map((userId) async {
+        try {
+          final userDoc = await _usersCollection.doc(userId).get();
+          if (userDoc.exists) {
+            final userData = userDoc.data() as Map<String, dynamic>;
+            final verificationStatus = userData['verificationStatus'] ?? 'pending';
+
+            if (verificationStatus == 'verified') {
+              communityUsers++;
+              totalUsers++;
+
+              // Check if this is a new user
+              final createdAt = userCreationDates[userId];
+              if (createdAt != null && createdAt.isAfter(lastWeek)) {
+                newUsersThisWeek++;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error checking verification status for user $userId: $e');
+        }
+      }));
+    }
 
     return {
       'totalUsers': totalUsers,
@@ -204,6 +309,8 @@ class AdminService {
         final userStats = await getUserStats();
         communityUsers = userStats['communityUsers'] as int? ?? 4;
       } catch (userStatsError) {
+        // Continue with default value if there's an error getting user stats
+        debugPrint('Error getting user stats: $userStatsError');
       }
 
       // Return default values in case of any error
@@ -454,7 +561,8 @@ class AdminService {
             if (value is Map) {
               final createdAtMillis = value['createdAt'] as int?;
               if (createdAtMillis != null && createdAtMillis >= startMillis) {
-                final createdAtDate = DateTime.fromMillisecondsSinceEpoch(createdAtMillis);
+                final createdAtDate =
+                    DateTime.fromMillisecondsSinceEpoch(createdAtMillis);
                 final dayIndex = createdAtDate.difference(startDate).inDays;
                 if (dayIndex >= 0 && dayIndex < 7) {
                   dailyActivity[dayIndex]++;
@@ -465,8 +573,7 @@ class AdminService {
             // Skip this notice if there's an error
           }
         });
-      } else {
-      }
+      } else {}
     } catch (e) {
       // Continue with current data
     }
@@ -534,13 +641,30 @@ class AdminService {
     final user = _auth.currentUser;
     if (user == null) return false;
 
+    // First check Firestore
     final userDoc = await _usersCollection.doc(user.uid).get();
-    if (!userDoc.exists) return false;
+    if (userDoc.exists) {
+      final userData = userDoc.data() as Map<String, dynamic>;
+      if (userData['role'] == 'community_admin' ||
+          userData['role'] == 'admin' ||
+          userData['role'] == 'super_admin') {
+        return true;
+      }
+    }
 
-    final userData = userDoc.data() as Map<String, dynamic>;
-    return userData['role'] == 'community_admin' ||
-        userData['role'] == 'admin' ||
-        userData['role'] == 'super_admin';
+    // If not found in Firestore or not an admin there, check RTDB
+    try {
+      final rtdbSnapshot = await _database.child('users').child(user.uid).get();
+      if (rtdbSnapshot.exists) {
+        final rtdbData = rtdbSnapshot.value as Map<dynamic, dynamic>;
+        final role = rtdbData['role'] as String?;
+        return role == 'community_admin' || role == 'admin' || role == 'super_admin';
+      }
+    } catch (e) {
+      debugPrint('Error checking RTDB for admin role: $e');
+    }
+
+    return false;
   }
 
   // Create new admin (only for super admin use)
@@ -615,7 +739,6 @@ class AdminService {
   // Delete admin
   Future<void> deleteAdmin(String adminId) async {
     await _usersCollection.doc(adminId).delete();
-
   }
 
   // Get reports for admin's community
@@ -673,8 +796,8 @@ class AdminService {
     final weekStart = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: now.weekday - 1));
 
-    print('Week start date: $weekStart');
-    print('Current date: $now');
+    debugPrint('Week start date: $weekStart');
+    debugPrint('Current date: $now');
 
     final reportsQuery = await _reportsCollection
         .where('communityId', isEqualTo: community.id)
@@ -700,13 +823,14 @@ class AdminService {
       // Update weekly data if report was created this week
       if (createdAt.isAfter(weekStart)) {
         final dayDiff = createdAt.difference(weekStart).inDays;
-        print('Report created at: $createdAt, day diff from week start: $dayDiff');
+        debugPrint(
+            'Report created at: $createdAt, day diff from week start: $dayDiff');
         if (dayDiff >= 0 && dayDiff < 7) {
           weeklyData[dayDiff]++;
-          print('Updated weeklyData[$dayDiff] = ${weeklyData[dayDiff]}');
+          debugPrint('Updated weeklyData[$dayDiff] = ${weeklyData[dayDiff]}');
         }
       } else {
-        print('Report created at: $createdAt is before week start: $weekStart');
+        debugPrint('Report created at: $createdAt is before week start: $weekStart');
       }
     }
 
@@ -747,7 +871,7 @@ class AdminService {
       'avgResolutionTime': avgResolutionTime.toStringAsFixed(1),
     };
 
-    print('Final weeklyData: ${result["weeklyData"]}');
+    debugPrint('Final weeklyData: ${result["weeklyData"]}');
     return result;
   }
 
@@ -1143,5 +1267,305 @@ class AdminService {
         'date': data['soldAt'] ?? data['createdAt'],
       };
     }).toList();
+  }
+
+  // Get pending verification users
+  Future<List<FirestoreUser>> getPendingVerificationUsers() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('No user logged in');
+      }
+
+      final adminDoc = await _usersCollection.doc(user.uid).get();
+      if (!adminDoc.exists) {
+        throw Exception('Admin not found');
+      }
+
+      final adminData = adminDoc.data() as Map<String, dynamic>;
+      final communityId = adminData['communityId'] as String;
+
+      // First check RTDB for pending users - this is faster for initial display
+      final usersSnapshot = await _database.child('users').get();
+      List<FirestoreUser> pendingUsers = [];
+      Set<String> pendingUserIds = {}; // To track users we've already added
+
+      if (usersSnapshot.exists) {
+        final usersData = usersSnapshot.value as Map<dynamic, dynamic>;
+
+        // Find users with pending status in RTDB
+        for (var entry in usersData.entries) {
+          final key = entry.key;
+          final value = entry.value;
+
+          if (value is Map &&
+              value['communityId'] == communityId &&
+              value['role'] == 'member') {
+
+            // Check if user is pending in RTDB
+            final verificationStatus = value['verificationStatus'];
+            final isPending = verificationStatus == 'pending' ||
+                           (value['isActive'] == false && verificationStatus == null);
+
+            if (isPending) {
+              try {
+                // Create a FirestoreUser from RTDB data
+                final birthDate = value['birthDate'] != null
+                    ? DateTime.parse(value['birthDate'])
+                    : DateTime.now();
+
+                final location = value['location'] is Map
+                    ? Map<String, String>.from(value['location'].map((k, v) => MapEntry(k.toString(), v.toString())))
+                    : <String, String>{};
+
+                final createdAt = value['createdAt'] != null
+                    ? DateTime.fromMillisecondsSinceEpoch(value['createdAt'])
+                    : DateTime.now();
+
+                // Extract name components from fullName if available
+                String firstName = value['firstName'] ?? '';
+                String? middleName = value['middleName'];
+                String lastName = value['lastName'] ?? '';
+
+                // If we don't have firstName/lastName but have fullName, parse it
+                if ((firstName.isEmpty || lastName.isEmpty) && value['fullName'] != null) {
+                  final nameParts = (value['fullName'] as String).split(' ');
+                  if (nameParts.length >= 2) {
+                    firstName = nameParts.first;
+                    lastName = nameParts.last;
+                    if (nameParts.length > 2) {
+                      // Join any middle parts as the middle name
+                      middleName = nameParts.sublist(1, nameParts.length - 1).join(' ');
+                    }
+                  } else if (nameParts.length == 1) {
+                    firstName = nameParts.first;
+                    lastName = '';
+                  }
+                }
+
+                pendingUsers.add(FirestoreUser(
+                  uid: key,
+                  firstName: firstName,
+                  middleName: middleName,
+                  lastName: lastName,
+                  username: value['username'] ?? '',
+                  email: value['email'] ?? '',
+                  mobile: value['mobile'] ?? '',
+                  birthDate: birthDate,
+                  address: value['address'] ?? '',
+                  location: location,
+                  communityId: value['communityId'] ?? '',
+                  role: value['role'] ?? 'member',
+                  createdAt: createdAt,
+                  profileImageUrl: value['profileImageUrl'],
+                  registrationId: value['registrationId'] ?? '',
+                  verificationStatus: 'pending',
+                ));
+
+                pendingUserIds.add(key);
+              } catch (e) {
+                debugPrint('Error creating FirestoreUser from RTDB: $e');
+                // Continue to next user
+              }
+            }
+          }
+        }
+      }
+
+      // Then check Firestore for any additional pending users
+      // This runs in the background and doesn't block the UI
+      _checkFirestoreForPendingUsers(communityId, pendingUsers, pendingUserIds);
+
+      return pendingUsers;
+    } catch (e) {
+      debugPrint('ERROR getting pending verification users: $e');
+      rethrow;
+    }
+  }
+
+  // Helper method to check Firestore for additional pending users
+  Future<void> _checkFirestoreForPendingUsers(
+      String communityId, List<FirestoreUser> pendingUsers, Set<String> existingUserIds) async {
+    try {
+      // Query Firestore for pending users
+      final usersQuery = await _usersCollection
+          .where('communityId', isEqualTo: communityId)
+          .where('role', isEqualTo: 'member')
+          .where('verificationStatus', isEqualTo: 'pending')
+          .get();
+
+      // Process Firestore users
+      for (var doc in usersQuery.docs) {
+        final userData = doc.data() as Map<String, dynamic>;
+        final uid = userData['uid'] ?? doc.id;
+
+        // Only add users we haven't already added from RTDB
+        if (!existingUserIds.contains(uid)) {
+          try {
+            final firestoreUser = FirestoreUser.fromMap(userData);
+
+            // Update the UI list (this won't be visible until next refresh)
+            // but it will update the database for future queries
+            pendingUsers.add(firestoreUser);
+
+            // Update RTDB with verification status
+            await _database.child('users').child(uid).update({
+              'verificationStatus': 'pending',
+              'isActive': false,
+            });
+          } catch (e) {
+            debugPrint('Error processing Firestore user $uid: $e');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking Firestore for pending users: $e');
+    }
+  }
+
+  // Get user by registration ID
+  Future<FirestoreUser?> getUserByRegistrationId(String registrationId) async {
+    debugPrint('===== GETTING USER BY REGISTRATION ID =====');
+    debugPrint('Registration ID: $registrationId');
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('ERROR: No user logged in');
+        throw Exception('No user logged in');
+      }
+      debugPrint('Admin ID: ${user.uid}');
+
+      final adminDoc = await _usersCollection.doc(user.uid).get();
+      if (!adminDoc.exists) {
+        debugPrint('ERROR: Admin document not found');
+        throw Exception('Admin not found');
+      }
+      debugPrint('Admin document found');
+
+      final adminData = adminDoc.data() as Map<String, dynamic>;
+      final communityId = adminData['communityId'] as String;
+      debugPrint('Admin community ID: $communityId');
+
+      // Find user with this registration ID in admin's community
+      debugPrint('Querying Firestore for user with registration ID...');
+      final usersQuery = await _usersCollection
+          .where('communityId', isEqualTo: communityId)
+          .where('registrationId', isEqualTo: registrationId)
+          .where('verificationStatus', isEqualTo: 'pending')
+          .limit(1)
+          .get();
+
+      debugPrint('Query completed. Found ${usersQuery.docs.length} users');
+
+      if (usersQuery.docs.isEmpty) {
+        debugPrint('No user found with this registration ID');
+        return null;
+      }
+
+      final userData = usersQuery.docs.first.data() as Map<String, dynamic>;
+      debugPrint('User found: ${userData['fullName']} (${userData['uid']})');
+
+      final foundUser = FirestoreUser.fromMap(userData);
+      debugPrint('===== USER RETRIEVED SUCCESSFULLY =====');
+      return foundUser;
+    } catch (e) {
+      debugPrint('ERROR getting user by registration ID: $e');
+      rethrow;
+    }
+  }
+
+  // Update user verification status
+  Future<void> updateUserVerificationStatus(
+      String userId, String verificationStatus) async {
+    try {
+      debugPrint('===== STARTING USER VERIFICATION PROCESS =====');
+      debugPrint('User ID: $userId');
+      debugPrint('New status: $verificationStatus');
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('ERROR: No user logged in');
+        throw Exception('No user logged in');
+      }
+      debugPrint('Admin ID: ${user.uid}');
+
+      final adminDoc = await _usersCollection.doc(user.uid).get();
+      if (!adminDoc.exists) {
+        debugPrint('ERROR: Admin document not found in Firestore');
+        throw Exception('Admin not found');
+      }
+      debugPrint('Admin document found in Firestore');
+
+      final adminData = adminDoc.data() as Map<String, dynamic>;
+      final communityId = adminData['communityId'] as String;
+      debugPrint('Admin community ID: $communityId');
+
+      // Verify user belongs to admin's community
+      final userDoc = await _usersCollection.doc(userId).get();
+      if (!userDoc.exists) {
+        debugPrint('ERROR: User document not found in Firestore');
+        throw Exception('User not found');
+      }
+      debugPrint('User document found in Firestore');
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+      debugPrint('User community ID: ${userData['communityId']}');
+      if (userData['communityId'] != communityId) {
+        debugPrint('ERROR: User belongs to a different community');
+        throw Exception(
+            'Permission denied: User belongs to a different community');
+      }
+
+      // Update Firestore
+      debugPrint('Updating user verification status in Firestore...');
+      try {
+        await _usersCollection.doc(userId).update({
+          'verificationStatus': verificationStatus,
+          'verifiedAt': verificationStatus == 'verified'
+              ? FieldValue.serverTimestamp()
+              : null,
+          'verifiedBy': verificationStatus == 'verified' ? user.uid : null,
+        });
+        debugPrint('Firestore update successful');
+      } catch (firestoreError) {
+        debugPrint('ERROR updating Firestore: $firestoreError');
+        throw Exception('Failed to update user in Firestore: $firestoreError');
+      }
+
+      // Update RTDB to reflect verification status
+      debugPrint('Updating user verification status in RTDB...');
+      try {
+        // Set isActive based on verification status
+        final isActive = verificationStatus == 'verified';
+        await _database.child('users').child(userId).update({
+          'isActive': isActive,
+          'verificationStatus': verificationStatus,
+          'verifiedAt': ServerValue.timestamp,
+        });
+        debugPrint('RTDB update successful');
+      } catch (rtdbError) {
+        debugPrint('ERROR updating RTDB: $rtdbError');
+        // Don't throw here, as Firestore is our source of truth for verification
+        // Just log the error and continue
+      }
+
+      // Add audit log
+      debugPrint('Adding audit log...');
+      await _auditLogsCollection.add({
+        'adminId': user.uid,
+        'userId': userId,
+        'action': 'user_verification_update',
+        'details': {
+          'verificationStatus': verificationStatus,
+        },
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      debugPrint('Audit log added successfully');
+      debugPrint('===== USER VERIFICATION PROCESS COMPLETED =====');
+    } catch (e) {
+      debugPrint('CRITICAL ERROR in updateUserVerificationStatus: $e');
+      rethrow; // Re-throw to let the UI handle it
+    }
   }
 }

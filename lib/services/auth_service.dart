@@ -95,8 +95,7 @@ class AuthService {
             'requiresPasswordChange': isFirstLogin,
           };
         }
-      } else {
-      }
+      } else {}
 
       // Regular user login
       return {
@@ -125,6 +124,8 @@ class AuthService {
     required Map<String, String> location,
     required String communityId,
     String? profileImageUrl,
+    required String registrationId,
+    required String verificationStatus,
   }) async {
     try {
       // Check if community is active (has approved admin)
@@ -166,6 +167,8 @@ class AuthService {
         'role': 'member',
         'createdAt': ServerValue.timestamp,
         if (profileImageUrl != null) 'profileImageUrl': profileImageUrl,
+        'registrationId': registrationId,
+        // Removed verificationStatus from RTDB since we're using Firestore for verification
       });
 
       // Create matching Firestore user document
@@ -184,6 +187,8 @@ class AuthService {
         role: 'member',
         createdAt: DateTime.now(),
         profileImageUrl: profileImageUrl,
+        registrationId: registrationId,
+        verificationStatus: verificationStatus,
       );
 
       await _firestore

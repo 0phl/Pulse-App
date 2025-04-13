@@ -10,6 +10,7 @@ class RegistrationData {
   final String address;
   final Map<String, String> location;
   final String? profileImageUrl;
+  final String registrationId;
 
   RegistrationData({
     required this.firstName,
@@ -23,6 +24,7 @@ class RegistrationData {
     required this.address,
     required this.location,
     this.profileImageUrl,
+    required this.registrationId,
   });
 
   // Get full name by combining first, middle, and last names
@@ -47,6 +49,8 @@ class RegistrationData {
       'address': address,
       'location': location,
       if (profileImageUrl != null) 'profileImageUrl': profileImageUrl,
+      'registrationId': registrationId,
+      'verificationStatus': 'pending',
     };
   }
 }

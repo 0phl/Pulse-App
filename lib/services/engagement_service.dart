@@ -6,7 +6,7 @@ class EngagementService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _database = FirebaseDatabase.instance;
-  
+
   // Cache for user roles to reduce database queries
   final Map<String, String> _userRoleCache = {};
 
@@ -50,10 +50,10 @@ class EngagementService {
 
       final userData = userDoc.data() as Map<String, dynamic>;
       final role = userData['role'] as String;
-      
+
       // Cache the result
       _userRoleCache[user.uid] = role;
-      
+
       return role == 'admin' || role == 'super_admin';
     } catch (e) {
       return false;
@@ -73,10 +73,10 @@ class EngagementService {
 
       final userData = userDoc.data() as Map<String, dynamic>;
       final role = userData['role'] as String;
-      
+
       // Cache the result
       _userRoleCache[userId] = role;
-      
+
       return role;
     } catch (e) {
       return null;
@@ -106,25 +106,36 @@ class EngagementService {
           membersCount = communityData['membersCount'] as int? ?? 0;
         }
 
-        // If we can't get from community doc, try counting users
+        // If we can't get from community doc, try counting verified users only
         if (membersCount == 0) {
           final usersQuery = await _usersCollection
               .where('communityId', isEqualTo: communityId)
               .where('role', whereIn: ['member', 'user'])
+              .where('verificationStatus', isEqualTo: 'verified')
               .count()
               .get();
           membersCount = usersQuery.count ?? 0;
         }
       } catch (e) {
-        // Default to 4 if we can't get the actual count
-        membersCount = 4;
+        membersCount = 4; // Default value
       }
 
-      // Calculate engagement metrics for the last 30 days
-      final lastMonth = DateTime.now().subtract(const Duration(days: 30));
-      final lastMonthTimestamp = Timestamp.fromDate(lastMonth);
+      // Calculate engagement metrics for different time periods
+      final now = DateTime.now();
+      final lastDay = now.subtract(const Duration(days: 1));
+      final lastWeek = now.subtract(const Duration(days: 7));
+      final lastMonth = now.subtract(const Duration(days: 30));
 
-      // Initialize counters for engagement components
+      // Initialize engagement components with weights
+      final engagementWeights = {
+        'userLikesComments': 0.25, // 25% weight for user interactions
+        'volunteerParticipation': 0.20, // 20% weight for volunteer activities
+        'marketplaceActivity': 0.15, // 15% weight for marketplace engagement
+        'reportSubmissions': 0.15, // 15% weight for community reporting
+        'chatActivity': 0.15, // 15% weight for chat engagement
+        'adminInteractions': 0.10, // 10% weight for admin responsiveness
+      };
+
       Map<String, int> engagementComponents = {
         'userLikesComments': 0,
         'volunteerParticipation': 0,
@@ -134,14 +145,15 @@ class EngagementService {
         'adminInteractions': 0,
       };
 
-      // Tracking for total activities and possible activities
-      int totalActivities = 0;
-      int possibleActivities = 0;
+      // Track activity recency
+      Map<String, int> recentActivity = {
+        'lastDay': 0,
+        'lastWeek': 0,
+        'lastMonth': 0,
+      };
 
-      // 1. USER INTERACTIONS - Likes and comments on community notices
+      // 1. USER INTERACTIONS (Likes and Comments)
       try {
-
-        // Get notices directly from RTDB instead of Firestore
         final noticesSnapshot = await _database
             .ref()
             .child('community_notices')
@@ -149,102 +161,61 @@ class EngagementService {
             .equalTo(communityId)
             .get();
 
-        if (!noticesSnapshot.exists) {
-          // Skip this section if no notices exist
-          engagementComponents['userLikesComments'] = 0;
-          engagementComponents['adminInteractions'] = 0;
-          // Continue with other engagement calculations instead of returning early
-        } else {
+        if (noticesSnapshot.exists) {
+          final noticesData = noticesSnapshot.value as Map<dynamic, dynamic>;
+          int totalInteractions = 0;
+          int recentDayInteractions = 0;
+          int recentWeekInteractions = 0;
+          int recentMonthInteractions = 0;
 
-        final noticesData = noticesSnapshot.value as Map<dynamic, dynamic>;
+          noticesData.forEach((key, value) {
+            if (value is Map) {
+              // Count likes
+              if (value['likes'] is Map) {
+                final likes = value['likes'] as Map;
+                totalInteractions += likes.length;
 
-        // Convert to list of entries for processing
-        final noticeEntries = noticesData.entries.toList();
+                // Check recency
+                likes.forEach((_, likeData) {
+                  if (likeData is Map && likeData['timestamp'] != null) {
+                    final timestamp = DateTime.fromMillisecondsSinceEpoch(
+                        likeData['timestamp']);
+                    if (timestamp.isAfter(lastDay)) recentDayInteractions++;
+                    if (timestamp.isAfter(lastWeek)) recentWeekInteractions++;
+                    if (timestamp.isAfter(lastMonth)) recentMonthInteractions++;
+                  }
+                });
+              }
 
-        // Filter for recent notices (last 30 days)
-        final recentNotices = noticeEntries.where((entry) {
-          final noticeData = entry.value as Map<dynamic, dynamic>;
-          final createdAt = noticeData['createdAt'] as int?;
-          return createdAt != null &&
-                 DateTime.fromMillisecondsSinceEpoch(createdAt).isAfter(lastMonth);
-        }).toList();
+              // Count comments
+              if (value['comments'] is Map) {
+                final comments = value['comments'] as Map;
+                totalInteractions += comments.length;
 
-
-        int noticeCount = recentNotices.length;
-        int totalLikes = 0;
-        int totalComments = 0;
-        int adminLikes = 0;
-        int adminComments = 0;
-        int adminInteractions = 0;
-
-        for (var entry in recentNotices) {
-          final noticeId = entry.key.toString();
-          final noticeData = entry.value as Map<dynamic, dynamic>;
-
-          // Process likes and comments directly from the notice data
-
-          // Count likes
-          if (noticeData.containsKey('likes') && noticeData['likes'] != null) {
-            final likes = noticeData['likes'] as Map<dynamic, dynamic>;
-            totalLikes += likes.length;
-            // Check for admin likes using cache
-            for (var userId in likes.keys) {
-              try {
-                if (await _isUserAdmin(userId)) {
-                  adminLikes++;
-                  adminInteractions++;
-                }
-              } catch (e) {
+                // Check recency
+                comments.forEach((_, commentData) {
+                  if (commentData is Map && commentData['timestamp'] != null) {
+                    final timestamp = DateTime.fromMillisecondsSinceEpoch(
+                        commentData['timestamp']);
+                    if (timestamp.isAfter(lastDay)) recentDayInteractions++;
+                    if (timestamp.isAfter(lastWeek)) recentWeekInteractions++;
+                    if (timestamp.isAfter(lastMonth)) recentMonthInteractions++;
+                  }
+                });
               }
             }
-          }
+          });
 
-          // Count comments
-          if (noticeData.containsKey('comments') && noticeData['comments'] != null) {
-            final comments = noticeData['comments'] as Map<dynamic, dynamic>;
-            totalComments += comments.length;
-
-            // Check for admin comments
-            for (var comment in comments.values) {
-              if (comment is Map && comment.containsKey('authorId')) {
-                final authorId = comment['authorId'];
-                // Check if the author name contains 'Admin' as a quick check
-                if (comment.containsKey('authorName')) {
-                  final authorName = comment['authorName'].toString();
-                  if (authorName.contains('Admin')) {
-                    adminComments++;
-                    adminInteractions++;
-                    continue; // Skip Firestore check if we already identified as admin
-                  }
-                }
-
-                // Check user role using cache
-                try {
-                  if (await _isUserAdmin(authorId)) {
-                    adminComments++;
-                    adminInteractions++;
-                  }
-                } catch (e) {
-                }
-              }
-            }
-          }
-        }
-
-        // Calculate user interactions by subtracting admin interactions from total
-        int userLikes = totalLikes - adminLikes;
-        int userComments = totalComments - adminComments;
-        int userInteractions = userLikes + userComments;
-
-        engagementComponents['userLikesComments'] = userInteractions;
-        engagementComponents['adminInteractions'] = adminInteractions;
-        totalActivities += userInteractions + noticeCount + adminInteractions;
-
-        // Each notice could be liked and commented by each member
-        possibleActivities +=
-            10 + (noticeCount * (membersCount > 0 ? membersCount * 2 : 2));
+          engagementComponents['userLikesComments'] = totalInteractions;
+          recentActivity['lastDay'] =
+              (recentActivity['lastDay'] ?? 0) + recentDayInteractions;
+          recentActivity['lastWeek'] =
+              (recentActivity['lastWeek'] ?? 0) + recentWeekInteractions;
+          recentActivity['lastMonth'] =
+              (recentActivity['lastMonth'] ?? 0) + recentMonthInteractions;
         }
       } catch (e) {
+        // Continue with other metrics
       }
 
       // 2. VOLUNTEER PARTICIPATION
@@ -253,175 +224,191 @@ class EngagementService {
             .where('communityId', isEqualTo: communityId)
             .get();
 
-        final recentPosts = postsQuery.docs.where((doc) {
+        int totalParticipation = 0;
+        int recentDayParticipation = 0;
+        int recentWeekParticipation = 0;
+        int recentMonthParticipation = 0;
+
+        for (var doc in postsQuery.docs) {
           final data = doc.data() as Map<String, dynamic>;
-          final date = data['date'] as Timestamp?;
-          return date != null && date.toDate().isAfter(lastMonth);
-        }).toList();
-
-        int volunteerPostCount = recentPosts.length;
-        int totalSignups = 0;
-
-        for (var doc in recentPosts) {
-          final data = doc.data() as Map<String, dynamic>;
-
           if (data['joinedUsers'] is List) {
-            totalSignups += (data['joinedUsers'] as List).length;
+            final signups = (data['joinedUsers'] as List).length;
+            totalParticipation += signups;
+
+            final eventDate = (data['date'] as Timestamp).toDate();
+            if (eventDate.isAfter(lastDay)) recentDayParticipation += signups;
+            if (eventDate.isAfter(lastWeek)) recentWeekParticipation += signups;
+            if (eventDate.isAfter(lastMonth))
+              recentMonthParticipation += signups;
           }
         }
 
-        engagementComponents['volunteerParticipation'] = totalSignups;
-        totalActivities += volunteerPostCount + totalSignups;
-
-        // Each post could be joined by each member
-        possibleActivities +=
-            10 + (volunteerPostCount * (membersCount > 0 ? membersCount : 1));
+        engagementComponents['volunteerParticipation'] = totalParticipation;
+        recentActivity['lastDay'] =
+            (recentActivity['lastDay'] ?? 0) + recentDayParticipation;
+        recentActivity['lastWeek'] =
+            (recentActivity['lastWeek'] ?? 0) + recentWeekParticipation;
+        recentActivity['lastMonth'] =
+            (recentActivity['lastMonth'] ?? 0) + recentMonthParticipation;
       } catch (e) {
+        // Continue with other metrics
       }
 
       // 3. MARKETPLACE ACTIVITY
       try {
-        final itemsQuery = await _marketItemsCollection
+        final marketQuery = await _marketItemsCollection
             .where('communityId', isEqualTo: communityId)
+            .where('createdAt', isGreaterThan: lastMonth)
             .get();
 
-        final recentItems = itemsQuery.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final createdAt = data['createdAt'] as Timestamp?;
-          return createdAt != null && createdAt.toDate().isAfter(lastMonth);
-        }).toList();
+        int totalMarketActivity = 0;
+        int recentDayMarket = 0;
+        int recentWeekMarket = 0;
+        int recentMonthMarket = 0;
 
-        int totalItems = recentItems.length;
-        int soldItems = 0;
-
-        for (var doc in recentItems) {
+        for (var doc in marketQuery.docs) {
           final data = doc.data() as Map<String, dynamic>;
-          if (data['isSold'] == true) {
-            soldItems++;
-          }
+          totalMarketActivity++;
+
+          final createdAt = (data['createdAt'] as Timestamp).toDate();
+          if (createdAt.isAfter(lastDay)) recentDayMarket++;
+          if (createdAt.isAfter(lastWeek)) recentWeekMarket++;
+          if (createdAt.isAfter(lastMonth)) recentMonthMarket++;
         }
 
-        int marketplaceActivity = totalItems + soldItems;
-        engagementComponents['marketplaceActivity'] = marketplaceActivity;
-        totalActivities += marketplaceActivity;
-
-        possibleActivities += membersCount > 0 ? membersCount * 2 : 2;
+        engagementComponents['marketplaceActivity'] = totalMarketActivity;
+        recentActivity['lastDay'] =
+            (recentActivity['lastDay'] ?? 0) + recentDayMarket;
+        recentActivity['lastWeek'] =
+            (recentActivity['lastWeek'] ?? 0) + recentWeekMarket;
+        recentActivity['lastMonth'] =
+            (recentActivity['lastMonth'] ?? 0) + recentMonthMarket;
       } catch (e) {
+        // Continue with other metrics
       }
 
       // 4. REPORT SUBMISSIONS
       try {
         final reportsQuery = await _reportsCollection
             .where('communityId', isEqualTo: communityId)
+            .where('submittedAt', isGreaterThan: lastMonth)
             .get();
 
-        final recentReports = reportsQuery.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final createdAt = data['createdAt'] as Timestamp?;
-          return createdAt != null && createdAt.toDate().isAfter(lastMonth);
-        }).toList();
+        int totalReports = 0;
+        int recentDayReports = 0;
+        int recentWeekReports = 0;
+        int recentMonthReports = 0;
 
-        int reportCount = recentReports.length;
-        engagementComponents['reportSubmissions'] = reportCount;
-        totalActivities += reportCount;
-
-        // Count admin interactions with reports (resolutions, rejections)
-        int reportInteractions = 0;
-        for (var doc in recentReports) {
+        for (var doc in reportsQuery.docs) {
           final data = doc.data() as Map<String, dynamic>;
-          // If report has been resolved or rejected by admin, count as interaction
-          if (data['status'] == 'resolved' || data['status'] == 'rejected') {
-            reportInteractions++;
-          }
+          totalReports++;
+
+          final submittedAt = (data['submittedAt'] as Timestamp).toDate();
+          if (submittedAt.isAfter(lastDay)) recentDayReports++;
+          if (submittedAt.isAfter(lastWeek)) recentWeekReports++;
+          if (submittedAt.isAfter(lastMonth)) recentMonthReports++;
         }
 
-        // Add report interactions to admin interactions
-        engagementComponents['adminInteractions'] =
-            (engagementComponents['adminInteractions'] ?? 0) + reportInteractions;
-
-        totalActivities += reportInteractions;
-        possibleActivities += membersCount > 0 ? membersCount : 1;
+        engagementComponents['reportSubmissions'] = totalReports;
+        recentActivity['lastDay'] =
+            (recentActivity['lastDay'] ?? 0) + recentDayReports;
+        recentActivity['lastWeek'] =
+            (recentActivity['lastWeek'] ?? 0) + recentWeekReports;
+        recentActivity['lastMonth'] =
+            (recentActivity['lastMonth'] ?? 0) + recentMonthReports;
       } catch (e) {
+        // Continue with other metrics
       }
 
-      // Get active users data
-      int activeUsers = 0;
+      // 5. ADMIN INTERACTIONS
       try {
-        final userDocs = await _usersCollection
+        final noticesQuery = await _noticesCollection
             .where('communityId', isEqualTo: communityId)
-            .where('role', whereIn: ['member', 'user']).get();
+            .where('createdAt', isGreaterThan: lastMonth)
+            .get();
 
-        for (var doc in userDocs.docs) {
+        int totalAdminInteractions = 0;
+        int recentDayAdmin = 0;
+        int recentWeekAdmin = 0;
+        int recentMonthAdmin = 0;
+
+        for (var doc in noticesQuery.docs) {
           final data = doc.data() as Map<String, dynamic>;
+          if (await _isUserAdmin(data['userId'] as String)) {
+            totalAdminInteractions++;
 
-          // Check last login time if available
-          if (data['lastLoginAt'] != null) {
-            final lastLogin = data['lastLoginAt'] as Timestamp;
-            if (lastLogin.toDate().isAfter(lastMonth)) {
-              activeUsers++;
-            }
+            final createdAt = (data['createdAt'] as Timestamp).toDate();
+            if (createdAt.isAfter(lastDay)) recentDayAdmin++;
+            if (createdAt.isAfter(lastWeek)) recentWeekAdmin++;
+            if (createdAt.isAfter(lastMonth)) recentMonthAdmin++;
           }
         }
+
+        engagementComponents['adminInteractions'] = totalAdminInteractions;
+        recentActivity['lastDay'] =
+            (recentActivity['lastDay'] ?? 0) + recentDayAdmin;
+        recentActivity['lastWeek'] =
+            (recentActivity['lastWeek'] ?? 0) + recentWeekAdmin;
+        recentActivity['lastMonth'] =
+            (recentActivity['lastMonth'] ?? 0) + recentMonthAdmin;
       } catch (e) {
-        // Default to 1 active user if we can't get the count
-        activeUsers = membersCount > 0 ? 1 : 0;
+        // Continue with other metrics
       }
 
-      // Calculate engagement rate
-      int engagementRate = 0;
+      // Calculate weighted engagement score
+      double weightedScore = 0;
+      int nonZeroComponents = 0;
 
-      // Calculate based on activities if we have data
-      if (possibleActivities > 0) {
-        engagementRate = ((totalActivities / possibleActivities) * 100).round();
-        if (engagementRate > 100) engagementRate = 100;
+      engagementWeights.forEach((component, weight) {
+        final value = engagementComponents[component] ?? 0;
+        weightedScore += (value * weight);
+        if (value > 0) nonZeroComponents++;
+      });
+
+      // Adjust score based on component coverage
+      double componentCoverage = nonZeroComponents / engagementWeights.length;
+      weightedScore *= componentCoverage;
+
+      // Calculate recency bonus (more recent activity increases engagement)
+      double recencyMultiplier = 1.0;
+      if (recentActivity['lastDay']! > 0) recencyMultiplier += 0.2;
+      if (recentActivity['lastWeek']! > recentActivity['lastDay']! * 3)
+        recencyMultiplier += 0.15;
+      if (recentActivity['lastMonth']! > recentActivity['lastWeek']! * 2)
+        recencyMultiplier += 0.1;
+
+      // Cap the recency multiplier
+      recencyMultiplier = recencyMultiplier.clamp(1.0, 1.5);
+
+      // Calculate base engagement rate with component coverage factor
+      int baseEngagementRate =
+          ((weightedScore / (membersCount > 0 ? membersCount : 1)) * 100)
+              .round();
+
+      // Apply recency multiplier
+      int finalEngagementRate =
+          (baseEngagementRate * recencyMultiplier).round();
+
+      // Normalize the engagement rate
+      finalEngagementRate = finalEngagementRate.clamp(0, 100);
+
+      // Apply minimum engagement rate for active communities, but consider component coverage
+      if (finalEngagementRate < 15 && recentActivity['lastWeek']! > 0) {
+        finalEngagementRate = (15 * componentCoverage).round();
       }
-
-      // Factor in active users
-      if (membersCount > 0 && activeUsers > 0) {
-        int userEngagement = ((activeUsers / membersCount) * 100).round();
-        // Blend activity-based and user-based metrics
-        engagementRate = (engagementRate * 0.6 + userEngagement * 0.4).round();
-      }
-
-      // Apply fallback for small or new communities
-      if (engagementRate == 0 && membersCount > 0) {
-        bool hasAnyActivity =
-            engagementComponents.values.any((value) => value > 0);
-
-        if (hasAnyActivity) {
-          engagementRate = 40; // 40% for communities with some activity
-        } else {
-          if (membersCount < 10) {
-            engagementRate = 40; // Small communities
-          } else if (membersCount < 50) {
-            engagementRate = 30; // Medium communities
-          } else {
-            engagementRate = 20; // Large communities
-          }
-        }
-      }
-
-      // Ensure minimum engagement rate for active communities
-      if (engagementRate < 15 && membersCount > 0) {
-        engagementRate = 15;
-      }
-
-      // Debug logs
 
       return {
-        'engagementRate': engagementRate,
-        'activeUsers': activeUsers,
-        'totalMembers': membersCount,
+        'engagementRate': finalEngagementRate,
         'engagementComponents': engagementComponents,
-        'totalActivities': totalActivities,
-        'possibleActivities': possibleActivities
+        'activeUsers': recentActivity['lastWeek'],
+        'totalMembers': membersCount,
+        'totalActivities': weightedScore.round(),
+        'recentActivity': recentActivity,
       };
     } catch (e) {
       // Return default values
       return {
         'engagementRate': 40,
-        'activeUsers': 1,
-        'totalMembers': 4,
         'engagementComponents': {
           'userLikesComments': 0,
           'volunteerParticipation': 0,
@@ -430,8 +417,14 @@ class EngagementService {
           'chatActivity': 0,
           'adminInteractions': 0,
         },
+        'activeUsers': 1,
+        'totalMembers': 4,
         'totalActivities': 0,
-        'possibleActivities': 4
+        'recentActivity': {
+          'lastDay': 0,
+          'lastWeek': 0,
+          'lastMonth': 0,
+        },
       };
     }
   }

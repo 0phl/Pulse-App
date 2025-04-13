@@ -3,7 +3,9 @@ import '../../services/auth_service.dart';
 import '../../services/admin_service.dart';
 
 class AdminDrawer extends StatefulWidget {
-  const AdminDrawer({Key? key}) : super(key: key);
+  final String currentPage;
+
+  const AdminDrawer({Key? key, this.currentPage = ''}) : super(key: key);
 
   @override
   State<AdminDrawer> createState() => _AdminDrawerState();
@@ -149,6 +151,7 @@ class _AdminDrawerState extends State<AdminDrawer> {
                     isActive: currentRoute == '/admin/reports',
                     onTap: () => _navigateTo('/admin/reports'),
                   ),
+                  // User Verification menu item removed - functionality consolidated into Manage Users
                 ],
               ),
             ),

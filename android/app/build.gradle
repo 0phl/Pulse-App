@@ -6,8 +6,8 @@ plugins {
     id 'com.google.gms.google-services'
 }
 
-def flutterVersionCode = 1 // Replace with your desired version code
-def flutterVersionName = "1.0.0" // Replace with your desired version name
+def flutterVersionCode = 5 // Matches the +5 in pubspec.yaml
+def flutterVersionName = "1.0.5" // Matches the 1.0.5 in pubspec.yaml
 
 android {
     namespace = "com.example.pulse_app"
