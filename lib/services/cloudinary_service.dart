@@ -9,6 +9,7 @@ class CloudinaryService {
   late final CloudinaryPublic marketCloudinary;
   late final CloudinaryPublic noticeCloudinary;
   late final CloudinaryPublic reportCloudinary;
+  late final CloudinaryPublic profileCloudinary;
 
   CloudinaryService._internal() {
     adminCloudinary = CloudinaryPublic('dy1jizr52', 'Admin_docs', cache: false);
@@ -18,6 +19,8 @@ class CloudinaryService {
         CloudinaryPublic('dy1jizr52', 'community_notices', cache: false);
     reportCloudinary =
         CloudinaryPublic('dy1jizr52', 'community_reports', cache: false);
+    profileCloudinary =
+        CloudinaryPublic('dy1jizr52', 'profile_images', cache: false);
   }
 
   Future<String> uploadMarketImage(File file) async {
@@ -108,5 +111,20 @@ class CloudinaryService {
       urls.add(url);
     }
     return urls;
+  }
+
+  Future<String> uploadProfileImage(File file) async {
+    try {
+      final cloudinaryFile = CloudinaryFile.fromFile(
+        file.path,
+        folder: 'profiles',
+      );
+
+      CloudinaryResponse response =
+          await profileCloudinary.uploadFile(cloudinaryFile);
+      return response.secureUrl;
+    } catch (e) {
+      throw Exception('Failed to upload profile image: $e');
+    }
   }
 }

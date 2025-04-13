@@ -7,6 +7,7 @@ import '../models/community_notice.dart';
 import '../widgets/community_notice_card.dart';
 import 'add_community_notice_page.dart';
 import 'login_page.dart';
+import 'profile_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,7 +24,6 @@ class _HomePageState extends State<HomePage> {
   bool _isAdmin = false;
   bool _isLoading = true;
   String _communityName = '';
-  String _userInitial = '?';
 
   @override
   void initState() {
@@ -31,7 +31,7 @@ class _HomePageState extends State<HomePage> {
     _loadUserData();
   }
 
-  Stream<String> _getUserInitial() {
+  Stream<Map<String, dynamic>> _getUserData() {
     final database = FirebaseDatabase.instance.ref();
     final user = _auth.currentUser;
 
@@ -42,12 +42,19 @@ class _HomePageState extends State<HomePage> {
           final fullName = userData['fullName'] as String? ??
               userData['username'] as String? ??
               '?';
-          return fullName[0].toUpperCase();
+          final initial = fullName[0].toUpperCase();
+          final profileImageUrl = userData['profileImageUrl'] as String?;
+
+          return {
+            'initial': initial,
+            'profileImageUrl': profileImageUrl,
+          };
         }
-        return '?';
+        return {'initial': '?', 'profileImageUrl': null};
       });
     }
-    return Stream.value('?');
+
+    return Stream.value({'initial': '?', 'profileImageUrl': null});
   }
 
   Future<void> _loadUserData() async {
@@ -65,7 +72,7 @@ class _HomePageState extends State<HomePage> {
         });
       }
     } catch (e) {
-      print('Error loading user data: $e');
+      debugPrint('Error loading user data: $e');
     }
   }
 
@@ -248,18 +255,58 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(width: 8),
           PopupMenuButton(
-            icon: StreamBuilder<String>(
-              stream: _getUserInitial(),
+            icon: StreamBuilder<Map<String, dynamic>>(
+              stream: _getUserData(),
               builder: (context, snapshot) {
+                final userData = snapshot.data ?? {'initial': '?', 'profileImageUrl': null};
+                final initial = userData['initial'] as String;
+                final profileImageUrl = userData['profileImageUrl'] as String?;
+
                 return CircleAvatar(
                   backgroundColor: Colors.white,
-                  child: Text(
-                    snapshot.data ?? '?',
-                    style: const TextStyle(
-                      color: Color(0xFF00C49A),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  radius: 16,
+                  child: profileImageUrl != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.network(
+                          profileImageUrl,
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  color: const Color(0xFF00C49A),
+                                  strokeWidth: 2,
+                                  value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                    : null,
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Text(
+                              initial,
+                              style: const TextStyle(
+                                color: Color(0xFF00C49A),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          },
+                        ),
+                      )
+                    : Text(
+                        initial,
+                        style: const TextStyle(
+                          color: Color(0xFF00C49A),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                 );
               },
             ),
@@ -267,7 +314,17 @@ class _HomePageState extends State<HomePage> {
               PopupMenuItem(
                 child: const Text('Profile'),
                 onTap: () {
-                  // Navigate to profile
+                  // We need to add a delay because PopupMenuItem's onTap doesn't
+                  // wait for the menu to close before executing the navigation
+                  // We need to use a post-frame callback to avoid BuildContext issues
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ProfilePage()),
+                      );
+                    }
+                  });
                 },
               ),
               PopupMenuItem(
@@ -280,12 +337,17 @@ class _HomePageState extends State<HomePage> {
                 child: const Text('Logout'),
                 onTap: () async {
                   await _auth.signOut();
+                  // Use a post-frame callback to avoid BuildContext issues
                   if (mounted) {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const LoginPage()),
-                    );
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const LoginPage()),
+                        );
+                      }
+                    });
                   }
                 },
               ),
