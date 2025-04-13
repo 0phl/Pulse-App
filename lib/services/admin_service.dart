@@ -53,9 +53,19 @@ class AdminService {
         userIds.add(key);
 
         // Get basic info from RTDB
+        // Handle both new format (firstName, lastName) and old format (fullName)
+        String fullName = '';
+        if (value['firstName'] != null && value['lastName'] != null) {
+          fullName = value['middleName'] != null && value['middleName'].toString().isNotEmpty
+              ? '${value['firstName']} ${value['middleName']} ${value['lastName']}'
+              : '${value['firstName']} ${value['lastName']}';
+        } else if (value['fullName'] != null) {
+          fullName = value['fullName'];
+        }
+
         communityUsers.add({
           'uid': key,
-          'fullName': value['fullName'] ?? '',
+          'fullName': fullName,
           'email': value['email'] ?? '',
           'mobile': value['mobile'] ?? '',
           'address': value['address'] ?? '',
@@ -1312,9 +1322,32 @@ class AdminService {
                     ? DateTime.fromMillisecondsSinceEpoch(value['createdAt'])
                     : DateTime.now();
 
+                // Extract name components from fullName if available
+                String firstName = value['firstName'] ?? '';
+                String? middleName = value['middleName'];
+                String lastName = value['lastName'] ?? '';
+
+                // If we don't have firstName/lastName but have fullName, parse it
+                if ((firstName.isEmpty || lastName.isEmpty) && value['fullName'] != null) {
+                  final nameParts = (value['fullName'] as String).split(' ');
+                  if (nameParts.length >= 2) {
+                    firstName = nameParts.first;
+                    lastName = nameParts.last;
+                    if (nameParts.length > 2) {
+                      // Join any middle parts as the middle name
+                      middleName = nameParts.sublist(1, nameParts.length - 1).join(' ');
+                    }
+                  } else if (nameParts.length == 1) {
+                    firstName = nameParts.first;
+                    lastName = '';
+                  }
+                }
+
                 pendingUsers.add(FirestoreUser(
                   uid: key,
-                  fullName: value['fullName'] ?? '',
+                  firstName: firstName,
+                  middleName: middleName,
+                  lastName: lastName,
                   username: value['username'] ?? '',
                   email: value['email'] ?? '',
                   mobile: value['mobile'] ?? '',
@@ -1324,6 +1357,7 @@ class AdminService {
                   communityId: value['communityId'] ?? '',
                   role: value['role'] ?? 'member',
                   createdAt: createdAt,
+                  profileImageUrl: value['profileImageUrl'],
                   registrationId: value['registrationId'] ?? '',
                   verificationStatus: 'pending',
                 ));

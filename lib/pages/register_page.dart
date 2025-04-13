@@ -9,6 +9,9 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math';
 import 'dart:async';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import '../services/cloudinary_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -22,7 +25,9 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage>
     with SingleTickerProviderStateMixin {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _middleNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -55,6 +60,10 @@ class _RegisterPageState extends State<RegisterPage>
   bool _isEmailAvailable = true;
   bool _isCheckingEmail = false;
   Timer? _emailCheckDebouncer;
+  File? _profileImage;
+  bool _isUploadingImage = false;
+  final ImagePicker _imagePicker = ImagePicker();
+  final CloudinaryService _cloudinaryService = CloudinaryService();
   bool _isCommunityActive = false;
   String? _communityStatusMessage;
 
@@ -75,7 +84,9 @@ class _RegisterPageState extends State<RegisterPage>
     _shakeController.dispose();
     _scrollController.dispose();
     _birthDateController.dispose();
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _middleNameController.dispose();
+    _lastNameController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -83,6 +94,53 @@ class _RegisterPageState extends State<RegisterPage>
     _mobileController.dispose();
     _addressController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickProfileImage() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+      );
+
+      if (image != null) {
+        setState(() {
+          _profileImage = File(image.path);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: $e')),
+        );
+      }
+    }
+  }
+
+  Future<String?> _uploadProfileImage() async {
+    if (_profileImage == null) return null;
+
+    setState(() {
+      _isUploadingImage = true;
+    });
+
+    try {
+      // Use the dedicated profile image uploader
+      return await _cloudinaryService.uploadProfileImage(_profileImage!);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading profile image: $e')),
+        );
+      }
+      return null;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingImage = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadRegions() async {
@@ -272,17 +330,66 @@ class _RegisterPageState extends State<RegisterPage>
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF00C49A),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.person_add_outlined,
-                        color: Colors.white,
-                        size: 28,
+                  GestureDetector(
+                    onTap: _pickProfileImage,
+                    child: Center(
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F7F3),
+                              borderRadius: BorderRadius.circular(50),
+                              border: Border.all(color: const Color(0xFF00C49A), width: 2),
+                            ),
+                            child: _profileImage != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(48),
+                                    child: Image.file(
+                                      _profileImage!,
+                                      width: 96,
+                                      height: 96,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.person_outline,
+                                    color: Color(0xFF00C49A),
+                                    size: 40,
+                                  ),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00C49A),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                          if (_isUploadingImage)
+                            Positioned.fill(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.5),
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -304,10 +411,11 @@ class _RegisterPageState extends State<RegisterPage>
                     ),
                   ),
                   const SizedBox(height: 32),
+                  // First Name field
                   TextFormField(
-                    controller: _nameController,
+                    controller: _firstNameController,
                     decoration: InputDecoration(
-                      labelText: 'Full Name',
+                      labelText: 'First Name',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: Colors.grey),
@@ -327,7 +435,60 @@ class _RegisterPageState extends State<RegisterPage>
                     autovalidateMode: AutovalidateMode.onUserInteraction,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your full name';
+                        return 'Please enter your first name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // Middle Name field (optional)
+                  TextFormField(
+                    controller: _middleNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Middle Name (Optional)',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF00C49A)),
+                      ),
+                      prefixIcon: const Icon(Icons.person_outline),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Last Name field
+                  TextFormField(
+                    controller: _lastNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Last Name',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.grey),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF00C49A)),
+                      ),
+                      prefixIcon: const Icon(Icons.person_outline),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                    ),
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your last name';
                       }
                       return null;
                     },
@@ -646,6 +807,17 @@ class _RegisterPageState extends State<RegisterPage>
                                     'locationId': locationId,
                                   };
 
+                                  // Upload profile image if selected
+                                  String? profileImageUrl;
+                                  if (_profileImage != null) {
+                                    setState(() {
+                                      _isUploadingImage = true;
+                                    });
+                                    profileImageUrl = await _uploadProfileImage();
+                                    setState(() {
+                                      _isUploadingImage = false;
+                                    });
+                                  }
                                   // Generate unique registration ID for QR code
                                   final registrationId = const Uuid().v4();
 
@@ -653,27 +825,34 @@ class _RegisterPageState extends State<RegisterPage>
                                   final registrationData = RegistrationData(
                                     email: _emailController.text.trim(),
                                     password: _passwordController.text,
-                                    fullName: _nameController.text.trim(),
+                                    firstName: _firstNameController.text.trim(),
+                                    middleName: _middleNameController.text.trim().isNotEmpty
+                                        ? _middleNameController.text.trim()
+                                        : null,
+                                    lastName: _lastNameController.text.trim(),
                                     username: _usernameController.text.trim(),
                                     mobile:
                                         '+63${_mobileController.text.trim()}',
                                     birthDate: _selectedDate!,
                                     address: _addressController.text.trim(),
                                     location: location,
+                                    profileImageUrl: profileImageUrl,
                                     registrationId: registrationId,
                                   );
 
                                   // Navigate to OTP verification page
                                   try {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            OTPVerificationPage(
-                                          registrationData: registrationData,
+                                    if (mounted) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              OTPVerificationPage(
+                                            registrationData: registrationData,
+                                          ),
                                         ),
-                                      ),
-                                    );
+                                      );
+                                    }
                                   } catch (e) {
                                     if (mounted) {
                                       ScaffoldMessenger.of(context)
@@ -696,7 +875,9 @@ class _RegisterPageState extends State<RegisterPage>
                                   _shakeController.forward(from: 0);
 
                                   // Find and scroll to the first invalid field
-                                  if (_nameController.text.isEmpty) {
+                                  if (_firstNameController.text.isEmpty) {
+                                    _scrollToField(_formKey);
+                                  } else if (_lastNameController.text.isEmpty) {
                                     _scrollToField(_formKey);
                                   } else if (_usernameController.text.isEmpty) {
                                     _scrollToField(_formKey);
@@ -828,9 +1009,25 @@ class _RegisterPageState extends State<RegisterPage>
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
-              validator: (_) => _selectedDate == null
-                  ? 'Please select your birth date'
-                  : null,
+              validator: (_) {
+                if (_selectedDate == null) {
+                  return 'Please select your birth date';
+                }
+
+
+                final today = DateTime.now();
+                final age = today.year - _selectedDate!.year -
+                    (today.month < _selectedDate!.month ||
+                            (today.month == _selectedDate!.month &&
+                                today.day < _selectedDate!.day)
+                        ? 1
+                        : 0);
+
+                if (age < 18) {
+                  return 'Registration is only allowed for users 18 years old and above.';
+                }
+                return null;
+              },
             ),
           ),
         ),
@@ -1102,7 +1299,8 @@ class _RegisterPageState extends State<RegisterPage>
   }
 
   bool _isFormValid() {
-    return _nameController.text.isNotEmpty &&
+    return _firstNameController.text.isNotEmpty &&
+        _lastNameController.text.isNotEmpty &&
         _usernameController.text.isNotEmpty &&
         _emailController.text.isNotEmpty &&
         _passwordController.text.isNotEmpty &&

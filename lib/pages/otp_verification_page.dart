@@ -147,13 +147,16 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
       final userCredential = await _authService.registerWithEmailAndPassword(
         email: widget.registrationData.email,
         password: widget.registrationData.password,
-        fullName: widget.registrationData.fullName,
+        firstName: widget.registrationData.firstName,
+        middleName: widget.registrationData.middleName,
+        lastName: widget.registrationData.lastName,
         username: widget.registrationData.username,
         mobile: widget.registrationData.mobile,
         birthDate: widget.registrationData.birthDate,
         address: widget.registrationData.address,
         location: widget.registrationData.location,
         communityId: communityId,
+        profileImageUrl: widget.registrationData.profileImageUrl,
         registrationId: widget.registrationData.registrationId,
         verificationStatus: 'pending',
       );

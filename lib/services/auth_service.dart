@@ -114,13 +114,16 @@ class AuthService {
   Future<UserCredential?> registerWithEmailAndPassword({
     required String email,
     required String password,
-    required String fullName,
+    required String firstName,
+    String? middleName,
+    required String lastName,
     required String username,
     required String mobile,
     required DateTime birthDate,
     required String address,
     required Map<String, String> location,
     required String communityId,
+    String? profileImageUrl,
     required String registrationId,
     required String verificationStatus,
   }) async {
@@ -142,9 +145,17 @@ class AuthService {
       final birthDateTime = DateFormat('MM/dd/yyyy')
           .parse(DateFormat('MM/dd/yyyy').format(birthDate));
 
+      // Compute full name for backward compatibility
+      final fullName = middleName != null && middleName.isNotEmpty
+          ? '$firstName $middleName $lastName'
+          : '$firstName $lastName';
+
       // Save user data to Realtime Database
       await _database.child('users').child(userCredential.user!.uid).set({
-        'fullName': fullName,
+        'firstName': firstName,
+        if (middleName != null && middleName.isNotEmpty) 'middleName': middleName,
+        'lastName': lastName,
+        'fullName': fullName, // Store combined name for backward compatibility
         'username': username,
         'email': email,
         'mobile': mobile,
@@ -155,6 +166,7 @@ class AuthService {
         'communityId': communityId,
         'role': 'member',
         'createdAt': ServerValue.timestamp,
+        if (profileImageUrl != null) 'profileImageUrl': profileImageUrl,
         'registrationId': registrationId,
         // Removed verificationStatus from RTDB since we're using Firestore for verification
       });
@@ -162,7 +174,9 @@ class AuthService {
       // Create matching Firestore user document
       final firestoreUser = FirestoreUser(
         uid: userCredential.user!.uid,
-        fullName: fullName,
+        firstName: firstName,
+        middleName: middleName,
+        lastName: lastName,
         username: username,
         email: email,
         mobile: mobile,
@@ -172,6 +186,7 @@ class AuthService {
         communityId: communityId,
         role: 'member',
         createdAt: DateTime.now(),
+        profileImageUrl: profileImageUrl,
         registrationId: registrationId,
         verificationStatus: verificationStatus,
       );
@@ -278,6 +293,46 @@ class AuthService {
       await _auth.sendPasswordResetEmail(email: email);
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
+    }
+  }
+
+  // Update user profile image
+  Future<void> updateProfileImage(String uid, String imageUrl) async {
+    try {
+      // Update in Realtime Database
+      await _database.child('users').child(uid).update({
+        'profileImageUrl': imageUrl,
+        'updatedAt': ServerValue.timestamp,
+      });
+
+      // Update in Firestore
+      await _firestore.collection('users').doc(uid).update({
+        'profileImageUrl': imageUrl,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Exception('Failed to update profile image: $e');
+    }
+  }
+
+  // Update user profile data
+  Future<void> updateUserProfile(String uid, Map<String, dynamic> data) async {
+    try {
+      // Prepare data for Realtime Database
+      final rtdbData = Map<String, dynamic>.from(data);
+      rtdbData['updatedAt'] = ServerValue.timestamp;
+
+      // Update in Realtime Database
+      await _database.child('users').child(uid).update(rtdbData);
+
+      // Prepare data for Firestore
+      final firestoreData = Map<String, dynamic>.from(data);
+      firestoreData['updatedAt'] = FieldValue.serverTimestamp();
+
+      // Update in Firestore
+      await _firestore.collection('users').doc(uid).update(firestoreData);
+    } catch (e) {
+      throw Exception('Failed to update user profile: $e');
     }
   }
 }

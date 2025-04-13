@@ -1,0 +1,110 @@
+{
+  "rules": {
+    "otps": {
+      ".read": true,
+      ".write": true,
+      "$email": {
+        ".read": "auth != null && $email === auth.token.email.replace('.', '_')",
+        ".validate": "newData.hasChildren(['hash', 'expiresAt', 'attempts'])",
+        "hash": { ".validate": "newData.isString()" },
+        "expiresAt": { ".validate": "newData.isNumber()" },
+        "attempts": { ".validate": "newData.isNumber() && newData.val() <= 3" }
+      }
+    },
+      "community_notices": {
+        ".read": "auth != null",
+        ".indexOn": ["communityId", "createdAt"],
+        "$noticeId": {
+          ".write": "auth != null",
+          ".validate": "newData.hasChildren(['title', 'content', 'authorId', 'authorName', 'communityId'])",
+          "likes": {
+            ".write": "auth != null"
+          },
+          "comments": {
+            ".write": "auth != null"
+          }
+        }
+      },
+    "users": {
+      ".read": true,
+      ".indexOn": ["email", "role", "communityId", "username"],
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['email', 'role', 'communityId', 'username'])",
+        "email": { ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$/)" },
+        "username": { ".validate": "newData.isString() && newData.val().length >= 3" },
+        "role": { ".validate": "newData.isString() && (newData.val() === 'member' || newData.val() === 'admin' || newData.val() === 'community_admin')" },
+        "communityId": { ".validate": "newData.isString() || newData.val() === null" }
+      }
+    },
+    "communities": {
+      ".read": true,
+      ".write": true,
+      ".indexOn": ["name", "status", "adminId", "locationId", "locationStatusId"],
+      "$communityId": {
+        ".validate": "newData.hasChildren(['name', 'description', 'status', 'createdAt', 'regionCode', 'provinceCode', 'municipalityCode', 'barangayCode', 'locationId'])",
+        "status": {
+          ".validate": "newData.val() === 'pending' || newData.val() === 'active' || newData.val() === 'inactive' || newData.val() === 'rejected'"
+        }
+      }
+    },
+    "marketItems": {
+      ".read": "auth != null",
+      ".indexOn": ["communityId", "userId"],
+      "$itemId": {
+        ".write": "auth != null && (!data.exists() || data.child('userId').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['title', 'description', 'price', 'userId', 'communityId'])",
+        "communityId": {
+          ".validate": "newData.val() === root.child('users').child(auth.uid).child('communityId').val()"
+        }
+      }
+    },
+    "volunteerPosts": {
+      ".read": "auth != null",
+      ".indexOn": ["communityId", "userId"],
+      "$postId": {
+        ".write": "auth != null && (!data.exists() || data.child('userId').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['title', 'description', 'userId', 'communityId'])",
+        "communityId": {
+          ".validate": "newData.val() === root.child('users').child(auth.uid).child('communityId').val()"
+        }
+      }
+    },
+    "chats": {
+      ".read": "auth != null",
+      "$chatId": {
+        ".read": "auth != null && (data.child('sellerId').val() === auth.uid || data.child('buyerId').val() === auth.uid)",
+        ".write": "auth != null",
+        "messages": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('communityId').val() === data.parent().child('communityId').val()",
+          "$messageId": {
+            ".validate": "newData.hasChildren(['message', 'senderId', 'senderName', 'timestamp'])"
+          }
+        },
+        "readStatus": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.isNumber()"
+          }
+        },
+        "deletedTimestamps": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    },
+    "admin_applications": {
+      ".read": true,
+      ".write": true,
+      ".indexOn": ["status", "communityId", "createdAt"],
+      "$applicationId": {
+        ".validate": "newData.hasChildren(['fullName', 'email', 'status', 'communityId', 'createdAt'])"
+      }
+    }
+  }
+}
