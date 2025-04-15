@@ -11,6 +11,12 @@ class MarketItem {
   final String communityId;
   final DateTime? createdAt;
   final bool isSold;
+  final DateTime? soldAt; // When the item was marked as sold
+  final String status; // pending, approved, rejected
+  final String? rejectionReason;
+  final String? approvedBy;
+  final DateTime? approvedAt;
+  final DateTime? rejectedAt;
 
   MarketItem({
     required this.id,
@@ -23,6 +29,12 @@ class MarketItem {
     required this.communityId,
     this.createdAt,
     this.isSold = false,
+    this.soldAt,
+    this.status = 'pending',
+    this.rejectionReason,
+    this.approvedBy,
+    this.approvedAt,
+    this.rejectedAt,
   });
 
   factory MarketItem.fromFirestore(DocumentSnapshot doc) {
@@ -38,6 +50,12 @@ class MarketItem {
       communityId: data['communityId'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       isSold: data['isSold'] ?? false,
+      soldAt: (data['soldAt'] as Timestamp?)?.toDate(),
+      status: data['status'] ?? 'pending',
+      rejectionReason: data['rejectionReason'],
+      approvedBy: data['approvedBy'],
+      approvedAt: (data['approvedAt'] as Timestamp?)?.toDate(),
+      rejectedAt: (data['rejectedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -52,6 +70,12 @@ class MarketItem {
       'communityId': communityId,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'isSold': isSold,
+      'soldAt': soldAt,
+      'status': status,
+      'rejectionReason': rejectionReason,
+      'approvedBy': approvedBy,
+      'approvedAt': approvedAt,
+      'rejectedAt': rejectedAt,
     };
   }
 
@@ -66,6 +90,12 @@ class MarketItem {
       'imageUrl': imageUrl,
       'communityId': communityId,
       'isSold': isSold,
+      'soldAt': soldAt,
+      'status': status,
+      'rejectionReason': rejectionReason,
+      'approvedBy': approvedBy,
+      'approvedAt': approvedAt,
+      'rejectedAt': rejectedAt,
     };
   }
 
@@ -79,6 +109,13 @@ class MarketItem {
       sellerName: json['sellerName'] as String,
       imageUrl: json['imageUrl'] as String,
       communityId: json['communityId'] as String,
+      status: json['status'] as String? ?? 'pending',
+      isSold: json['isSold'] as bool? ?? false,
+      soldAt: json['soldAt'] != null ? DateTime.parse(json['soldAt']) : null,
+      rejectionReason: json['rejectionReason'] as String?,
+      approvedBy: json['approvedBy'] as String?,
+      approvedAt: json['approvedAt'] != null ? DateTime.parse(json['approvedAt']) : null,
+      rejectedAt: json['rejectedAt'] != null ? DateTime.parse(json['rejectedAt']) : null,
     );
   }
 }

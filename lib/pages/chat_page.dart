@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../services/community_service.dart';
+import '../services/market_service.dart';
+import '../models/seller_rating.dart';
+import '../models/market_item.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ChatPage extends StatefulWidget {
@@ -44,12 +47,39 @@ class _ChatPageState extends State<ChatPage> {
   String _displayName = '';
   String? _currentUserCommunityId;
   final _firestore = FirebaseFirestore.instance;
+  final _marketService = MarketService();
+  bool _isItemSold = false;
+  bool _hasRatedSeller = false;
+  MarketItem? _marketItem;
 
   @override
   void initState() {
     super.initState();
     _displayName = widget.isSeller ? widget.sellerName : widget.sellerName;
     _initializeChat();
+    _loadMarketItem();
+  }
+
+  Future<void> _loadMarketItem() async {
+    try {
+      final item = await _marketService.getMarketItem(widget.itemId);
+      if (item != null && mounted) {
+        // Check if user has already rated this seller for this item
+        bool hasRated = false;
+        if (!widget.isSeller && item.isSold) {
+          hasRated = await _marketService.hasUserRatedTransaction(
+              widget.sellerId, _auth.currentUser?.uid ?? '', widget.itemId);
+        }
+
+        setState(() {
+          _marketItem = item;
+          _isItemSold = item.isSold;
+          _hasRatedSeller = hasRated;
+        });
+      }
+    } catch (e) {
+      print('Error loading market item: $e');
+    }
   }
 
   Future<String> _getUserName(String userId) async {
@@ -86,7 +116,8 @@ class _ChatPageState extends State<ChatPage> {
       _userRef = FirebaseDatabase.instance.ref('users');
 
       // Verify user's community
-      final userCommunity = await _communityService.getUserCommunity(_currentUserId);
+      final userCommunity =
+          await _communityService.getUserCommunity(_currentUserId);
       if (userCommunity == null || userCommunity.id != widget.communityId) {
         setState(() {
           _error = 'You can only chat with users in your community';
@@ -125,9 +156,11 @@ class _ChatPageState extends State<ChatPage> {
 
       // Format: itemId_communityId_buyerId_sellerId
       if (widget.isSeller) {
-        _chatId = '${widget.itemId}_${widget.communityId}_${widget.buyerId}_${widget.sellerId}';
+        _chatId =
+            '${widget.itemId}_${widget.communityId}_${widget.buyerId}_${widget.sellerId}';
       } else {
-        _chatId = '${widget.itemId}_${widget.communityId}_${_currentUserId}_${widget.sellerId}';
+        _chatId =
+            '${widget.itemId}_${widget.communityId}_${_currentUserId}_${widget.sellerId}';
       }
 
       _chatRef = FirebaseDatabase.instance.ref('chats/$_chatId');
@@ -158,15 +191,14 @@ class _ChatPageState extends State<ChatPage> {
 
       // Set up chat listener after marking as read
       _setupChatListener();
-      
+
       if (!widget.isSeller) {
         await _sendInitialMessage();
       }
-      
+
       setState(() {
         _isLoading = false;
       });
-
     } catch (e) {
       print('Chat initialization error: $e');
       setState(() {
@@ -176,30 +208,22 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  void _markAsRead() async {
-    try {
-      final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
-      await _chatRef.child('readStatus').update({
-        _currentUserId: currentTimestamp,
-      });
-    } catch (e) {
-      print('Error marking messages as read: $e');
-    }
-  }
+  // Removed unused _markAsRead method
 
   void _setupChatListener() {
     _chatRef.child('messages').onValue.listen(
       (event) {
         if (!mounted) return;
-        
+
         try {
           final messages = <ChatMessage>[];
           final chatData = event.snapshot.value as Map<dynamic, dynamic>?;
-          
+
           if (chatData != null) {
             chatData.forEach((key, value) {
               if (value is Map) {
-                messages.add(ChatMessage.fromJson(Map<String, dynamic>.from(value)));
+                messages.add(
+                    ChatMessage.fromJson(Map<String, dynamic>.from(value)));
               }
             });
 
@@ -213,7 +237,8 @@ class _ChatPageState extends State<ChatPage> {
             // Jump to bottom immediately without animation
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (_scrollController.hasClients) {
-                _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+                _scrollController
+                    .jumpTo(_scrollController.position.maxScrollExtent);
               }
             });
           }
@@ -272,7 +297,10 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<void> _sendMessage({String? message, bool isInitial = false}) async {
+  Future<void> _sendMessage(
+      {String? message,
+      bool isInitial = false,
+      bool isSystemMessage = false}) async {
     try {
       final messageText = message ?? _messageController.text.trim();
       if (messageText.isEmpty) return;
@@ -282,10 +310,13 @@ class _ChatPageState extends State<ChatPage> {
 
       final newMessage = ChatMessage(
         message: messageText,
-        senderId: currentUser.uid,
-        senderName: _userNames[currentUser.uid] ?? 'User',
+        senderId: isSystemMessage ? 'system' : currentUser.uid,
+        senderName: isSystemMessage
+            ? 'System'
+            : (_userNames[currentUser.uid] ?? 'User'),
         timestamp: DateTime.now(),
         isInitialMessage: isInitial,
+        isSystemMessage: isSystemMessage,
       );
 
       await _chatRef.child('messages').push().set(newMessage.toJson());
@@ -298,26 +329,30 @@ class _ChatPageState extends State<ChatPage> {
         }
       }
 
-      // Update unread count for the recipient at chat level
-      final recipientId = widget.isSeller ? widget.buyerId! : widget.sellerId;
-      final unreadSnapshot = await _chatRef.child('unreadCount').child(recipientId).get();
-      final currentUnreadCount = (unreadSnapshot.value as int?) ?? 0;
-      
-      await _chatRef.child('unreadCount').update({
-        recipientId: currentUnreadCount + 1
-      });
+      // Update unread count for the recipient at chat level (skip for system messages)
+      if (!isSystemMessage) {
+        final recipientId = widget.isSeller ? widget.buyerId! : widget.sellerId;
+        final unreadSnapshot =
+            await _chatRef.child('unreadCount').child(recipientId).get();
+        final currentUnreadCount = (unreadSnapshot.value as int?) ?? 0;
+
+        await _chatRef
+            .child('unreadCount')
+            .update({recipientId: currentUnreadCount + 1});
+      }
 
       // Always include buyerId when sending a message
       if (!widget.isSeller) {
-        await _chatRef.update({
-          'buyerId': currentUser.uid
-        });
+        await _chatRef.update({'buyerId': currentUser.uid});
       }
     } catch (e) {
       print('Error sending message: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error sending message. Please try again.')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Error sending message. Please try again.')),
+        );
+      }
     }
   }
 
@@ -328,18 +363,55 @@ class _ChatPageState extends State<ChatPage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(_isLoading && _displayName.isEmpty ? 'Loading...' : _displayName),
             Text(
-              widget.itemTitle,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.normal,
-              ),
+              _isLoading && _displayName.isEmpty ? 'Loading...' : _displayName,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+            Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    widget.itemTitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.normal,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+                if (_isItemSold) ...[
+                  // Show sold indicator if item is sold
+                  const SizedBox(width: 4),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'SOLD',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ],
         ),
         backgroundColor: const Color(0xFF00C49A),
         foregroundColor: Colors.white,
+        leadingWidth: 40,
+        titleSpacing: 0,
+        actions: [
+          if (_marketItem != null) _buildActionButton(),
+        ],
       ),
       body: Column(
         children: [
@@ -358,6 +430,9 @@ class _ChatPageState extends State<ChatPage> {
                         },
                       ),
           ),
+          // We've removed the large action button at the bottom
+
+          // Message input area
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -403,9 +478,431 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  Widget _buildActionButton() {
+    // If user is the seller and item is not sold, show Mark as Sold button
+    if (widget.isSeller && !_isItemSold) {
+      return Container(
+        margin: const EdgeInsets.only(right: 8),
+        child: Material(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: _showMarkAsSoldDialog,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.sell, color: Colors.white, size: 18),
+                  SizedBox(width: 4),
+                  Text(
+                    'MARK AS SOLD',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // If user is the buyer and item is sold, show Review button (only if not already rated)
+    if (!widget.isSeller && _isItemSold && !_hasRatedSeller) {
+      return Container(
+        margin: const EdgeInsets.only(right: 8),
+        child: Material(
+          color: Colors.amber,
+          borderRadius: BorderRadius.circular(20),
+          elevation: 3,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: _showRateSellerDialog,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.star, color: Colors.white, size: 16),
+                  SizedBox(width: 6),
+                  Text(
+                    'Rate Seller',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  void _showMarkAsSoldDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 10),
+        title: Text(
+          'Mark as Sold',
+          style: TextStyle(
+            color: const Color(0xFF00C49A),
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.sell,
+              color: const Color(0xFF00C49A),
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Are you sure you want to mark this item as sold?',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'This action cannot be undone.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _markItemAsSold();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00C49A),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: const Text('Mark as Sold'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // We've removed the large action buttons at the bottom
+
+  Future<void> _markItemAsSold() async {
+    try {
+      await _marketService.markItemAsSold(widget.itemId);
+
+      // Send a system message to the chat
+      await _sendMessage(
+        message: '🎉 This item has been marked as sold!',
+        isSystemMessage: true,
+      );
+
+      // Update local state
+      if (mounted) {
+        setState(() {
+          _isItemSold = true;
+          if (_marketItem != null) {
+            _marketItem = MarketItem(
+              id: _marketItem!.id,
+              title: _marketItem!.title,
+              price: _marketItem!.price,
+              description: _marketItem!.description,
+              sellerId: _marketItem!.sellerId,
+              sellerName: _marketItem!.sellerName,
+              imageUrl: _marketItem!.imageUrl,
+              communityId: _marketItem!.communityId,
+              createdAt: _marketItem!.createdAt,
+              isSold: true,
+              soldAt: DateTime.now(), // Set current time as soldAt
+              status: _marketItem!.status,
+              rejectionReason: _marketItem!.rejectionReason,
+              approvedBy: _marketItem!.approvedBy,
+              approvedAt: _marketItem!.approvedAt,
+              rejectedAt: _marketItem!.rejectedAt,
+            );
+          }
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Item marked as sold successfully')),
+        );
+      }
+    } catch (e) {
+      // Use mounted check before accessing context
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error marking item as sold: $e')),
+        );
+      }
+    }
+  }
+
+  void _showRateSellerDialog() {
+    double rating = 5.0;
+    final commentController = TextEditingController();
+    bool showFullName = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 10),
+          title: Text(
+            'Rate Seller',
+            style: TextStyle(
+              color: const Color(0xFF00C49A),
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'How would you rate ${widget.sellerName}?',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (index) {
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        rating = index + 1.0;
+                      });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: Icon(
+                        index < rating ? Icons.star : Icons.star_border,
+                        color: Colors.amber,
+                        size: 36,
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                  color: Colors.grey.shade50,
+                ),
+                child: TextField(
+                  controller: commentController,
+                  decoration: const InputDecoration(
+                    hintText: 'Add a comment (optional)',
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: InputBorder.none,
+                  ),
+                  maxLines: 3,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: Checkbox(
+                      activeColor: const Color(0xFF00C49A),
+                      value: showFullName,
+                      onChanged: (value) {
+                        setState(() {
+                          showFullName = value ?? false;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          showFullName = !showFullName;
+                        });
+                      },
+                      child: const Text(
+                        'Show my full name in the review (if unchecked, your name will appear as "Jem*** Na***")',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(true);
+                _submitRating(rating, commentController.text, showFullName);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00C49A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: const Text('Submit'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitRating(
+      double rating, String comment, bool showFullName) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return;
+
+      String buyerName = _userNames[currentUser.uid] ?? 'User';
+
+      // If user chose not to show full name, create a discreet version
+      if (!showFullName) {
+        buyerName = _createDiscreetName(buyerName);
+      }
+
+      final newRating = SellerRating(
+        id: '',
+        sellerId: widget.sellerId,
+        buyerId: currentUser.uid,
+        buyerName: buyerName,
+        rating: rating,
+        comment: comment.isNotEmpty ? comment : null,
+        createdAt: DateTime.now(),
+        marketItemId: widget.itemId,
+      );
+
+      await _marketService.addSellerRating(newRating);
+
+      // Send a system message to the chat
+      await _sendMessage(
+        message:
+            '⭐ The buyer has left a $rating-star rating for this transaction!',
+        isSystemMessage: true,
+      );
+
+      // Update local state to hide the rate button
+      setState(() {
+        _hasRatedSeller = true;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rating submitted successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error submitting rating: $e')),
+        );
+      }
+    }
+  }
+
+  String _createDiscreetName(String fullName) {
+    if (fullName.isEmpty) return 'User';
+
+    List<String> nameParts = fullName.split(' ');
+    List<String> discreetParts = [];
+
+    for (String part in nameParts) {
+      if (part.length <= 3) {
+        discreetParts.add(part);
+      } else {
+        discreetParts.add('${part.substring(0, 3)}***');
+      }
+    }
+
+    return discreetParts.join(' ');
+  }
+
   Widget _buildMessage(ChatMessage message) {
     final isMe = message.senderId == _currentUserId;
-    
+    final isSystemMessage = message.isSystemMessage;
+
+    // For system messages, display them centered with a different style
+    if (isSystemMessage) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              message.message,
+              style: TextStyle(
+                  color: Colors.grey[800], fontStyle: FontStyle.italic),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -454,6 +951,7 @@ class ChatMessage {
   String senderName;
   final DateTime timestamp;
   final bool isInitialMessage;
+  final bool isSystemMessage;
 
   ChatMessage({
     required this.message,
@@ -461,6 +959,7 @@ class ChatMessage {
     required this.senderName,
     required this.timestamp,
     this.isInitialMessage = false,
+    this.isSystemMessage = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -473,6 +972,9 @@ class ChatMessage {
     if (isInitialMessage) {
       json['isInitialMessage'] = true;
     }
+    if (isSystemMessage) {
+      json['isSystemMessage'] = true;
+    }
     return json;
   }
 
@@ -483,6 +985,7 @@ class ChatMessage {
       senderName: json['senderName'],
       timestamp: DateTime.fromMillisecondsSinceEpoch(json['timestamp']),
       isInitialMessage: json['isInitialMessage'] ?? false,
+      isSystemMessage: json['isSystemMessage'] ?? false,
     );
   }
 }

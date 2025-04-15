@@ -22,12 +22,14 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
   String _communityName = '';
   bool _isLoading = true;
   List<Map<String, dynamic>> _marketItems = [];
+  List<Map<String, dynamic>> _pendingItems = [];
   List<Map<String, dynamic>> _recentTransactions = [];
   String _selectedTimeRange = 'Week';
   Map<String, dynamic> _marketStats = {
     'totalItems': 0,
     'activeItems': 0,
     'soldItems': 0,
+    'pendingItems': 0,
     'totalValue': 0.0,
     'averagePrice': 0.0,
   };
@@ -35,7 +37,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTabIndex < 3 ? widget.initialTabIndex : 0);
+    _tabController = TabController(length: 4, vsync: this, initialIndex: widget.initialTabIndex < 4 ? widget.initialTabIndex : 0);
     _loadInitialData();
   }
 
@@ -50,6 +52,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
       await Future.wait([
         _loadCommunity(),
         _loadMarketItems(),
+        _loadPendingItems(),
         _loadMarketStats(),
         _loadRecentTransactions(),
       ]);
@@ -98,8 +101,9 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
               'description': data['description'] ?? '',
               'sellerName': data['sellerName'] ?? 'Unknown Seller',
               'sellerId': data['sellerId'] ?? '',
-              'status': data['status'] ?? 'Unknown',
+              'status': data['status'] ?? 'pending',
               'createdAt': data['createdAt'] ?? Timestamp.now(),
+              'rejectionReason': data['rejectionReason'],
             };
           }).toList();
         });
@@ -114,12 +118,52 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
     }
   }
 
+  Future<void> _loadPendingItems() async {
+    try {
+      final community = await _adminService.getCurrentAdminCommunity();
+      if (community == null) return;
+
+      final snapshot = await _adminService.getPendingMarketItems(community.id);
+      if (mounted) {
+        setState(() {
+          _pendingItems = snapshot.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return {
+              ...data,
+              'id': doc.id,
+              'isSold': data['isSold'] ?? false,
+              'title': data['title'] ?? 'Untitled',
+              'price': (data['price'] as num?)?.toDouble() ?? 0.0,
+              'imageUrl': data['imageUrl'] ?? '',
+              'description': data['description'] ?? '',
+              'sellerName': data['sellerName'] ?? 'Unknown Seller',
+              'sellerId': data['sellerId'] ?? '',
+              'status': data['status'] ?? 'pending',
+              'createdAt': data['createdAt'] ?? Timestamp.now(),
+            };
+          }).toList();
+        });
+      }
+    } catch (e) {
+      print('Error loading pending items: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading pending items: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _loadMarketStats() async {
     try {
       final community = await _adminService.getCurrentAdminCommunity();
       if (community == null) return;
 
       final stats = await _adminService.getMarketStats(community.id);
+
+      // Add pending items count to stats
+      stats['pendingItems'] = _pendingItems.length;
+
       if (mounted) {
         setState(() {
           _marketStats = stats;
@@ -166,8 +210,26 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                 _viewItemDetails(item);
               },
             ),
+            if (item['status'] == 'pending')
+              ListTile(
+                leading: const Icon(Icons.check_circle),
+                title: const Text('Approve Item'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _approveItem(item['id']);
+                },
+              ),
+            if (item['status'] == 'pending')
+              ListTile(
+                leading: const Icon(Icons.cancel),
+                title: const Text('Reject Item'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showRejectDialog(item['id']);
+                },
+              ),
             ListTile(
-              leading: const Icon(Icons.warning),
+              leading: const Icon(Icons.delete),
               title: const Text('Remove Item'),
               onTap: () {
                 Navigator.pop(context);
@@ -371,6 +433,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
           const SnackBar(content: Text('Item removed successfully')),
         );
         _loadMarketItems();
+        _loadPendingItems();
         _loadMarketStats();
       }
     } catch (e) {
@@ -379,6 +442,98 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
           SnackBar(content: Text('Error removing item: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _approveItem(String itemId) async {
+    try {
+      await _adminService.approveMarketItem(itemId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Item approved successfully')),
+        );
+        _loadMarketItems();
+        _loadPendingItems();
+        _loadMarketStats();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error approving item: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _rejectItem(String itemId, String rejectionReason) async {
+    try {
+      await _adminService.rejectMarketItem(itemId, rejectionReason);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Item rejected successfully')),
+        );
+        _loadMarketItems();
+        _loadPendingItems();
+        _loadMarketStats();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error rejecting item: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showRejectDialog(String itemId) async {
+    final TextEditingController reasonController = TextEditingController();
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject Item'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Please provide a reason for rejection:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                hintText: 'Enter rejection reason',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please provide a rejection reason')),
+                );
+                return;
+              }
+              Navigator.of(context).pop(true);
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && reasonController.text.trim().isNotEmpty) {
+      await _rejectItem(itemId, reasonController.text.trim());
     }
   }
 
@@ -694,6 +849,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
           tabs: const [
             Tab(icon: Icon(Icons.dashboard), text: 'Dashboard'),
             Tab(icon: Icon(Icons.store), text: 'Listings'),
+            Tab(icon: Icon(Icons.pending_actions), text: 'Pending'),
             Tab(icon: Icon(Icons.analytics), text: 'Analytics'),
           ],
         ),
@@ -706,6 +862,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
           children: [
             _buildDashboardTab(),
             _buildListingsTab(),
+            _buildPendingTab(),
             _buildAnalyticsTab(),
           ],
         ),
@@ -760,6 +917,12 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
           _marketStats['soldItems'].toString(),
           Icons.shopping_cart,
           const Color(0xFFFF9800),
+        ),
+        _buildStatCard(
+          'Pending Approval',
+          _marketStats['pendingItems'].toString(),
+          Icons.pending_actions,
+          const Color(0xFFFFA000),
         ),
         _buildStatCard(
           'Total Value',
@@ -937,6 +1100,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                         final double price =
                             (item['price'] as num?)?.toDouble() ?? 0.0;
                         final String imageUrl = item['imageUrl'] ?? '';
+                        final String status = item['status'] ?? 'pending';
 
                         return Card(
                           elevation: 2,
@@ -978,6 +1142,46 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                                             ),
                                           ),
                                         ),
+                                      if (!isSold && status == 'pending')
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange,
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: const Text(
+                                              'PENDING',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      if (!isSold && status == 'rejected')
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red,
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: const Text(
+                                              'REJECTED',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -1013,18 +1217,14 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                                           vertical: 2,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: isSold
-                                              ? Colors.red[50]
-                                              : Colors.green[50],
+                                          color: _getStatusColor(status, isSold),
                                           borderRadius:
                                               BorderRadius.circular(12),
                                         ),
                                         child: Text(
-                                          isSold ? 'Sold' : 'Active',
+                                          _getStatusText(status, isSold),
                                           style: TextStyle(
-                                            color: isSold
-                                                ? Colors.red
-                                                : Colors.green,
+                                            color: _getStatusTextColor(status, isSold),
                                             fontWeight: FontWeight.w500,
                                             fontSize: 12,
                                           ),
@@ -1034,6 +1234,232 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                                   ),
                                 ),
                               ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Color _getStatusColor(String status, bool isSold) {
+    if (isSold) return Colors.red[50]!;
+    switch (status) {
+      case 'approved': return Colors.green[50]!;
+      case 'pending': return Colors.orange[50]!;
+      case 'rejected': return Colors.red[50]!;
+      default: return Colors.grey[50]!;
+    }
+  }
+
+  Color _getStatusTextColor(String status, bool isSold) {
+    if (isSold) return Colors.red;
+    switch (status) {
+      case 'approved': return Colors.green;
+      case 'pending': return Colors.orange;
+      case 'rejected': return Colors.red;
+      default: return Colors.grey;
+    }
+  }
+
+  String _getStatusText(String status, bool isSold) {
+    if (isSold) return 'Sold';
+    switch (status) {
+      case 'approved': return 'Active';
+      case 'pending': return 'Pending';
+      case 'rejected': return 'Rejected';
+      default: return 'Unknown';
+    }
+  }
+
+  Widget _buildPendingTab() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black12,
+                offset: Offset(0, 2),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Items Pending Approval',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00C49A).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Text(
+                  '${_pendingItems.length} pending',
+                  style: const TextStyle(
+                    color: Color(0xFF00C49A),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF00C49A)))
+              : _pendingItems.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.check_circle_outline,
+                              size: 64, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No pending items',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'All items have been reviewed',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _pendingItems.length,
+                      itemBuilder: (context, index) {
+                        final item = _pendingItems[index];
+                        final String title = item['title'] ?? 'Untitled';
+                        final double price =
+                            (item['price'] as num?)?.toDouble() ?? 0.0;
+                        final String imageUrl = item['imageUrl'] ?? '';
+                        final String sellerName = item['sellerName'] ?? 'Unknown Seller';
+                        final Timestamp createdAt = item['createdAt'] as Timestamp? ?? Timestamp.now();
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: InkWell(
+                            onTap: () => _viewItemDetails(item),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      imageUrl,
+                                      width: 80,
+                                      height: 80,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          width: 80,
+                                          height: 80,
+                                          color: Colors.grey[300],
+                                          child: const Icon(Icons.error),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          title,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '₱${price.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF00C49A),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Seller: $sellerName',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Posted: ${DateFormat('MMM d, y').format(createdAt.toDate())}',
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Column(
+                                    children: [
+                                      ElevatedButton.icon(
+                                        onPressed: () => _approveItem(item['id']),
+                                        icon: const Icon(Icons.check),
+                                        label: const Text('Approve'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.green,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      OutlinedButton.icon(
+                                        onPressed: () => _showRejectDialog(item['id']),
+                                        icon: const Icon(Icons.close),
+                                        label: const Text('Reject'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Colors.red,
+                                          side: const BorderSide(color: Colors.red),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );

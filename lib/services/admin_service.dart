@@ -1432,6 +1432,85 @@ class AdminService {
         .get();
   }
 
+  // Get pending market items for a community
+  Future<QuerySnapshot> getPendingMarketItems(String communityId) async {
+    return _marketItemsCollection
+        .where('communityId', isEqualTo: communityId)
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .get();
+  }
+
+  // Approve a marketplace item
+  Future<void> approveMarketItem(String itemId) async {
+    // Verify admin access first
+    if (!await isCurrentUserAdmin()) {
+      throw Exception('Permission denied: Only admins can approve marketplace items');
+    }
+
+    final itemDoc = await _marketItemsCollection.doc(itemId).get();
+    if (!itemDoc.exists) {
+      throw Exception('Marketplace item not found');
+    }
+
+    final itemData = itemDoc.data() as Map<String, dynamic>;
+    final adminUser = _auth.currentUser;
+    if (adminUser == null) throw Exception('No admin logged in');
+
+    final adminDoc = await _usersCollection.doc(adminUser.uid).get();
+    if (!adminDoc.exists) throw Exception('Admin not found');
+
+    final adminData = adminDoc.data() as Map<String, dynamic>;
+    final communityId = adminData['communityId'] as String;
+
+    // Verify the item belongs to the admin's community
+    if (itemData['communityId'] != communityId) {
+      throw Exception('Permission denied: Item belongs to a different community');
+    }
+
+    // Update the item status to approved
+    await _marketItemsCollection.doc(itemId).update({
+      'status': 'approved',
+      'approvedBy': adminUser.uid,
+      'approvedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Reject a marketplace item
+  Future<void> rejectMarketItem(String itemId, String rejectionReason) async {
+    // Verify admin access first
+    if (!await isCurrentUserAdmin()) {
+      throw Exception('Permission denied: Only admins can reject marketplace items');
+    }
+
+    final itemDoc = await _marketItemsCollection.doc(itemId).get();
+    if (!itemDoc.exists) {
+      throw Exception('Marketplace item not found');
+    }
+
+    final itemData = itemDoc.data() as Map<String, dynamic>;
+    final adminUser = _auth.currentUser;
+    if (adminUser == null) throw Exception('No admin logged in');
+
+    final adminDoc = await _usersCollection.doc(adminUser.uid).get();
+    if (!adminDoc.exists) throw Exception('Admin not found');
+
+    final adminData = adminDoc.data() as Map<String, dynamic>;
+    final communityId = adminData['communityId'] as String;
+
+    // Verify the item belongs to the admin's community
+    if (itemData['communityId'] != communityId) {
+      throw Exception('Permission denied: Item belongs to a different community');
+    }
+
+    // Update the item status to rejected
+    await _marketItemsCollection.doc(itemId).update({
+      'status': 'rejected',
+      'rejectionReason': rejectionReason,
+      'rejectedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   // Get market statistics for a community
   Future<Map<String, dynamic>> getMarketStats(String communityId) async {
     final snapshot = await _marketItemsCollection

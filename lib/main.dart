@@ -21,6 +21,7 @@ import 'pages/super_admin/dashboard_page.dart';
 import 'pages/super_admin/login_page.dart';
 import 'pages/volunteer_page.dart';
 import 'pages/add_item_page.dart';
+import 'pages/seller_dashboard_page.dart';
 import 'pages/admin/add_volunteer_post_page.dart';
 import 'pages/admin/show_create_notice_sheet.dart';
 
@@ -103,6 +104,7 @@ class MyApp extends StatelessWidget {
               '/market': (context) => const MarketPage(),
               '/volunteer': (context) => const VolunteerPage(),
               '/report': (context) => const ReportPage(),
+              '/seller/dashboard': (context) => const SellerDashboardPage(),
             },
     );
   }

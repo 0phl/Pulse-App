@@ -12,6 +12,7 @@ import 'edit_item_page.dart';
 import 'chat_list_page.dart';
 import '../services/community_service.dart';
 import '../services/cloudinary_service.dart';
+import 'seller_profile_page.dart';
 
 class MarketPage extends StatefulWidget {
   const MarketPage({super.key});
@@ -115,10 +116,11 @@ class _MarketPageState extends State<MarketPage>
   void _initializeStreams() {
     if (_currentUserCommunityId == null) return;
 
-    // Stream for all items in user's community
+    // Stream for all items in user's community - only show approved items
     _allItemsStream = _firestore
         .collection('market_items')
         .where('communityId', isEqualTo: _currentUserCommunityId)
+        .where('status', isEqualTo: 'approved') // Only show approved items
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) =>
@@ -176,13 +178,14 @@ class _MarketPageState extends State<MarketPage>
         'communityId': _currentUserCommunityId,
         'createdAt': FieldValue.serverTimestamp(),
         'isSold': false,
+        'status': 'pending', // Set initial status as pending
       }).catchError((error) {
         print('Firestore error details: $error');
         throw error;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item added successfully!')),
+        const SnackBar(content: Text('Item added successfully! It will be visible after admin approval.')),
       );
     } catch (e) {
       print('Detailed error adding item: $e');
@@ -221,6 +224,15 @@ class _MarketPageState extends State<MarketPage>
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
         actions: [
+          // Seller Dashboard Button
+          IconButton(
+            icon: const Icon(Icons.dashboard),
+            onPressed: () {
+              Navigator.pushNamed(context, '/seller/dashboard');
+            },
+            tooltip: 'Seller Dashboard',
+          ),
+          // Chat Button with Notification Badge
           Stack(
             children: [
               IconButton(
@@ -326,11 +338,58 @@ class _MarketPageState extends State<MarketPage>
   }
 
   Widget _buildItemList(List<MarketItem> items) {
-    if (items.isEmpty) {
-      return const Center(
+    final bool isMyItemsTab = _tabController.index == 1;
+
+    // For My Items tab, hide sold items immediately
+    // For All Items tab, filter out items that are not approved and hide sold items after 10 minutes
+    final List<MarketItem> displayItems = isMyItemsTab
+        ? items.where((item) => !item.isSold).toList() // Immediately hide sold items in My Items tab
+        : items.where((item) {
+            // Always show approved items that are not sold
+            if (item.status == 'approved' && !item.isSold) {
+              return true;
+            }
+
+            // For sold items, check if they were sold within the last 10 minutes
+            if (item.status == 'approved' && item.isSold) {
+              // If soldAt is null, show the item (backward compatibility)
+              if (item.soldAt == null) {
+                return true;
+              }
+
+              // Calculate time difference between now and when the item was marked as sold
+              final now = DateTime.now();
+              final timeDifference = now.difference(item.soldAt!);
+
+              // Show the item if it was sold less than 10 minutes ago
+              return timeDifference.inMinutes < 10;
+            }
+
+            return false;
+          }).toList();
+
+    // For All Items tab, sort items so active items appear at the top, followed by sold items
+    if (!isMyItemsTab) {
+      displayItems.sort((a, b) {
+        // First sort by sold status (active items first)
+        if (a.isSold != b.isSold) {
+          return a.isSold ? 1 : -1; // Active items (not sold) come first
+        }
+        // Then sort by creation date (newest first)
+        if (a.createdAt != null && b.createdAt != null) {
+          return b.createdAt!.compareTo(a.createdAt!);
+        }
+        return 0;
+      });
+    }
+
+    if (displayItems.isEmpty) {
+      return Center(
         child: Text(
-          'No items to display',
-          style: TextStyle(fontSize: 16, color: Colors.grey),
+          isMyItemsTab
+              ? 'You haven\'t added any items yet'
+              : 'No items to display',
+          style: const TextStyle(fontSize: 16, color: Colors.grey),
         ),
       );
     }
@@ -344,21 +403,20 @@ class _MarketPageState extends State<MarketPage>
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: items.length,
+      itemCount: displayItems.length,
       itemBuilder: (context, index) {
         final bool isMyItemsTab = _tabController.index == 1;
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: MarketItemCard(
-            item: items[index],
-            onInterested: () => _handleInterested(context, items[index]),
-            onImageTap: () => _handleImageTap(context, items[index].imageUrl),
-            isOwner: _auth.currentUser?.uid == items[index].sellerId,
+            item: displayItems[index],
+            onInterested: () => _handleInterested(context, displayItems[index]),
+            onImageTap: () => _handleImageTap(context, displayItems[index].imageUrl),
+            isOwner: _auth.currentUser?.uid == displayItems[index].sellerId,
             showEditButton: isMyItemsTab,
-            onEdit: isMyItemsTab ? () => _handleEditItem(items[index]) : null,
-            onDelete: isMyItemsTab ? () => _handleDelete(items[index]) : null,
-            onMarkAsSold:
-                isMyItemsTab ? () => _handleMarkAsSold(items[index]) : null,
+            onEdit: isMyItemsTab ? () => _handleEditItem(displayItems[index]) : null,
+            onDelete: isMyItemsTab ? () => _handleDelete(displayItems[index]) : null,
+            onSellerTap: !isMyItemsTab ? () => _navigateToSellerProfile(displayItems[index]) : null,
           ),
         );
       },
@@ -406,35 +464,32 @@ class _MarketPageState extends State<MarketPage>
       // Delete the item from Firestore
       await _firestore.collection('market_items').doc(item.id).delete();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item deleted successfully')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Item deleted successfully')),
+        );
+      }
     } catch (e) {
-      print('Error deleting item: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error deleting item: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting item: $e')),
+        );
+      }
     }
   }
 
-  Future<void> _handleMarkAsSold(MarketItem item) async {
-    try {
-      await _firestore.collection('market_items').doc(item.id).update({
-        'isSold': !item.isSold, // Toggle the sold status
-      });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              item.isSold ? 'Item marked as available' : 'Item marked as sold'),
+
+  void _navigateToSellerProfile(MarketItem item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SellerProfilePage(
+          sellerId: item.sellerId,
+          sellerName: item.sellerName,
         ),
-      );
-    } catch (e) {
-      print('Error updating item status: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating item status: $e')),
-      );
-    }
+      ),
+    );
   }
 
   Future<void> _handleItemUpdate(
@@ -459,20 +514,26 @@ class _MarketPageState extends State<MarketPage>
         'imageUrl': imageUrl,
         'communityId': updatedItem.communityId,
         'isSold': updatedItem.isSold,
+        'status': 'pending', // Reset to pending after edit for re-approval
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item updated successfully!')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Item updated successfully! It will need to be approved again.')),
+        );
+      }
     } catch (e) {
-      print('Error updating item: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating item: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating item: $e')),
+        );
+      }
     } finally {
-      setState(() {
-        _isAddingItem = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isAddingItem = false;
+        });
+      }
     }
   }
 

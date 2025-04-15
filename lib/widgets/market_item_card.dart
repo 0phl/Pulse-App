@@ -11,7 +11,7 @@ class MarketItemCard extends StatelessWidget {
   final bool showEditButton;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
-  final VoidCallback? onMarkAsSold;
+  final VoidCallback? onSellerTap;
   final int? unreadCount;
 
   const MarketItemCard({
@@ -23,7 +23,7 @@ class MarketItemCard extends StatelessWidget {
     this.showEditButton = false,
     this.onEdit,
     this.onDelete,
-    this.onMarkAsSold,
+    this.onSellerTap,
     this.unreadCount,
   });
 
@@ -86,50 +86,78 @@ class MarketItemCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Seller name
-                    Text(
-                      'Seller: ${item.sellerName}${isOwner ? ' (you)' : ''}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                    // Seller name - clickable if onSellerTap is provided
+                    GestureDetector(
+                      onTap: onSellerTap,
+                      child: Row(
+                        children: [
+                          Text(
+                            'Seller: ${item.sellerName}${isOwner ? ' (you)' : ''}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: onSellerTap != null ? const Color(0xFF00C49A) : null,
+                              decoration: onSellerTap != null ? TextDecoration.underline : null,
+                            ),
+                          ),
+                          if (onSellerTap != null) ...[
+                            const SizedBox(width: 4),
+                            const Icon(Icons.person, size: 14, color: Color(0xFF00C49A)),
+                          ],
+                        ],
                       ),
                     ),
+
+                    // Show rejection reason if item is rejected
+                    if (item.status == 'rejected' && item.rejectionReason != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Rejection Reason:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              item.rejectionReason!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     if (isOwner && showEditButton) ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: onEdit,
-                              icon: const Icon(Icons.edit),
-                              label: const Text('Edit'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF00C49A),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: onEdit,
+                          icon: const Icon(Icons.edit),
+                          label: const Text('Edit'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00C49A),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: onMarkAsSold,
-                              icon: const Icon(Icons.check_circle_outline),
-                              label: const Text('Mark as Sold'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: item.isSold ? Colors.grey : const Color(0xFF00C49A),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                       const SizedBox(height: 8),
                       SizedBox(
@@ -171,6 +199,7 @@ class MarketItemCard extends StatelessWidget {
               ),
             ],
           ),
+          // Status badges
           if (item.isSold)
             Positioned(
               top: 8,
@@ -192,6 +221,70 @@ class MarketItemCard extends StatelessWidget {
                     SizedBox(width: 4),
                     Text(
                       'SOLD',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          // Show pending status badge
+          if (!item.isSold && item.status == 'pending')
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.pending_outlined,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      'PENDING APPROVAL',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          // Show rejected status badge
+          if (!item.isSold && item.status == 'rejected')
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.cancel_outlined,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      'REJECTED',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,

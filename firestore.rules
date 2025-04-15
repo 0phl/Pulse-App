@@ -16,17 +16,17 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isSignedIn() && 
+      return isSignedIn() &&
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              getUserData(request.auth.uid).role == 'super_admin';
     }
-    
+
     function isAdmin() {
-      return isSignedIn() && 
+      return isSignedIn() &&
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              getUserData(request.auth.uid).role == 'admin';
     }
-    
+
     function canAccessStats() {
       return isAdmin() || isSuperAdmin();
     }
@@ -50,7 +50,7 @@ service cloud.firestore {
                report.status in ['pending', 'under_review', 'in_progress', 'resolved', 'rejected'] &&
                report.communityId == getUserCommunityId();
       }
-      
+
       // Create: User must be signed in and report must be for their community
       allow create: if isSignedIn() &&
                    request.resource.data.communityId == getUserCommunityId() &&
@@ -87,17 +87,17 @@ service cloud.firestore {
     match /users/{userId} {
       // Anyone can read user data for email verification during registration
       allow read: if true;
-      
+
       // Users can create their own documents
       allow create: if isSignedIn() && request.auth.uid == userId;
-      
+
       // Users can update their own documents, admins and super admins can update any user
       allow update: if isSignedIn() && (
         request.auth.uid == userId ||
         isSuperAdmin() ||
         isAdmin()
       );
-      
+
       // Only super admins can delete users
       allow delete: if isSuperAdmin();
     }
@@ -105,23 +105,34 @@ service cloud.firestore {
     // Market items collection rules
     match /market_items/{itemId} {
       allow read: if isSignedIn();
-      
-      allow create: if isSignedIn() && 
+
+      allow create: if isSignedIn() &&
                    request.resource.data.sellerId == request.auth.uid;
-      
+
+      // Allow admins to update any market item
       allow update: if isSignedIn() && (
+        // Seller can update their own items
         resource.data.sellerId == request.auth.uid ||
+        // Buyer/seller can update chat-related fields
         (
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['buyerUnreadCount', 'sellerUnreadCount', 'buyerId']) &&
           (
-            resource.data.buyerId == request.auth.uid || 
+            resource.data.buyerId == request.auth.uid ||
             request.resource.data.buyerId == request.auth.uid ||
             resource.data.sellerId == request.auth.uid
           )
-        )
+        ) ||
+        // Seller can mark item as sold
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isSold', 'soldAt']) &&
+          resource.data.sellerId == request.auth.uid &&
+          request.resource.data.isSold == true
+        ) ||
+        // Admins can update any item
+        canAccessStats()
       );
-      
+
       allow delete: if isSignedIn() && (
                    resource.data.sellerId == request.auth.uid ||
                    canAccessStats()
@@ -131,12 +142,12 @@ service cloud.firestore {
     // Volunteer posts collection rules
     match /volunteer_posts/{postId} {
       allow read: if isSignedIn();
-      
+
       allow create: if isSignedIn() && (
                    request.resource.data.userId == request.auth.uid ||
                    canAccessStats()
                    );
-      
+
       allow update: if isSignedIn() && (
                    resource.data.userId == request.auth.uid ||
                    canAccessStats() ||
@@ -154,7 +165,7 @@ service cloud.firestore {
                      )
                    )
                    );
-      
+
       allow delete: if isSignedIn() && (
                    resource.data.userId == request.auth.uid ||
                    canAccessStats()
@@ -168,24 +179,36 @@ service cloud.firestore {
       allow update, delete: if false; // Audit logs should never be modified or deleted
     }
 
+    // Seller ratings collection
+    match /seller_ratings/{ratingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid == resource.data.buyerId;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.buyerId;
+    }
+
     // Collection access for statistics
     match /market_items/{document=**} {
       allow read: if canAccessStats();
     }
-    
+
     match /volunteer_posts/{document=**} {
       allow read: if canAccessStats();
     }
-    
+
     match /community_notices/{document=**} {
       allow read: if canAccessStats();
     }
-    
+
     match /chats/{document=**} {
       allow read: if canAccessStats();
     }
-    
+
     match /reports/{document=**} {
+      allow read: if canAccessStats();
+    }
+
+    match /seller_ratings/{document=**} {
       allow read: if canAccessStats();
     }
 
