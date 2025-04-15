@@ -22,6 +22,33 @@ class ImprovedKpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Calculate trend values dynamically
+    bool actualPositiveTrend = isPositiveTrend;
+    Color trendColor = Colors.grey;
+    IconData trendIcon = Icons.trending_flat;
+
+    if (trend != null) {
+      // Extract numeric value from trend string (removing + or - prefix)
+      final trendValue =
+          double.tryParse(trend!.replaceAll(RegExp(r'[+\-]'), '')) ?? 0;
+
+      if (trendValue > 0) {
+        // If value is positive
+        trendIcon = Icons.trending_up;
+        trendColor = Colors.green.shade400;
+        actualPositiveTrend = true;
+      } else if (trendValue < 0) {
+        // If value is negative
+        trendIcon = Icons.trending_down;
+        trendColor = Colors.red.shade400;
+        actualPositiveTrend = false;
+      } else {
+        // If value is zero
+        trendIcon = Icons.trending_flat;
+        trendColor = Colors.grey.shade400;
+      }
+    }
+
     final cardWidget = Container(
       height: 110, // Reduced height for more compact appearance
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -91,16 +118,16 @@ class ImprovedKpiCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    isPositiveTrend ? Icons.trending_up : Icons.trending_down,
+                    trendIcon,
                     size: 12,
-                    color: isPositiveTrend ? Colors.green.shade400 : Colors.red.shade400,
+                    color: trendColor,
                   ),
                   const SizedBox(width: 2),
                   Text(
                     trend!,
                     style: TextStyle(
                       fontSize: 10,
-                      color: isPositiveTrend ? Colors.green.shade400 : Colors.red.shade400,
+                      color: trendColor,
                     ),
                   ),
                 ],

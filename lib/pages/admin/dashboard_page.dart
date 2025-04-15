@@ -106,18 +106,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
       try {
         userStats = await _adminService.getUserStats();
-        // Get pending users count
-        final pendingUsers = await _adminService.getPendingVerificationUsers();
-
-        // Separate pending and rejected users
-        final pendingApprovalUsers = pendingUsers.where((user) => user.verificationStatus == 'pending').toList();
-        final rejectedUsers = pendingUsers.where((user) => user.verificationStatus == 'rejected').toList();
-
+        // Get pending users count (filter out rejected users)
+        final pendingAndRejectedUsers = await _adminService.getPendingVerificationUsers();
+        // Only count users with 'pending' status, not 'rejected'
+        final onlyPendingUsers = pendingAndRejectedUsers.where((user) => user.verificationStatus == 'pending').toList();
         userStats = {
           ...userStats,
-          'pendingUsers': pendingApprovalUsers.length, // Only count pending approval users
-          'rejectedUsers': rejectedUsers.length,
-          'newPendingUsers': pendingApprovalUsers
+          'pendingUsers': onlyPendingUsers.length,
+          'newPendingUsers': onlyPendingUsers
               .where((user) => user.createdAt
                   .isAfter(DateTime.now().subtract(const Duration(days: 7))))
               .length,
@@ -129,7 +125,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
           'communityUsers': 4,
           'newUsersThisWeek': 0,
           'pendingUsers': 0,
-          'rejectedUsers': 0,
           'newPendingUsers': 0,
         };
       }
@@ -209,7 +204,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
             'communityUsers': 4,
             'newUsersThisWeek': 0,
             'pendingUsers': 0,
-            'rejectedUsers': 0,
             'newPendingUsers': 0,
           };
           _communityStats = {
@@ -542,7 +536,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
                     ? '+${_userStats?['newPendingUsers']}'
                     : null,
                 isPositiveTrend: false,
-                tooltip: 'Users waiting for verification (excluding rejected)',
+                tooltip: 'Users waiting for verification',
               ),
             ),
           ),

@@ -56,7 +56,8 @@ class AdminService {
         // Handle both new format (firstName, lastName) and old format (fullName)
         String fullName = '';
         if (value['firstName'] != null && value['lastName'] != null) {
-          fullName = value['middleName'] != null && value['middleName'].toString().isNotEmpty
+          fullName = value['middleName'] != null &&
+                  value['middleName'].toString().isNotEmpty
               ? '${value['firstName']} ${value['middleName']} ${value['lastName']}'
               : '${value['firstName']} ${value['lastName']}';
         } else if (value['fullName'] != null) {
@@ -95,29 +96,34 @@ class AdminService {
     // Process in batches to avoid overloading Firestore
     const batchSize = 10;
     for (var i = 0; i < userIds.length; i += batchSize) {
-      final end = (i + batchSize < userIds.length) ? i + batchSize : userIds.length;
+      final end =
+          (i + batchSize < userIds.length) ? i + batchSize : userIds.length;
       final batch = userIds.sublist(i, end);
 
       // Process each batch in parallel
       await Future.wait(batch.map((userId) async {
         try {
           // Find the user in our local list
-          final userIndex = communityUsers.indexWhere((user) => user['uid'] == userId);
+          final userIndex =
+              communityUsers.indexWhere((user) => user['uid'] == userId);
           if (userIndex == -1) return; // Skip if user not found in our list
 
           // Check Firestore for verification status
           final userDoc = await _usersCollection.doc(userId).get();
           if (userDoc.exists) {
             final userData = userDoc.data() as Map<String, dynamic>;
-            final verificationStatus = userData['verificationStatus'] ?? 'pending';
+            final verificationStatus =
+                userData['verificationStatus'] ?? 'pending';
             final isActive = verificationStatus == 'verified';
 
             // Update our local list for immediate UI update
-            communityUsers[userIndex]['verificationStatus'] = verificationStatus;
+            communityUsers[userIndex]['verificationStatus'] =
+                verificationStatus;
             communityUsers[userIndex]['isActive'] = isActive;
 
             // Update RTDB with the verification status if it's different
-            if (communityUsers[userIndex]['verificationStatus'] != verificationStatus ||
+            if (communityUsers[userIndex]['verificationStatus'] !=
+                    verificationStatus ||
                 communityUsers[userIndex]['isActive'] != isActive) {
               await _database.child('users').child(userId).update({
                 'isActive': isActive,
@@ -180,11 +186,23 @@ class AdminService {
     // Get all users from RTDB
     final usersSnapshot = await _database.child('users').get();
     if (!usersSnapshot.exists) {
-      return {'totalUsers': 0, 'communityUsers': 0, 'newUsersThisWeek': 0};
+      return {
+        'totalUsers': 0,
+        'communityUsers': 0,
+        'newUsersThisWeek': 0,
+        'pendingUsers': 0,
+        'newPendingUsers': 0,
+        'pendingUsersTrend': 0
+      };
     }
 
     final usersData = usersSnapshot.value as Map<dynamic, dynamic>;
     final lastWeek = DateTime.now().subtract(const Duration(days: 7));
+    final today = DateTime.now();
+    final startOfToday = DateTime(today.year, today.month, today.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final startOfYesterday =
+        DateTime(yesterday.year, yesterday.month, yesterday.day);
 
     // First collect all users from RTDB
     List<String> communityUserIds = [];
@@ -203,7 +221,8 @@ class AdminService {
         communityUserIds.add(key);
 
         // Store creation date for later use
-        final createdAt = DateTime.fromMillisecondsSinceEpoch(value['createdAt'] ?? 0);
+        final createdAt =
+            DateTime.fromMillisecondsSinceEpoch(value['createdAt'] ?? 0);
         userCreationDates[key] = createdAt;
       }
     });
@@ -212,12 +231,17 @@ class AdminService {
     int totalUsers = 0;
     int communityUsers = 0;
     int newUsersThisWeek = 0;
+    int pendingUsers = 0;
+    int pendingUsersToday = 0;
+    int pendingUsersYesterday = 0;
 
     // Now check Firestore for verification status
     // Process in batches to avoid overloading Firestore
     const batchSize = 10;
     for (var i = 0; i < communityUserIds.length; i += batchSize) {
-      final end = (i + batchSize < communityUserIds.length) ? i + batchSize : communityUserIds.length;
+      final end = (i + batchSize < communityUserIds.length)
+          ? i + batchSize
+          : communityUserIds.length;
       final batch = communityUserIds.sublist(i, end);
 
       await Future.wait(batch.map((userId) async {
@@ -225,7 +249,8 @@ class AdminService {
           final userDoc = await _usersCollection.doc(userId).get();
           if (userDoc.exists) {
             final userData = userDoc.data() as Map<String, dynamic>;
-            final verificationStatus = userData['verificationStatus'] ?? 'pending';
+            final verificationStatus =
+                userData['verificationStatus'] ?? 'pending';
 
             if (verificationStatus == 'verified') {
               communityUsers++;
@@ -236,6 +261,22 @@ class AdminService {
               if (createdAt != null && createdAt.isAfter(lastWeek)) {
                 newUsersThisWeek++;
               }
+            } else if (verificationStatus == 'pending') {
+              pendingUsers++;
+
+              // Check if pending user was created today
+              final createdAt = userCreationDates[userId];
+              if (createdAt != null) {
+                if (createdAt.isAfter(startOfToday) ||
+                    createdAt.isAtSameMomentAs(startOfToday)) {
+                  pendingUsersToday++;
+                }
+                // Check if pending user was created yesterday
+                else if (createdAt.isAfter(startOfYesterday) ||
+                    createdAt.isAtSameMomentAs(startOfYesterday)) {
+                  pendingUsersYesterday++;
+                }
+              }
             }
           }
         } catch (e) {
@@ -244,10 +285,16 @@ class AdminService {
       }));
     }
 
+    // Calculate trend (difference between today and yesterday)
+    final pendingUsersTrend = pendingUsersToday - pendingUsersYesterday;
+
     return {
       'totalUsers': totalUsers,
       'communityUsers': communityUsers,
       'newUsersThisWeek': newUsersThisWeek,
+      'pendingUsers': pendingUsers,
+      'newPendingUsers': pendingUsersToday,
+      'pendingUsersTrend': pendingUsersTrend,
     };
   }
 
@@ -350,8 +397,12 @@ class AdminService {
           'recentLogs': 0,
           'activeChats': 0,
           'dailyActivity': List<int>.filled(7, 0),
-          'newPostsToday': 0,
+          'newReportsToday': 0,
+          'newReportsTrend': 0,
           'newUsersToday': 0,
+          'newUsersTrend': 0,
+          'newPostsToday': 0,
+          'newPostsTrend': 0,
         };
       }
 
@@ -368,6 +419,49 @@ class AdminService {
         // Continue with default value
       }
 
+      // Get reports trend (difference between today and yesterday)
+      int newReportsToday = 0;
+      int newReportsYesterday = 0;
+      int newReportsTrend = 0;
+
+      // Get time references for today and yesterday
+      final nowUtc = DateTime.now().toUtc(); // Use UTC time
+      final startOfToday = DateTime.utc(
+          nowUtc.year, nowUtc.month, nowUtc.day); // Start of UTC day
+      final startOfTodayTimestamp =
+          Timestamp.fromDate(startOfToday); // Firestore Timestamp (UTC based)
+
+      final yesterdayUtc = nowUtc.subtract(const Duration(days: 1));
+      final startOfYesterday = DateTime.utc(yesterdayUtc.year,
+          yesterdayUtc.month, yesterdayUtc.day); // Start of previous UTC day
+      final startOfYesterdayTimestamp = Timestamp.fromDate(
+          startOfYesterday); // Firestore Timestamp (UTC based)
+
+      try {
+        // Get today's reports
+        final todayReportsQuery = await _reportsCollection
+            .where('communityId', isEqualTo: communityId)
+            .where('createdAt', isGreaterThanOrEqualTo: startOfTodayTimestamp)
+            .count()
+            .get();
+        newReportsToday = todayReportsQuery.count ?? 0;
+
+        // Get yesterday's reports
+        final yesterdayReportsQuery = await _reportsCollection
+            .where('communityId', isEqualTo: communityId)
+            .where('createdAt',
+                isGreaterThanOrEqualTo: startOfYesterdayTimestamp)
+            .where('createdAt', isLessThan: startOfTodayTimestamp)
+            .count()
+            .get();
+        newReportsYesterday = yesterdayReportsQuery.count ?? 0;
+
+        // Calculate trend
+        newReportsTrend = newReportsToday - newReportsYesterday;
+      } catch (e) {
+        debugPrint('Error calculating reports stats: $e');
+      }
+
       int volunteerPostsCount = 0;
       try {
         final postsQuery = await _volunteerPostsCollection
@@ -380,12 +474,12 @@ class AdminService {
       }
 
       // Get recent audit logs (last 24 hours)
-      final yesterday =
+      final yesterdayTimestamp =
           Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 1)));
       int recentLogsCount = 0;
       try {
         final logsQuery = await _auditLogsCollection
-            .where('timestamp', isGreaterThan: yesterday)
+            .where('timestamp', isGreaterThan: yesterdayTimestamp)
             .count()
             .get();
         recentLogsCount = logsQuery.count ?? 0;
@@ -420,44 +514,118 @@ class AdminService {
         dailyActivity[5] = 2;
       }
 
-      // Get new posts and users today
-      final today = DateTime.now();
-      final startOfDay = DateTime(today.year, today.month, today.day);
-      final startOfDayTimestamp = Timestamp.fromDate(startOfDay);
-
+      // Get new posts today
       int newPostsToday = 0;
+      int newPostsYesterday = 0;
+      int newPostsTrend = 0;
+
       try {
-        final postsQuery = await _volunteerPostsCollection
+        // Get today's volunteer posts from Firestore
+        final todayVolunteerPostsQuery = await _volunteerPostsCollection
             .where('communityId', isEqualTo: communityId)
-            .where('date', isGreaterThanOrEqualTo: startOfDayTimestamp)
+            .where('date',
+                isGreaterThanOrEqualTo:
+                    startOfTodayTimestamp) // Compare with UTC start of day
             .count()
             .get();
-        newPostsToday = postsQuery.count ?? 0;
+        final volunteerPostsToday = todayVolunteerPostsQuery.count ?? 0;
+        debugPrint('Volunteer posts today: $volunteerPostsToday');
+        newPostsToday = volunteerPostsToday;
+
+        // Get yesterday's volunteer posts
+        final yesterdayVolunteerPostsQuery = await _volunteerPostsCollection
+            .where('communityId', isEqualTo: communityId)
+            .where('date',
+                isGreaterThanOrEqualTo:
+                    startOfYesterdayTimestamp) // Compare with UTC start of yesterday
+            .where('date',
+                isLessThan:
+                    startOfTodayTimestamp) // Compare with UTC start of today
+            .count()
+            .get();
+        final volunteerPostsYesterday = yesterdayVolunteerPostsQuery.count ?? 0;
+        debugPrint('Volunteer posts yesterday: $volunteerPostsYesterday');
+        newPostsYesterday = volunteerPostsYesterday;
+
+        // Get today's community notices from RTDB
+        final noticesSnapshot = await _database
+            .child('community_notices')
+            .orderByChild('communityId')
+            .equalTo(communityId)
+            .get();
+
+        if (noticesSnapshot.exists) {
+          final noticesData = noticesSnapshot.value as Map<dynamic, dynamic>;
+          // Use UTC milliseconds for comparison with RTDB ServerValue.timestamp (which is UTC epoch)
+          final startOfTodayMillis = startOfToday.millisecondsSinceEpoch;
+          final startOfYesterdayMillis =
+              startOfYesterday.millisecondsSinceEpoch;
+
+          noticesData.forEach((key, value) {
+            if (value is Map) {
+              final createdAtMillis = value['createdAt'] as int?;
+              if (createdAtMillis != null) {
+                if (createdAtMillis >= startOfTodayMillis) {
+                  // Add to today's count
+                  newPostsToday++;
+                  debugPrint('Found community notice from today, total posts today: $newPostsToday');
+                } else if (createdAtMillis >= startOfYesterdayMillis &&
+                    createdAtMillis < startOfTodayMillis) {
+                  // Add to yesterday's count
+                  newPostsYesterday++;
+                  debugPrint('Found community notice from yesterday, total posts yesterday: $newPostsYesterday');
+                }
+              }
+            }
+          });
+        }
+
+        // Calculate overall trend
+        newPostsTrend = newPostsToday - newPostsYesterday;
       } catch (e) {
-        // Continue with default value
+        debugPrint('Error calculating posts stats: $e');
       }
 
-      // Get new users today from RTDB
+      // Get new users today and calculate trend
       int newUsersToday = 0;
+      int newUsersYesterday = 0;
+      int newUsersTrend = 0;
+
       try {
         final usersSnapshot = await _database.child('users').get();
         if (usersSnapshot.exists) {
           final usersData = usersSnapshot.value as Map<dynamic, dynamic>;
+          // Use UTC DateTime for comparison
           usersData.forEach((key, value) {
             if (value is Map &&
                 value['communityId'] == communityId &&
                 value['role'] != 'admin' &&
                 value['role'] != 'super_admin') {
-              final createdAt =
-                  DateTime.fromMillisecondsSinceEpoch(value['createdAt'] ?? 0);
-              if (createdAt.isAfter(startOfDay)) {
+              final createdAtMillis = value['createdAt'] as int?;
+              if (createdAtMillis == null) return; // Skip if createdAt is null
+              final createdAt = DateTime.fromMillisecondsSinceEpoch(
+                  createdAtMillis,
+                  isUtc: true); // Treat RTDB timestamp as UTC
+
+              // Check if user was created today (UTC)
+              if (createdAt.isAfter(startOfToday) ||
+                  createdAt.isAtSameMomentAs(startOfToday)) {
                 newUsersToday++;
+              }
+              // Check if user was created yesterday (UTC)
+              else if (createdAt.isAfter(startOfYesterday) ||
+                  createdAt.isAtSameMomentAs(startOfYesterday)) {
+                newUsersYesterday++;
               }
             }
           });
+
+          // Calculate trend (difference between today and yesterday)
+          newUsersTrend = newUsersToday - newUsersYesterday;
         }
       } catch (e) {
-        // Continue with default value
+        // Continue with default values
+        debugPrint('Error calculating users trend: $e');
       }
 
       return {
@@ -466,19 +634,27 @@ class AdminService {
         'recentLogs': recentLogsCount,
         'activeChats': activeChatsCount,
         'dailyActivity': dailyActivity,
-        'newPostsToday': newPostsToday,
+        'newReportsToday': newReportsToday,
+        'newReportsTrend': newReportsTrend,
         'newUsersToday': newUsersToday,
+        'newUsersTrend': newUsersTrend,
+        'newPostsToday': newPostsToday,
+        'newPostsTrend': newPostsTrend,
       };
     } catch (e) {
-      // Return default values in case of any error
+      // Return default values in case of error
       return {
         'totalReports': 0,
         'volunteerPosts': 0,
         'recentLogs': 0,
         'activeChats': 0,
         'dailyActivity': List<int>.filled(7, 0),
-        'newPostsToday': 0,
+        'newReportsToday': 0,
+        'newReportsTrend': 0,
         'newUsersToday': 0,
+        'newUsersTrend': 0,
+        'newPostsToday': 0,
+        'newPostsTrend': 0,
       };
     }
   }
@@ -602,7 +778,7 @@ class AdminService {
     final lastWeek =
         Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 7)));
     final recentPostsCount = (await _volunteerPostsCollection
-            .where('createdAt', isGreaterThan: lastWeek)
+            .where('date', isGreaterThan: lastWeek)
             .count()
             .get())
         .count;
@@ -658,7 +834,9 @@ class AdminService {
       if (rtdbSnapshot.exists) {
         final rtdbData = rtdbSnapshot.value as Map<dynamic, dynamic>;
         final role = rtdbData['role'] as String?;
-        return role == 'community_admin' || role == 'admin' || role == 'super_admin';
+        return role == 'community_admin' ||
+            role == 'admin' ||
+            role == 'super_admin';
       }
     } catch (e) {
       debugPrint('Error checking RTDB for admin role: $e');
@@ -830,7 +1008,8 @@ class AdminService {
           debugPrint('Updated weeklyData[$dayDiff] = ${weeklyData[dayDiff]}');
         }
       } else {
-        debugPrint('Report created at: $createdAt is before week start: $weekStart');
+        debugPrint(
+            'Report created at: $createdAt is before week start: $weekStart');
       }
     }
 
@@ -1292,13 +1471,13 @@ class AdminService {
       final firestoreUsers = await _usersCollection
           .where('communityId', isEqualTo: communityId)
           .where('role', isEqualTo: 'member')
-          .where('verificationStatus', whereIn: ['pending', 'rejected'])
-          .get();
+          .where('verificationStatus', whereIn: ['pending', 'rejected']).get();
 
       List<FirestoreUser> pendingUsers = [];
       Set<String> pendingUserIds = {}; // To track users we've already added
 
-      debugPrint('Found ${firestoreUsers.docs.length} pending/rejected users in Firestore');
+      debugPrint(
+          'Found ${firestoreUsers.docs.length} pending/rejected users in Firestore');
 
       // Process Firestore users first as the source of truth
       for (var doc in firestoreUsers.docs) {
@@ -1311,7 +1490,8 @@ class AdminService {
           final firestoreUser = FirestoreUser.fromMap(userData);
           pendingUsers.add(firestoreUser);
           pendingUserIds.add(uid);
-          debugPrint('Added user from Firestore: ${firestoreUser.fullName}, status: ${firestoreUser.verificationStatus}');
+          debugPrint(
+              'Added user from Firestore: ${firestoreUser.fullName}, status: ${firestoreUser.verificationStatus}');
         } catch (e) {
           debugPrint('Error creating FirestoreUser from Firestore data: $e');
         }
@@ -1333,7 +1513,6 @@ class AdminService {
           if (value is Map &&
               value['communityId'] == communityId &&
               value['role'] == 'member') {
-
             // Check if user is pending in RTDB
             final verificationStatus = value['verificationStatus'];
             final isActive = value['isActive'] ?? false;
@@ -1341,11 +1520,14 @@ class AdminService {
             // A user is pending or rejected if:
             // 1. verificationStatus is explicitly 'pending' or 'rejected', OR
             // 2. verificationStatus is null AND isActive is false AND they have a registrationId (meaning they registered but haven't been verified)
-            final hasRegistrationId = value['registrationId'] != null && value['registrationId'].toString().isNotEmpty;
-            final isPendingOrRejected = verificationStatus == 'pending' || verificationStatus == 'rejected' ||
-                           (verificationStatus == null && !isActive && hasRegistrationId);
+            final hasRegistrationId = value['registrationId'] != null &&
+                value['registrationId'].toString().isNotEmpty;
+            final isPendingOrRejected = verificationStatus == 'pending' ||
+                verificationStatus == 'rejected' ||
+                (verificationStatus == null && !isActive && hasRegistrationId);
 
-            debugPrint('User ${value['fullName'] ?? key}: verificationStatus=$verificationStatus, isActive=$isActive, hasRegistrationId=$hasRegistrationId, isPendingOrRejected=$isPendingOrRejected');
+            debugPrint(
+                'User ${value['fullName'] ?? key}: verificationStatus=$verificationStatus, isActive=$isActive, hasRegistrationId=$hasRegistrationId, isPendingOrRejected=$isPendingOrRejected');
           }
         }
       }
@@ -1417,7 +1599,8 @@ class AdminService {
 
   // Update user verification status
   Future<void> updateUserVerificationStatus(
-      String userId, String verificationStatus, {String? rejectionReason}) async {
+      String userId, String verificationStatus,
+      {String? rejectionReason}) async {
     debugPrint('===== UPDATING USER VERIFICATION STATUS =====');
     debugPrint('User ID: $userId');
     debugPrint('New status: $verificationStatus');
@@ -1499,7 +1682,8 @@ class AdminService {
         // Add appropriate timestamp based on status
         if (verificationStatus == 'verified') {
           updateData['verifiedAt'] = ServerValue.timestamp;
-        } else if (verificationStatus == 'rejected' && rejectionReason != null) {
+        } else if (verificationStatus == 'rejected' &&
+            rejectionReason != null) {
           updateData['rejectedAt'] = ServerValue.timestamp;
           updateData['rejectionReason'] = rejectionReason;
         }

@@ -142,17 +142,20 @@ class _UserVerificationPageState extends State<UserVerificationPage> {
     }
   }
 
-  Future<void> _verifyUser(FirestoreUser user, bool isApproved) async {
+  Future<void> _verifyUser(FirestoreUser user, bool isApproved, {String? rejectionReason}) async {
     try {
       debugPrint('===== VERIFY USER PROCESS STARTED =====');
       debugPrint('User: ${user.fullName} (${user.uid})');
       debugPrint('Action: ${isApproved ? 'APPROVE' : 'REJECT'}');
+      if (rejectionReason != null) {
+        debugPrint('Rejection reason: $rejectionReason');
+      }
 
       setState(() => _isLoading = true);
 
       debugPrint('Calling AdminService.updateUserVerificationStatus...');
       await _adminService.updateUserVerificationStatus(
-          user.uid, isApproved ? 'verified' : 'rejected');
+          user.uid, isApproved ? 'verified' : 'rejected', rejectionReason: rejectionReason);
       debugPrint('AdminService.updateUserVerificationStatus completed successfully');
 
       // Refresh the list
@@ -234,8 +237,100 @@ class _UserVerificationPageState extends State<UserVerificationPage> {
           ),
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();
-              _verifyUser(user, false);
+              // Show rejection dialog with reason field
+              final TextEditingController reasonController = TextEditingController();
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: Row(
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.red[700],
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Confirm Rejection'),
+                    ],
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Are you sure you want to reject ${user.fullName}?',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'This user will not be able to access community features until approved.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Rejection Reason (optional):',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: reasonController,
+                        decoration: InputDecoration(
+                          hintText: 'Enter reason for rejection',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                        ),
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'The reason will be visible to the user',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        final reason = reasonController.text.trim();
+                        Navigator.of(context).pop(); // Close confirmation dialog
+                        Navigator.of(context).pop(); // Close verification dialog
+                        _verifyUser(user, false, rejectionReason: reason.isNotEmpty ? reason : null);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[700],
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text('Confirm Rejection'),
+                    ),
+                  ],
+                ),
+              );
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Reject'),
@@ -319,7 +414,101 @@ class _UserVerificationPageState extends State<UserVerificationPage> {
                   Row(
                     children: [
                       TextButton(
-                        onPressed: () => _verifyUser(user, false),
+                        onPressed: () {
+                          // Show rejection dialog with reason field
+                          final TextEditingController reasonController = TextEditingController();
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              title: Row(
+                                children: [
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    color: Colors.red[700],
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text('Confirm Rejection'),
+                                ],
+                              ),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Are you sure you want to reject ${user.fullName}?',
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'This user will not be able to access community features until approved.',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Rejection Reason (optional):',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: reasonController,
+                                    decoration: InputDecoration(
+                                      hintText: 'Enter reason for rejection',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                    ),
+                                    maxLines: 3,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'The reason will be visible to the user',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('Cancel'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    final reason = reasonController.text.trim();
+                                    Navigator.of(context).pop(); // Close confirmation dialog
+                                    _verifyUser(user, false, rejectionReason: reason.isNotEmpty ? reason : null);
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red[700],
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: const Text('Confirm Rejection'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                         style: TextButton.styleFrom(
                           padding: EdgeInsets.zero,
                           minimumSize: const Size(40, 30),

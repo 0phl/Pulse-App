@@ -1587,6 +1587,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   OutlinedButton(
                     onPressed: () {
                       // Show confirmation dialog before rejecting
+                      final TextEditingController reasonController = TextEditingController();
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
@@ -1620,6 +1621,38 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                                   color: Colors.grey[700],
                                 ),
                               ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Rejection Reason (optional):',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: reasonController,
+                                decoration: InputDecoration(
+                                  hintText: 'Enter reason for rejection',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                ),
+                                maxLines: 3,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'The reason will be visible to the user',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
                             ],
                           ),
                           actions: [
@@ -1629,8 +1662,9 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                             ),
                             ElevatedButton(
                               onPressed: () {
+                                final reason = reasonController.text.trim();
                                 Navigator.of(context).pop(); // Close confirmation dialog
-                                _verifyUser(user, false);
+                                _verifyUser(user, false, rejectionReason: reason.isNotEmpty ? reason : null);
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.red[700],
