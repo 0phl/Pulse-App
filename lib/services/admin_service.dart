@@ -592,10 +592,15 @@ class AdminService {
       int newUsersTrend = 0;
 
       try {
+        // First get all user IDs from RTDB to check their verification status in Firestore
         final usersSnapshot = await _database.child('users').get();
         if (usersSnapshot.exists) {
           final usersData = usersSnapshot.value as Map<dynamic, dynamic>;
-          // Use UTC DateTime for comparison
+
+          // Create a list to store user IDs and their creation dates
+          List<Map<String, dynamic>> communityUsers = [];
+
+          // First pass: collect all community users from RTDB
           usersData.forEach((key, value) {
             if (value is Map &&
                 value['communityId'] == communityId &&
@@ -603,22 +608,54 @@ class AdminService {
                 value['role'] != 'super_admin') {
               final createdAtMillis = value['createdAt'] as int?;
               if (createdAtMillis == null) return; // Skip if createdAt is null
+
               final createdAt = DateTime.fromMillisecondsSinceEpoch(
                   createdAtMillis,
                   isUtc: true); // Treat RTDB timestamp as UTC
 
-              // Check if user was created today (UTC)
-              if (createdAt.isAfter(startOfToday) ||
-                  createdAt.isAtSameMomentAs(startOfToday)) {
-                newUsersToday++;
-              }
-              // Check if user was created yesterday (UTC)
-              else if (createdAt.isAfter(startOfYesterday) ||
-                  createdAt.isAtSameMomentAs(startOfYesterday)) {
-                newUsersYesterday++;
-              }
+              communityUsers.add({
+                'uid': key,
+                'createdAt': createdAt,
+              });
             }
           });
+
+          // Process in batches to avoid overloading Firestore
+          const batchSize = 10;
+          for (var i = 0; i < communityUsers.length; i += batchSize) {
+            final end = (i + batchSize < communityUsers.length) ? i + batchSize : communityUsers.length;
+            final batch = communityUsers.sublist(i, end);
+
+            await Future.wait(batch.map((userData) async {
+              try {
+                final userId = userData['uid'];
+                final createdAt = userData['createdAt'] as DateTime;
+
+                // Check Firestore for verification status
+                final userDoc = await _usersCollection.doc(userId).get();
+                if (userDoc.exists) {
+                  final firestoreData = userDoc.data() as Map<String, dynamic>;
+                  final verificationStatus = firestoreData['verificationStatus'] ?? 'pending';
+
+                  // Only count verified users
+                  if (verificationStatus == 'verified') {
+                    // Check if user was created today (UTC)
+                    if (createdAt.isAfter(startOfToday) ||
+                        createdAt.isAtSameMomentAs(startOfToday)) {
+                      newUsersToday++;
+                    }
+                    // Check if user was created yesterday (UTC)
+                    else if (createdAt.isAfter(startOfYesterday) ||
+                        createdAt.isAtSameMomentAs(startOfYesterday)) {
+                      newUsersYesterday++;
+                    }
+                  }
+                }
+              } catch (e) {
+                debugPrint('Error checking verification status for user: $e');
+              }
+            }));
+          }
 
           // Calculate trend (difference between today and yesterday)
           newUsersTrend = newUsersToday - newUsersYesterday;
