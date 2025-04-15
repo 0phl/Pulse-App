@@ -1285,6 +1285,8 @@ class AdminService {
       final adminData = adminDoc.data() as Map<String, dynamic>;
       final communityId = adminData['communityId'] as String;
 
+      debugPrint('Getting pending users for community: $communityId');
+
       // First check RTDB for pending users - this is faster for initial display
       final usersSnapshot = await _database.child('users').get();
       List<FirestoreUser> pendingUsers = [];
@@ -1292,6 +1294,7 @@ class AdminService {
 
       if (usersSnapshot.exists) {
         final usersData = usersSnapshot.value as Map<dynamic, dynamic>;
+        debugPrint('Found ${usersData.length} total users in RTDB');
 
         // Find users with pending status in RTDB
         for (var entry in usersData.entries) {
@@ -1304,14 +1307,24 @@ class AdminService {
 
             // Check if user is pending in RTDB
             final verificationStatus = value['verificationStatus'];
+            final isActive = value['isActive'] ?? false;
+
+            // A user is pending if:
+            // 1. verificationStatus is explicitly 'pending', OR
+            // 2. verificationStatus is null AND isActive is false AND they have a registrationId (meaning they registered but haven't been verified)
+            final hasRegistrationId = value['registrationId'] != null && value['registrationId'].toString().isNotEmpty;
             final isPending = verificationStatus == 'pending' ||
-                           (value['isActive'] == false && verificationStatus == null);
+                           (verificationStatus == null && !isActive && hasRegistrationId);
+
+            debugPrint('User ${value['fullName'] ?? key}: verificationStatus=$verificationStatus, isActive=$isActive, hasRegistrationId=$hasRegistrationId, isPending=$isPending');
 
             if (isPending) {
               try {
                 // Create a FirestoreUser from RTDB data
+                debugPrint('Creating FirestoreUser from RTDB data for ${value['fullName'] ?? key}');
+                // Parse birth date with our helper method
                 final birthDate = value['birthDate'] != null
-                    ? DateTime.parse(value['birthDate'])
+                    ? FirestoreUser.parseDateTime(value['birthDate'])
                     : DateTime.now();
 
                 final location = value['location'] is Map
@@ -1319,7 +1332,9 @@ class AdminService {
                     : <String, String>{};
 
                 final createdAt = value['createdAt'] != null
-                    ? DateTime.fromMillisecondsSinceEpoch(value['createdAt'])
+                    ? (value['createdAt'] is int
+                        ? DateTime.fromMillisecondsSinceEpoch(value['createdAt'])
+                        : FirestoreUser.parseDateTime(value['createdAt']))
                     : DateTime.now();
 
                 // Extract name components from fullName if available
@@ -1394,6 +1409,8 @@ class AdminService {
           .where('verificationStatus', isEqualTo: 'pending')
           .get();
 
+      debugPrint('Found ${usersQuery.docs.length} pending users in Firestore');
+
       // Process Firestore users
       for (var doc in usersQuery.docs) {
         final userData = doc.data() as Map<String, dynamic>;
@@ -1407,12 +1424,19 @@ class AdminService {
             // Update the UI list (this won't be visible until next refresh)
             // but it will update the database for future queries
             pendingUsers.add(firestoreUser);
+            debugPrint('Added pending user from Firestore: ${firestoreUser.fullName}');
 
-            // Update RTDB with verification status
-            await _database.child('users').child(uid).update({
-              'verificationStatus': 'pending',
-              'isActive': false,
-            });
+            // Try to update RTDB with verification status, but don't fail if we can't
+            try {
+              await _database.child('users').child(uid).update({
+                'verificationStatus': 'pending',
+                'isActive': false,
+              });
+            } catch (rtdbError) {
+              // Just log the error but don't fail the whole operation
+              debugPrint('Error updating RTDB for user $uid: $rtdbError');
+              // This is likely a permission issue, but we've already added the user to our list
+            }
           } catch (e) {
             debugPrint('Error processing Firestore user $uid: $e');
           }

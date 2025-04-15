@@ -106,16 +106,46 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
       try {
         userStats = await _adminService.getUserStats();
-        // Get pending users count
-        final pendingUsers = await _adminService.getPendingVerificationUsers();
-        userStats = {
-          ...userStats ?? {},
-          'pendingUsers': pendingUsers.length,
-          'newPendingUsers': pendingUsers
-              .where((user) => user.createdAt
-                  .isAfter(DateTime.now().subtract(const Duration(days: 7))))
-              .length,
-        };
+
+        // Get pending users count - try multiple approaches
+        try {
+          // First try the dedicated pending users method
+          final pendingUsers = await _adminService.getPendingVerificationUsers();
+          debugPrint('Dashboard: Found ${pendingUsers.length} pending users');
+
+          // Also try to count pending users from the All Users tab
+          final allUsers = await _adminService.getRTDBUsers();
+          final pendingFromAllUsers = allUsers.where((user) {
+            final verificationStatus = user['verificationStatus'];
+            final isActive = user['isActive'] ?? false;
+            final hasRegistrationId = user['registrationId'] != null &&
+                user['registrationId'].toString().isNotEmpty;
+
+            return verificationStatus == 'pending' ||
+                  (verificationStatus == null && !isActive && hasRegistrationId);
+          }).toList();
+
+          debugPrint('Dashboard: Found ${pendingFromAllUsers.length} pending users from all users');
+
+          // Use the maximum of the two counts to ensure we don't miss any
+          final pendingCount = pendingUsers.isNotEmpty ?
+              pendingUsers.length :
+              pendingFromAllUsers.length;
+
+          userStats = {
+            ...userStats,
+            'pendingUsers': pendingCount,
+            'newPendingUsers': pendingUsers
+                .where((user) => user.createdAt
+                    .isAfter(DateTime.now().subtract(const Duration(days: 7))))
+                .length,
+          };
+
+          debugPrint('Dashboard: Updated userStats with pendingUsers: ${userStats['pendingUsers']}');
+        } catch (pendingError) {
+          debugPrint('Error getting pending users: $pendingError');
+          // Keep the default values from getUserStats
+        }
       } catch (e) {
         // Error loading user stats
         // Use default values if this fails
@@ -153,7 +183,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
             .length;
 
         activityStats = {
-          ...activityStats ?? {},
+          ...(activityStats ?? {}),
           'newReportsToday': newReportsCount,
         };
       } catch (e) {

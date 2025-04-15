@@ -35,10 +35,21 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
+
+    // Add listener for search text changes
     _searchController.addListener(_filterUsers);
+
+    // Load initial data
+    debugPrint('UsersPage: initState called');
     _loadCommunity();
     _loadUsers();
-    _loadPendingUsers();
+    _loadPendingUsers().then((_) {
+      // Force a rebuild of the filtered list after loading pending users
+      if (mounted) {
+        debugPrint('Forcing filter update after loading pending users');
+        _filterUsers();
+      }
+    });
 
     // Start the animation
     _controller.forward();
@@ -74,6 +85,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
 
   void _handleTabChange() {
     // This will trigger for both tap and slide changes
+    debugPrint('Tab changed to index: ${_tabController.index}');
+
     if (mounted) {
       setState(() {
         // Clear search when changing tabs
@@ -81,42 +94,64 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
 
         // Refresh data based on the new tab
         _isLoading = true;
-
-        if (_tabController.index == 0) {
-          _loadUsers().then((_) {
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-              });
-            }
-          });
-        } else {
-          _loadPendingUsers().then((_) {
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-              });
-            }
-          });
-        }
       });
+
+      // Load data outside of setState to avoid rebuilding too early
+      if (_tabController.index == 0) {
+        debugPrint('Loading All Users tab data');
+        _loadUsers().then((_) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+        });
+      } else {
+        debugPrint('Loading Pending Verification tab data');
+        _loadPendingUsers().then((_) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              // Force a rebuild of the filtered list
+              _filterUsers();
+            });
+          }
+        });
+      }
     }
   }
 
   void _filterUsers() {
+    debugPrint('_filterUsers called with search text: "${_searchController.text}"');
+    debugPrint('Current tab index: ${_tabController.index}');
+
     setState(() {
       if (_tabController.index == 0) {
         _applyCurrentFilter();
       } else {
         // Filter pending users
         final searchTerm = _searchController.text.toLowerCase();
-        _filteredPendingUsers = _pendingUsers.where((user) {
-          return user.fullName.toLowerCase().contains(searchTerm) ||
-              user.email.toLowerCase().contains(searchTerm) ||
-              user.mobile.toLowerCase().contains(searchTerm);
-        }).toList();
+        debugPrint('Filtering ${_pendingUsers.length} pending users with search term: "$searchTerm"');
+
+        // Always show all pending users if search is empty
+        if (searchTerm.isEmpty) {
+          _filteredPendingUsers = List.from(_pendingUsers);
+          debugPrint('Search term empty, showing all ${_filteredPendingUsers.length} pending users');
+        } else {
+          _filteredPendingUsers = _pendingUsers.where((user) {
+            return user.fullName.toLowerCase().contains(searchTerm) ||
+                user.email.toLowerCase().contains(searchTerm) ||
+                user.mobile.toLowerCase().contains(searchTerm);
+          }).toList();
+          debugPrint('After filtering, showing ${_filteredPendingUsers.length} pending users');
+        }
       }
     });
+
+    // Force update the UI to show pending users
+    if (_tabController.index == 1 && mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _loadCommunity() async {
@@ -212,7 +247,14 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
         setState(() => _isLoading = true);
       }
 
+      debugPrint('Loading pending verification users...');
       final pendingUsers = await _adminService.getPendingVerificationUsers();
+      debugPrint('Found ${pendingUsers.length} pending users');
+
+      // Log each pending user for debugging
+      for (var user in pendingUsers) {
+        debugPrint('Pending user: ${user.fullName} (${user.uid})');
+      }
 
       if (mounted) {
         setState(() {
@@ -220,9 +262,12 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
           _filteredPendingUsers = pendingUsers;
           _isLoading = false;
           _isInitialLoad = false;
+          debugPrint('Updated state with ${_pendingUsers.length} pending users');
+          debugPrint('Updated filtered list with ${_filteredPendingUsers.length} pending users');
         });
       }
     } catch (e) {
+      debugPrint('Error loading pending users: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -443,6 +488,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   }
 
   Future<void> _refreshData() async {
+    debugPrint('Manual refresh triggered on tab ${_tabController.index}');
     setState(() {
       _isLoading = true;
       _isInitialLoad = false; // This is a manual refresh
@@ -450,8 +496,19 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
 
     if (_tabController.index == 0) {
       await _loadUsers();
+      // Apply filter after loading
+      _applyCurrentFilter();
     } else {
       await _loadPendingUsers();
+      // Force a rebuild of the filtered list
+      _filterUsers();
+    }
+
+    // Update UI to show loading is complete
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -556,14 +613,40 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                         ),
                       ],
                     ),
-                    contentWidget: ListView.builder(
-                      padding: const EdgeInsets.only(top: 8, bottom: 16),
-                      itemCount: _filteredPendingUsers.length,
-                      itemBuilder: (context, index) {
-                        return _buildPendingUserCard(
-                            _filteredPendingUsers[index]);
-                      },
-                    ),
+                    contentWidget: _pendingUsers.isEmpty && !_isLoading
+                      ? _buildEmptyState(
+                          icon: Icons.person_add_outlined,
+                          message: 'No pending verification users',
+                          subMessage: 'Scan a QR code to verify a new user',
+                          button: ElevatedButton.icon(
+                            onPressed: _openQRScanner,
+                            icon: const Icon(Icons.qr_code_scanner),
+                            label: const Text('Scan QR Code'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF00C49A),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.only(top: 8, bottom: 16),
+                          itemCount: _filteredPendingUsers.length,
+                          itemBuilder: (context, index) {
+                            return _buildPendingUserCard(
+                                _filteredPendingUsers[index]);
+                          },
+                        ),
                   ),
                 ],
               ),

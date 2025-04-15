@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class FirestoreUser {
   final String uid;
@@ -67,6 +68,45 @@ class FirestoreUser {
     };
   }
 
+  // Helper method to parse birth date from various formats
+  static DateTime _parseBirthDate(dynamic birthDateValue) {
+    return parseDateTime(birthDateValue);
+  }
+
+  // Helper method to parse created at date from various formats
+  static DateTime _parseCreatedAt(dynamic createdAtValue) {
+    return parseDateTime(createdAtValue);
+  }
+
+  // Generic date time parser - public so it can be used by other classes
+  static DateTime parseDateTime(dynamic dateTimeValue) {
+    try {
+      if (dateTimeValue is Timestamp) {
+        return dateTimeValue.toDate();
+      } else if (dateTimeValue is DateTime) {
+        return dateTimeValue;
+      } else if (dateTimeValue is String) {
+        // Try to parse MM/DD/YYYY format
+        final parts = dateTimeValue.split('/');
+        if (parts.length == 3) {
+          final month = int.tryParse(parts[0]) ?? 1;
+          final day = int.tryParse(parts[1]) ?? 1;
+          final year = int.tryParse(parts[2]) ?? 2000;
+          return DateTime(year, month, day);
+        }
+        // Try other date formats if needed
+        return DateTime.tryParse(dateTimeValue) ?? DateTime.now();
+      } else if (dateTimeValue is int) {
+        // Handle timestamp in milliseconds
+        return DateTime.fromMillisecondsSinceEpoch(dateTimeValue);
+      }
+    } catch (e) {
+      debugPrint('Error parsing date time: $e');
+    }
+    // Default to current date if parsing fails
+    return DateTime.now();
+  }
+
   factory FirestoreUser.fromMap(Map<String, dynamic> map) {
     // Handle both new format (firstName, lastName) and old format (fullName)
     String firstName = map['firstName'] ?? '';
@@ -97,12 +137,12 @@ class FirestoreUser {
       username: map['username'] ?? '',
       email: map['email'] ?? '',
       mobile: map['mobile'] ?? '',
-      birthDate: (map['birthDate'] as Timestamp).toDate(),
+      birthDate: _parseBirthDate(map['birthDate']),
       address: map['address'] ?? '',
       location: Map<String, String>.from(map['location'] ?? {}),
       communityId: map['communityId'] ?? '',
       role: map['role'] ?? '',
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      createdAt: _parseCreatedAt(map['createdAt']),
       profileImageUrl: map['profileImageUrl'],
       registrationId: map['registrationId'] ?? '',
       verificationStatus: map['verificationStatus'] ?? 'pending',
