@@ -1269,8 +1269,9 @@ class AdminService {
     }).toList();
   }
 
-  // Get pending verification users
+  // Get pending verification and rejected users
   Future<List<FirestoreUser>> getPendingVerificationUsers() async {
+    debugPrint('===== GETTING PENDING AND REJECTED USERS =====');
     try {
       final user = _auth.currentUser;
       if (user == null) {
@@ -1287,16 +1288,44 @@ class AdminService {
 
       debugPrint('Getting pending users for community: $communityId');
 
-      // First check RTDB for pending users - this is faster for initial display
-      final usersSnapshot = await _database.child('users').get();
+      // First check Firestore for pending and rejected users - this is the source of truth
+      final firestoreUsers = await _usersCollection
+          .where('communityId', isEqualTo: communityId)
+          .where('role', isEqualTo: 'member')
+          .where('verificationStatus', whereIn: ['pending', 'rejected'])
+          .get();
+
       List<FirestoreUser> pendingUsers = [];
       Set<String> pendingUserIds = {}; // To track users we've already added
+
+      debugPrint('Found ${firestoreUsers.docs.length} pending/rejected users in Firestore');
+
+      // Process Firestore users first as the source of truth
+      for (var doc in firestoreUsers.docs) {
+        final userData = doc.data() as Map<String, dynamic>;
+        final uid = userData['uid'] ?? doc.id;
+        final status = userData['verificationStatus'] ?? 'pending';
+        debugPrint('Processing Firestore user $uid with status: $status');
+
+        try {
+          final firestoreUser = FirestoreUser.fromMap(userData);
+          pendingUsers.add(firestoreUser);
+          pendingUserIds.add(uid);
+          debugPrint('Added user from Firestore: ${firestoreUser.fullName}, status: ${firestoreUser.verificationStatus}');
+        } catch (e) {
+          debugPrint('Error creating FirestoreUser from Firestore data: $e');
+        }
+      }
+
+      // We no longer need to check RTDB since we're using Firestore as the source of truth
+      // This is just for logging purposes
+      final usersSnapshot = await _database.child('users').get();
 
       if (usersSnapshot.exists) {
         final usersData = usersSnapshot.value as Map<dynamic, dynamic>;
         debugPrint('Found ${usersData.length} total users in RTDB');
 
-        // Find users with pending status in RTDB
+        // Just log RTDB users for debugging
         for (var entry in usersData.entries) {
           final key = entry.key;
           final value = entry.value;
@@ -1309,87 +1338,21 @@ class AdminService {
             final verificationStatus = value['verificationStatus'];
             final isActive = value['isActive'] ?? false;
 
-            // A user is pending if:
-            // 1. verificationStatus is explicitly 'pending', OR
+            // A user is pending or rejected if:
+            // 1. verificationStatus is explicitly 'pending' or 'rejected', OR
             // 2. verificationStatus is null AND isActive is false AND they have a registrationId (meaning they registered but haven't been verified)
             final hasRegistrationId = value['registrationId'] != null && value['registrationId'].toString().isNotEmpty;
-            final isPending = verificationStatus == 'pending' ||
+            final isPendingOrRejected = verificationStatus == 'pending' || verificationStatus == 'rejected' ||
                            (verificationStatus == null && !isActive && hasRegistrationId);
 
-            debugPrint('User ${value['fullName'] ?? key}: verificationStatus=$verificationStatus, isActive=$isActive, hasRegistrationId=$hasRegistrationId, isPending=$isPending');
-
-            if (isPending) {
-              try {
-                // Create a FirestoreUser from RTDB data
-                debugPrint('Creating FirestoreUser from RTDB data for ${value['fullName'] ?? key}');
-                // Parse birth date with our helper method
-                final birthDate = value['birthDate'] != null
-                    ? FirestoreUser.parseDateTime(value['birthDate'])
-                    : DateTime.now();
-
-                final location = value['location'] is Map
-                    ? Map<String, String>.from(value['location'].map((k, v) => MapEntry(k.toString(), v.toString())))
-                    : <String, String>{};
-
-                final createdAt = value['createdAt'] != null
-                    ? (value['createdAt'] is int
-                        ? DateTime.fromMillisecondsSinceEpoch(value['createdAt'])
-                        : FirestoreUser.parseDateTime(value['createdAt']))
-                    : DateTime.now();
-
-                // Extract name components from fullName if available
-                String firstName = value['firstName'] ?? '';
-                String? middleName = value['middleName'];
-                String lastName = value['lastName'] ?? '';
-
-                // If we don't have firstName/lastName but have fullName, parse it
-                if ((firstName.isEmpty || lastName.isEmpty) && value['fullName'] != null) {
-                  final nameParts = (value['fullName'] as String).split(' ');
-                  if (nameParts.length >= 2) {
-                    firstName = nameParts.first;
-                    lastName = nameParts.last;
-                    if (nameParts.length > 2) {
-                      // Join any middle parts as the middle name
-                      middleName = nameParts.sublist(1, nameParts.length - 1).join(' ');
-                    }
-                  } else if (nameParts.length == 1) {
-                    firstName = nameParts.first;
-                    lastName = '';
-                  }
-                }
-
-                pendingUsers.add(FirestoreUser(
-                  uid: key,
-                  firstName: firstName,
-                  middleName: middleName,
-                  lastName: lastName,
-                  username: value['username'] ?? '',
-                  email: value['email'] ?? '',
-                  mobile: value['mobile'] ?? '',
-                  birthDate: birthDate,
-                  address: value['address'] ?? '',
-                  location: location,
-                  communityId: value['communityId'] ?? '',
-                  role: value['role'] ?? 'member',
-                  createdAt: createdAt,
-                  profileImageUrl: value['profileImageUrl'],
-                  registrationId: value['registrationId'] ?? '',
-                  verificationStatus: 'pending',
-                ));
-
-                pendingUserIds.add(key);
-              } catch (e) {
-                debugPrint('Error creating FirestoreUser from RTDB: $e');
-                // Continue to next user
-              }
-            }
+            debugPrint('User ${value['fullName'] ?? key}: verificationStatus=$verificationStatus, isActive=$isActive, hasRegistrationId=$hasRegistrationId, isPendingOrRejected=$isPendingOrRejected');
           }
         }
       }
 
-      // Then check Firestore for any additional pending users
-      // This runs in the background and doesn't block the UI
-      _checkFirestoreForPendingUsers(communityId, pendingUsers, pendingUserIds);
+      // We no longer need to check Firestore separately since we already did that first
+      // But we'll keep this method for backward compatibility
+      // _checkFirestoreForPendingUsers(communityId, pendingUsers, pendingUserIds);
 
       return pendingUsers;
     } catch (e) {
@@ -1398,54 +1361,7 @@ class AdminService {
     }
   }
 
-  // Helper method to check Firestore for additional pending users
-  Future<void> _checkFirestoreForPendingUsers(
-      String communityId, List<FirestoreUser> pendingUsers, Set<String> existingUserIds) async {
-    try {
-      // Query Firestore for pending users
-      final usersQuery = await _usersCollection
-          .where('communityId', isEqualTo: communityId)
-          .where('role', isEqualTo: 'member')
-          .where('verificationStatus', isEqualTo: 'pending')
-          .get();
-
-      debugPrint('Found ${usersQuery.docs.length} pending users in Firestore');
-
-      // Process Firestore users
-      for (var doc in usersQuery.docs) {
-        final userData = doc.data() as Map<String, dynamic>;
-        final uid = userData['uid'] ?? doc.id;
-
-        // Only add users we haven't already added from RTDB
-        if (!existingUserIds.contains(uid)) {
-          try {
-            final firestoreUser = FirestoreUser.fromMap(userData);
-
-            // Update the UI list (this won't be visible until next refresh)
-            // but it will update the database for future queries
-            pendingUsers.add(firestoreUser);
-            debugPrint('Added pending user from Firestore: ${firestoreUser.fullName}');
-
-            // Try to update RTDB with verification status, but don't fail if we can't
-            try {
-              await _database.child('users').child(uid).update({
-                'verificationStatus': 'pending',
-                'isActive': false,
-              });
-            } catch (rtdbError) {
-              // Just log the error but don't fail the whole operation
-              debugPrint('Error updating RTDB for user $uid: $rtdbError');
-              // This is likely a permission issue, but we've already added the user to our list
-            }
-          } catch (e) {
-            debugPrint('Error processing Firestore user $uid: $e');
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error checking Firestore for pending users: $e');
-    }
-  }
+  // This method has been removed as we now use Firestore as the source of truth
 
   // Get user by registration ID
   Future<FirestoreUser?> getUserByRegistrationId(String registrationId) async {
@@ -1476,7 +1392,7 @@ class AdminService {
       final usersQuery = await _usersCollection
           .where('communityId', isEqualTo: communityId)
           .where('registrationId', isEqualTo: registrationId)
-          .where('verificationStatus', isEqualTo: 'pending')
+          .where('verificationStatus', whereIn: ['pending', 'rejected'])
           .limit(1)
           .get();
 
@@ -1501,7 +1417,10 @@ class AdminService {
 
   // Update user verification status
   Future<void> updateUserVerificationStatus(
-      String userId, String verificationStatus) async {
+      String userId, String verificationStatus, {String? rejectionReason}) async {
+    debugPrint('===== UPDATING USER VERIFICATION STATUS =====');
+    debugPrint('User ID: $userId');
+    debugPrint('New status: $verificationStatus');
     try {
       debugPrint('===== STARTING USER VERIFICATION PROCESS =====');
       debugPrint('User ID: $userId');
@@ -1544,13 +1463,23 @@ class AdminService {
       // Update Firestore
       debugPrint('Updating user verification status in Firestore...');
       try {
-        await _usersCollection.doc(userId).update({
+        final Map<String, dynamic> updateData = {
           'verificationStatus': verificationStatus,
           'verifiedAt': verificationStatus == 'verified'
               ? FieldValue.serverTimestamp()
               : null,
           'verifiedBy': verificationStatus == 'verified' ? user.uid : null,
-        });
+        };
+
+        // Add rejection reason if provided and status is rejected
+        if (verificationStatus == 'rejected' && rejectionReason != null) {
+          updateData['rejectionReason'] = rejectionReason;
+          updateData['rejectedAt'] = FieldValue.serverTimestamp();
+          updateData['rejectedBy'] = user.uid;
+          debugPrint('Adding rejection reason: $rejectionReason');
+        }
+
+        await _usersCollection.doc(userId).update(updateData);
         debugPrint('Firestore update successful');
       } catch (firestoreError) {
         debugPrint('ERROR updating Firestore: $firestoreError');
@@ -1562,27 +1491,48 @@ class AdminService {
       try {
         // Set isActive based on verification status
         final isActive = verificationStatus == 'verified';
-        await _database.child('users').child(userId).update({
+        final Map<String, dynamic> updateData = {
           'isActive': isActive,
           'verificationStatus': verificationStatus,
-          'verifiedAt': ServerValue.timestamp,
-        });
+        };
+
+        // Add appropriate timestamp based on status
+        if (verificationStatus == 'verified') {
+          updateData['verifiedAt'] = ServerValue.timestamp;
+        } else if (verificationStatus == 'rejected' && rejectionReason != null) {
+          updateData['rejectedAt'] = ServerValue.timestamp;
+          updateData['rejectionReason'] = rejectionReason;
+        }
+
+        await _database.child('users').child(userId).update(updateData);
         debugPrint('RTDB update successful');
       } catch (rtdbError) {
         debugPrint('ERROR updating RTDB: $rtdbError');
         // Don't throw here, as Firestore is our source of truth for verification
         // Just log the error and continue
+
+        // Since we might have permission issues with RTDB, we need to make sure
+        // our UI reflects the correct status from Firestore
+        debugPrint('RTDB update failed, but Firestore update was successful.');
+        debugPrint('The UI will reflect the correct status on next refresh.');
       }
 
       // Add audit log
       debugPrint('Adding audit log...');
+      final Map<String, dynamic> auditDetails = {
+        'verificationStatus': verificationStatus,
+      };
+
+      // Add rejection reason to audit log if applicable
+      if (verificationStatus == 'rejected' && rejectionReason != null) {
+        auditDetails['rejectionReason'] = rejectionReason;
+      }
+
       await _auditLogsCollection.add({
         'adminId': user.uid,
         'userId': userId,
         'action': 'user_verification_update',
-        'details': {
-          'verificationStatus': verificationStatus,
-        },
+        'details': auditDetails,
         'timestamp': FieldValue.serverTimestamp(),
       });
       debugPrint('Audit log added successfully');

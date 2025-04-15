@@ -106,46 +106,22 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
       try {
         userStats = await _adminService.getUserStats();
+        // Get pending users count
+        final pendingUsers = await _adminService.getPendingVerificationUsers();
 
-        // Get pending users count - try multiple approaches
-        try {
-          // First try the dedicated pending users method
-          final pendingUsers = await _adminService.getPendingVerificationUsers();
-          debugPrint('Dashboard: Found ${pendingUsers.length} pending users');
+        // Separate pending and rejected users
+        final pendingApprovalUsers = pendingUsers.where((user) => user.verificationStatus == 'pending').toList();
+        final rejectedUsers = pendingUsers.where((user) => user.verificationStatus == 'rejected').toList();
 
-          // Also try to count pending users from the All Users tab
-          final allUsers = await _adminService.getRTDBUsers();
-          final pendingFromAllUsers = allUsers.where((user) {
-            final verificationStatus = user['verificationStatus'];
-            final isActive = user['isActive'] ?? false;
-            final hasRegistrationId = user['registrationId'] != null &&
-                user['registrationId'].toString().isNotEmpty;
-
-            return verificationStatus == 'pending' ||
-                  (verificationStatus == null && !isActive && hasRegistrationId);
-          }).toList();
-
-          debugPrint('Dashboard: Found ${pendingFromAllUsers.length} pending users from all users');
-
-          // Use the maximum of the two counts to ensure we don't miss any
-          final pendingCount = pendingUsers.isNotEmpty ?
-              pendingUsers.length :
-              pendingFromAllUsers.length;
-
-          userStats = {
-            ...userStats,
-            'pendingUsers': pendingCount,
-            'newPendingUsers': pendingUsers
-                .where((user) => user.createdAt
-                    .isAfter(DateTime.now().subtract(const Duration(days: 7))))
-                .length,
-          };
-
-          debugPrint('Dashboard: Updated userStats with pendingUsers: ${userStats['pendingUsers']}');
-        } catch (pendingError) {
-          debugPrint('Error getting pending users: $pendingError');
-          // Keep the default values from getUserStats
-        }
+        userStats = {
+          ...userStats,
+          'pendingUsers': pendingApprovalUsers.length, // Only count pending approval users
+          'rejectedUsers': rejectedUsers.length,
+          'newPendingUsers': pendingApprovalUsers
+              .where((user) => user.createdAt
+                  .isAfter(DateTime.now().subtract(const Duration(days: 7))))
+              .length,
+        };
       } catch (e) {
         // Error loading user stats
         // Use default values if this fails
@@ -153,6 +129,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
           'communityUsers': 4,
           'newUsersThisWeek': 0,
           'pendingUsers': 0,
+          'rejectedUsers': 0,
           'newPendingUsers': 0,
         };
       }
@@ -183,7 +160,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
             .length;
 
         activityStats = {
-          ...(activityStats ?? {}),
+          ...activityStats,
           'newReportsToday': newReportsCount,
         };
       } catch (e) {
@@ -232,6 +209,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
             'communityUsers': 4,
             'newUsersThisWeek': 0,
             'pendingUsers': 0,
+            'rejectedUsers': 0,
             'newPendingUsers': 0,
           };
           _communityStats = {
@@ -564,7 +542,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
                     ? '+${_userStats?['newPendingUsers']}'
                     : null,
                 isPositiveTrend: false,
-                tooltip: 'Users waiting for verification',
+                tooltip: 'Users waiting for verification (excluding rejected)',
               ),
             ),
           ),

@@ -9,6 +9,7 @@ import '../pages/admin/dashboard_page.dart';
 import '../pages/admin/change_password_page.dart';
 import '../models/admin_user.dart';
 import '../pages/pending_verification_page.dart';
+import '../pages/rejected_verification_page.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -122,17 +123,29 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 print(
                     'AuthWrapper: User verification status: $verificationStatus');
 
-                // If user account is pending verification, show pending screen
+                // Check verification status
                 if (verificationStatus == 'pending') {
                   print('AuthWrapper: User account is pending verification');
                   return PendingVerificationPage(
                     registrationId: userData['registrationId'] as String? ?? '',
                   );
+                } else if (verificationStatus == 'rejected') {
+                  print('AuthWrapper: User account has been rejected');
+                  // Import the rejected verification page at the top of the file
+                  return RejectedVerificationPage(
+                    registrationId: userData['registrationId'] as String? ?? '',
+                    rejectionReason: userData['rejectionReason'] as String?,
+                  );
+                } else if (verificationStatus == 'verified') {
+                  print('AuthWrapper: User is verified, showing regular UI');
+                  // User is verified, show regular user interface
+                  return const MainScreen();
+                } else {
+                  print('AuthWrapper: Unknown verification status: $verificationStatus');
+                  // Sign out if verification status is unknown
+                  _auth.signOut();
+                  return const LoginPage();
                 }
-
-                print('AuthWrapper: User is verified, showing regular UI');
-                // User is verified, show regular user interface
-                return const MainScreen();
               },
             );
           },

@@ -24,9 +24,13 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _filteredUsers = [];
   List<FirestoreUser> _pendingUsers = [];
+  List<FirestoreUser> _rejectedUsers = [];
   List<FirestoreUser> _filteredPendingUsers = [];
+  List<FirestoreUser> _filteredRejectedUsers = [];
   String _selectedFilter = 'All';
-  final List<String> _filterOptions = ['All', 'Active', 'Inactive', 'New'];
+  String _pendingTabFilter = 'Pending Approval';
+  final List<String> _filterOptions = ['All', 'Active', 'Inactive'];
+  final List<String> _pendingFilterOptions = ['Pending Approval', 'Rejected'];
 
   @override
   void initState() {
@@ -129,26 +133,56 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       if (_tabController.index == 0) {
         _applyCurrentFilter();
       } else {
-        // Filter pending users
+        // Filter pending/rejected users based on the current filter
         final searchTerm = _searchController.text.toLowerCase();
-        debugPrint('Filtering ${_pendingUsers.length} pending users with search term: "$searchTerm"');
 
-        // Always show all pending users if search is empty
-        if (searchTerm.isEmpty) {
-          _filteredPendingUsers = List.from(_pendingUsers);
-          debugPrint('Search term empty, showing all ${_filteredPendingUsers.length} pending users');
-        } else {
-          _filteredPendingUsers = _pendingUsers.where((user) {
-            return user.fullName.toLowerCase().contains(searchTerm) ||
-                user.email.toLowerCase().contains(searchTerm) ||
-                user.mobile.toLowerCase().contains(searchTerm);
-          }).toList();
-          debugPrint('After filtering, showing ${_filteredPendingUsers.length} pending users');
+        debugPrint('Current pending tab filter: $_pendingTabFilter');
+        debugPrint('Pending users: ${_pendingUsers.length}, Rejected users: ${_rejectedUsers.length}');
+
+        if (_pendingTabFilter == 'Pending Approval') {
+          debugPrint('Filtering ${_pendingUsers.length} pending approval users with search term: "$searchTerm"');
+
+          // Always show all pending users if search is empty
+          if (searchTerm.isEmpty) {
+            _filteredPendingUsers = List.from(_pendingUsers);
+            _filteredRejectedUsers = [];
+            debugPrint('Search term empty, showing all ${_filteredPendingUsers.length} pending approval users');
+          } else {
+            _filteredPendingUsers = _pendingUsers.where((user) {
+              return user.fullName.toLowerCase().contains(searchTerm) ||
+                  user.email.toLowerCase().contains(searchTerm) ||
+                  user.mobile.toLowerCase().contains(searchTerm);
+            }).toList();
+            _filteredRejectedUsers = [];
+            debugPrint('After filtering, showing ${_filteredPendingUsers.length} pending approval users');
+          }
+        } else { // Rejected filter
+          debugPrint('Filtering ${_rejectedUsers.length} rejected users with search term: "$searchTerm"');
+
+          // Always show all rejected users if search is empty
+          if (searchTerm.isEmpty) {
+            _filteredRejectedUsers = List.from(_rejectedUsers);
+            _filteredPendingUsers = [];
+            debugPrint('Search term empty, showing all ${_filteredRejectedUsers.length} rejected users');
+          } else {
+            _filteredRejectedUsers = _rejectedUsers.where((user) {
+              return user.fullName.toLowerCase().contains(searchTerm) ||
+                  user.email.toLowerCase().contains(searchTerm) ||
+                  user.mobile.toLowerCase().contains(searchTerm);
+            }).toList();
+            _filteredPendingUsers = [];
+            debugPrint('After filtering, showing ${_filteredRejectedUsers.length} rejected users');
+          }
+
+          // Debug each rejected user
+          for (var user in _rejectedUsers) {
+            debugPrint('Rejected user in list: ${user.fullName}, status: ${user.verificationStatus}');
+          }
         }
       }
     });
 
-    // Force update the UI to show pending users
+    // Force update the UI to show pending/rejected users
     if (_tabController.index == 1 && mounted) {
       setState(() {});
     }
@@ -216,22 +250,21 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
               user['email'].toString().toLowerCase().contains(searchTerm) ||
               user['mobile'].toString().toLowerCase().contains(searchTerm);
 
+      // Skip pending and rejected users in the All Users tab
+      final verificationStatus = user['verificationStatus'] ?? 'pending';
+      if (verificationStatus == 'pending' || verificationStatus == 'rejected') {
+        return false;
+      }
+
       if (_selectedFilter == 'All') return matchesSearch;
 
-      final verificationStatus = user['verificationStatus'] ?? 'pending';
       final isActive = verificationStatus == 'verified';
-      final joinDate = DateTime.parse(user['createdAt'].toString());
-      final isNew = DateTime.now().difference(joinDate).inDays <= 7;
 
       switch (_selectedFilter) {
         case 'Active':
           return matchesSearch && isActive;
         case 'Inactive':
-          return matchesSearch &&
-              (verificationStatus == 'rejected' ||
-                  (!isActive && verificationStatus != 'pending'));
-        case 'New':
-          return matchesSearch && isNew;
+          return matchesSearch && !isActive && verificationStatus != 'pending' && verificationStatus != 'rejected';
         default:
           return matchesSearch;
       }
@@ -251,19 +284,53 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       final pendingUsers = await _adminService.getPendingVerificationUsers();
       debugPrint('Found ${pendingUsers.length} pending users');
 
-      // Log each pending user for debugging
+      // Separate pending and rejected users
+      final List<FirestoreUser> pendingApprovalUsers = [];
+      final List<FirestoreUser> rejectedUsers = [];
+      final Set<String> processedUserIds = {}; // Track processed users by UID
+
+      debugPrint('Separating ${pendingUsers.length} users into pending and rejected...');
       for (var user in pendingUsers) {
-        debugPrint('Pending user: ${user.fullName} (${user.uid})');
+        // Skip if we've already processed this user
+        if (processedUserIds.contains(user.uid)) {
+          debugPrint('Skipping duplicate user: ${user.fullName} (${user.uid})');
+          continue;
+        }
+
+        processedUserIds.add(user.uid);
+        debugPrint('User ${user.fullName}: verificationStatus=${user.verificationStatus}');
+
+        if (user.verificationStatus == 'pending') {
+          pendingApprovalUsers.add(user);
+          debugPrint('Pending approval user: ${user.fullName} (${user.uid})');
+        } else if (user.verificationStatus == 'rejected') {
+          rejectedUsers.add(user);
+          debugPrint('Rejected user: ${user.fullName} (${user.uid})');
+        } else {
+          debugPrint('User with unknown status: ${user.fullName}, status: ${user.verificationStatus}');
+        }
       }
+
+      debugPrint('Found ${pendingApprovalUsers.length} pending approval users and ${rejectedUsers.length} rejected users');
 
       if (mounted) {
         setState(() {
-          _pendingUsers = pendingUsers;
-          _filteredPendingUsers = pendingUsers;
+          _pendingUsers = pendingApprovalUsers;
+          _rejectedUsers = rejectedUsers;
+
+          // Filter based on the current tab filter
+          if (_pendingTabFilter == 'Pending Approval') {
+            _filteredPendingUsers = pendingApprovalUsers;
+            _filteredRejectedUsers = [];
+          } else {
+            _filteredPendingUsers = [];
+            _filteredRejectedUsers = rejectedUsers;
+          }
+
           _isLoading = false;
           _isInitialLoad = false;
-          debugPrint('Updated state with ${_pendingUsers.length} pending users');
-          debugPrint('Updated filtered list with ${_filteredPendingUsers.length} pending users');
+          debugPrint('Updated state with ${_pendingUsers.length} pending approval users');
+          debugPrint('Updated state with ${_rejectedUsers.length} rejected users');
         });
       }
     } catch (e) {
@@ -321,15 +388,36 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _verifyUser(FirestoreUser user, bool isApproved) async {
+  Future<void> _verifyUser(FirestoreUser user, bool isApproved, {String? rejectionReason}) async {
     try {
       setState(() => _isLoading = true);
 
-      await _adminService.updateUserVerificationStatus(
-          user.uid, isApproved ? 'verified' : 'rejected');
+      final newStatus = isApproved ? 'verified' : 'rejected';
+      debugPrint('Updating user ${user.fullName} (${user.uid}) status to: $newStatus');
 
-      // Refresh the list
+      if (rejectionReason != null) {
+        debugPrint('Rejection reason: $rejectionReason');
+      }
+
+      await _adminService.updateUserVerificationStatus(
+        user.uid,
+        newStatus,
+        rejectionReason: rejectionReason
+      );
+      debugPrint('User status updated successfully');
+
+      // Refresh the lists
+      debugPrint('Refreshing user lists after status update');
       await _loadPendingUsers();
+
+      // If rejecting, switch to the Rejected tab
+      if (!isApproved && _pendingTabFilter != 'Rejected') {
+        debugPrint('Switching to Rejected tab after rejection');
+        setState(() {
+          _pendingTabFilter = 'Rejected';
+          _filterUsers();
+        });
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -448,7 +536,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
             children: [
               OutlinedButton(
                 onPressed: () {
-                  // Show confirmation dialog before rejecting
+                  // Show rejection dialog with reason field
+                  final TextEditingController reasonController = TextEditingController();
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
@@ -482,6 +571,38 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                               color: Colors.grey[700],
                             ),
                           ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Rejection Reason (optional):',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: reasonController,
+                            decoration: InputDecoration(
+                              hintText: 'Enter reason for rejection',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                            ),
+                            maxLines: 3,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'The reason will be visible to the user',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
                         ],
                       ),
                       actions: [
@@ -491,9 +612,14 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                         ),
                         ElevatedButton(
                           onPressed: () {
+                            final reason = reasonController.text.trim();
                             Navigator.of(context).pop(); // Close confirmation dialog
                             Navigator.of(context).pop(); // Close verification dialog
-                            _verifyUser(user, false);
+                            _verifyUser(
+                              user,
+                              false,
+                              rejectionReason: reason.isNotEmpty ? reason : null
+                            );
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red[700],
@@ -711,7 +837,9 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   // Pending Verification Tab
                   _buildTabContent(
                     isLoading: _isLoading,
-                    isEmpty: _filteredPendingUsers.isEmpty,
+                    isEmpty: _pendingTabFilter == 'Pending Approval'
+                        ? _filteredPendingUsers.isEmpty
+                        : _filteredRejectedUsers.isEmpty,
                     onRefresh: _refreshData,
                     emptyWidget: Stack(
                       children: [
@@ -721,6 +849,67 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                               height: MediaQuery.of(context).size.height * 0.2,
                             ),
                             _buildEmptyState(
+                              icon: _pendingTabFilter == 'Pending Approval'
+                                  ? Icons.person_add_outlined
+                                  : Icons.person_off_outlined,
+                              message: _pendingTabFilter == 'Pending Approval'
+                                  ? 'No pending verification users'
+                                  : 'No rejected users',
+                              subMessage: _pendingTabFilter == 'Pending Approval'
+                                  ? 'Scan a QR code to verify a new user'
+                                  : 'Rejected users will appear here after refresh',
+                              button: _pendingTabFilter == 'Pending Approval'
+                                  ? ElevatedButton.icon(
+                                      onPressed: _openQRScanner,
+                                      icon: const Icon(Icons.qr_code_scanner),
+                                      label: const Text('Scan QR Code'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF00C49A),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: 12,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        textStyle: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    )
+                                  : ElevatedButton.icon(
+                                      onPressed: () {
+                                        debugPrint('Manual refresh of rejected users');
+                                        _refreshData();
+                                      },
+                                      icon: const Icon(Icons.refresh),
+                                      label: const Text('Refresh'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red[700],
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: 12,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        textStyle: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    contentWidget: _pendingTabFilter == 'Pending Approval'
+                      ? (_pendingUsers.isEmpty && !_isLoading
+                          ? _buildEmptyState(
                               icon: Icons.person_add_outlined,
                               message: 'No pending verification users',
                               subMessage: 'Scan a QR code to verify a new user',
@@ -744,45 +933,52 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    contentWidget: _pendingUsers.isEmpty && !_isLoading
-                      ? _buildEmptyState(
-                          icon: Icons.person_add_outlined,
-                          message: 'No pending verification users',
-                          subMessage: 'Scan a QR code to verify a new user',
-                          button: ElevatedButton.icon(
-                            onPressed: _openQRScanner,
-                            icon: const Icon(Icons.qr_code_scanner),
-                            label: const Text('Scan QR Code'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF00C49A),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.only(top: 8, bottom: 16),
+                              itemCount: _filteredPendingUsers.length,
+                              itemBuilder: (context, index) {
+                                return _buildPendingUserCard(
+                                    _filteredPendingUsers[index]);
+                              },
+                            ))
+                      : (_rejectedUsers.isEmpty && !_isLoading
+                          ? _buildEmptyState(
+                              icon: Icons.person_off_outlined,
+                              message: 'No rejected users',
+                              subMessage: 'Rejected users will appear here after refresh',
+                              button: ElevatedButton.icon(
+                                onPressed: () {
+                                  debugPrint('Manual refresh of rejected users');
+                                  _refreshData();
+                                },
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Refresh'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red[700],
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              textStyle: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.only(top: 8, bottom: 16),
-                          itemCount: _filteredPendingUsers.length,
-                          itemBuilder: (context, index) {
-                            return _buildPendingUserCard(
-                                _filteredPendingUsers[index]);
-                          },
-                        ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.only(top: 8, bottom: 16),
+                              itemCount: _filteredRejectedUsers.length,
+                              itemBuilder: (context, index) {
+                                return _buildRejectedUserCard(
+                                    _filteredRejectedUsers[index]);
+                              },
+                            )),
                   ),
                 ],
               ),
@@ -892,7 +1088,9 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                     Icon(
                       _tabController.index == 0
                           ? Icons.people
-                          : Icons.pending_outlined,
+                          : _pendingTabFilter == 'Pending Approval'
+                              ? Icons.pending_outlined
+                              : Icons.person_off_outlined,
                       size: 14,
                       color: Colors.white.withOpacity(0.9),
                     ),
@@ -900,7 +1098,9 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                     Text(
                       _tabController.index == 0
                           ? '${_filteredUsers.length} Members'
-                          : '${_filteredPendingUsers.length} Pending',
+                          : _pendingTabFilter == 'Pending Approval'
+                              ? '${_filteredPendingUsers.length} Pending'
+                              : '${_filteredRejectedUsers.length} Rejected',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -960,54 +1160,97 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 12),
-          if (_tabController.index == 0)
-            SizedBox(
-              height: 32,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: _filterOptions.map((filter) {
-                  final isSelected = _selectedFilter == filter;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(
-                        filter,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: isSelected
-                              ? Colors.white
-                              : Colors.black.withOpacity(0.7),
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.normal,
+          SizedBox(
+            height: 32,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: _tabController.index == 0
+                  ? _filterOptions.map((filter) {
+                      final isSelected = _selectedFilter == filter;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(
+                            filter,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.black.withOpacity(0.7),
+                              fontWeight:
+                                  isSelected ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                          ),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedFilter = filter;
+                              _filterUsers();
+                            });
+                          },
+                          backgroundColor: Colors.white,
+                          selectedColor: const Color(0xFF00C49A),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? const Color(0xFF00C49A)
+                                  : Colors.grey.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
                         ),
-                      ),
-                      selected: isSelected,
-                      onSelected: (selected) {
-                        setState(() {
-                          _selectedFilter = filter;
-                          _filterUsers();
-                        });
-                      },
-                      backgroundColor: Colors.white,
-                      selectedColor: const Color(0xFF00C49A),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(
-                          color: isSelected
-                              ? const Color(0xFF00C49A)
-                              : Colors.grey.withOpacity(0.2),
-                          width: 1,
+                      );
+                    }).toList()
+                  : _pendingFilterOptions.map((filter) {
+                      final isSelected = _pendingTabFilter == filter;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(
+                            filter,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.black.withOpacity(0.7),
+                              fontWeight:
+                                  isSelected ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                          ),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              _pendingTabFilter = filter;
+                              _filterUsers();
+                            });
+                          },
+                          backgroundColor: Colors.white,
+                          selectedColor: filter == 'Rejected'
+                              ? Colors.red[700]!
+                              : const Color(0xFF00C49A),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? (filter == 'Rejected' ? Colors.red[700]! : const Color(0xFF00C49A))
+                                  : Colors.grey.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
+                      );
+                    }).toList(),
             ),
+          ),
         ],
       ),
     );
@@ -1420,6 +1663,224 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                     ),
                   ),
                   const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Show confirmation dialog before approving
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          title: const Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_outline,
+                                color: Color(0xFF00C49A),
+                                size: 24,
+                              ),
+                              SizedBox(width: 8),
+                              Text('Confirm Approval'),
+                            ],
+                          ),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Are you sure you want to approve ${user.fullName}?',
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'This user will be granted access to all community features.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop(); // Close confirmation dialog
+                                _verifyUser(user, true);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00C49A),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text('Confirm Approval'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00C49A),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'Approve',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRejectedUserCard(FirestoreUser user) {
+    final isNew = DateTime.now().difference(user.createdAt).inDays <= 7;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      elevation: 0,
+      color: Colors.white,
+      child: InkWell(
+        onTap: () => _showUserVerificationDialog(user),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // User avatar
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Icon(
+                      Icons.person_off_outlined,
+                      color: Colors.red[700],
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // User information
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                user.fullName,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (isNew)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'NEW',
+                                  style: TextStyle(
+                                    color: Colors.blue[700],
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          user.email,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.red[400],
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Rejected',
+                              style: TextStyle(
+                                color: Colors.red[700],
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Icon(
+                              Icons.phone_outlined,
+                              size: 12,
+                              color: Colors.grey[500],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              user.mobile,
+                              style: TextStyle(
+                                color: Colors.grey[500],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
                   ElevatedButton(
                     onPressed: () {
                       // Show confirmation dialog before approving
