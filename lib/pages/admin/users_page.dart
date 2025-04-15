@@ -448,8 +448,66 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
             children: [
               OutlinedButton(
                 onPressed: () {
-                  Navigator.of(context).pop();
-                  _verifyUser(user, false);
+                  // Show confirmation dialog before rejecting
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      title: Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: Colors.red[700],
+                            size: 24,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('Confirm Rejection'),
+                        ],
+                      ),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Are you sure you want to reject ${user.fullName}?',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'This user will not be able to access community features until approved.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop(); // Close confirmation dialog
+                            Navigator.of(context).pop(); // Close verification dialog
+                            _verifyUser(user, false);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red[700],
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Confirm Rejection'),
+                        ),
+                      ],
+                    ),
+                  );
                 },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.red[700],
@@ -463,8 +521,66 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
               const SizedBox(width: 12),
               ElevatedButton(
                 onPressed: () {
-                  Navigator.of(context).pop();
-                  _verifyUser(user, true);
+                  // Show confirmation dialog before approving
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      title: const Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline,
+                            color: Color(0xFF00C49A),
+                            size: 24,
+                          ),
+                          SizedBox(width: 8),
+                          Text('Confirm Approval'),
+                        ],
+                      ),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Are you sure you want to approve ${user.fullName}?',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'This user will be granted access to all community features.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop(); // Close confirmation dialog
+                            Navigator.of(context).pop(); // Close verification dialog
+                            _verifyUser(user, true);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00C49A),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Confirm Approval'),
+                        ),
+                      ],
+                    ),
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00C49A),
@@ -1226,7 +1342,67 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton(
-                    onPressed: () => _verifyUser(user, false),
+                    onPressed: () {
+                      // Show confirmation dialog before rejecting
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          title: Row(
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.red[700],
+                                size: 24,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('Confirm Rejection'),
+                            ],
+                          ),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Are you sure you want to reject ${user.fullName}?',
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'This user will not be able to access community features until approved.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop(); // Close confirmation dialog
+                                _verifyUser(user, false);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red[700],
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text('Confirm Rejection'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red[700],
                       side: BorderSide(color: Colors.red[700]!),
@@ -1245,7 +1421,67 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
-                    onPressed: () => _verifyUser(user, true),
+                    onPressed: () {
+                      // Show confirmation dialog before approving
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          title: const Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_outline,
+                                color: Color(0xFF00C49A),
+                                size: 24,
+                              ),
+                              SizedBox(width: 8),
+                              Text('Confirm Approval'),
+                            ],
+                          ),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Are you sure you want to approve ${user.fullName}?',
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'This user will be granted access to all community features.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop(); // Close confirmation dialog
+                                _verifyUser(user, true);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00C49A),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text('Confirm Approval'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00C49A),
                       foregroundColor: Colors.white,
