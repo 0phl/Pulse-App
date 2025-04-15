@@ -361,6 +361,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
+        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
         title: const Row(
           children: [
             Icon(
@@ -372,91 +373,110 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
             Text('Verify User'),
           ],
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildVerificationField('Name', user.fullName),
-              const SizedBox(height: 12),
-              _buildVerificationField('Email', user.email),
-              const SizedBox(height: 12),
-              _buildVerificationField('Mobile', user.mobile),
-              const SizedBox(height: 12),
-              _buildVerificationField('Address', user.address),
-              const SizedBox(height: 16),
-              const Text('Registration ID:'),
-              const SizedBox(height: 4),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: Text(
-                  user.registrationId,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 13,
+        content: Container(
+          width: double.maxFinite,
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildVerificationField('Name', user.fullName),
+                const SizedBox(height: 12),
+                _buildVerificationField('Email', user.email),
+                const SizedBox(height: 12),
+                _buildVerificationField('Mobile', user.mobile),
+                const SizedBox(height: 12),
+                _buildVerificationField('Address', user.address),
+                const SizedBox(height: 16),
+                const Text('Registration ID:'),
+                const SizedBox(height: 4),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Text(
+                    user.registrationId,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[100]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Please verify this information with the user\'s ID before approving.',
-                        style: TextStyle(
-                          color: Colors.blue[700],
-                          fontSize: 13,
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[100]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Please verify this information with the user\'s ID before approving.',
+                          style: TextStyle(
+                            color: Colors.blue[700],
+                            fontSize: 13,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _verifyUser(user, false);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Reject'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _verifyUser(user, true);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00C49A),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _verifyUser(user, false);
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red[700],
+                  side: BorderSide(color: Colors.red[700]!),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('Reject'),
               ),
-            ),
-            child: const Text('Approve'),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _verifyUser(user, true);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00C49A),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('Approve'),
+              ),
+            ],
           ),
         ],
       ),
@@ -1083,6 +1103,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
       ),
       elevation: 0,
       color: Colors.white,
@@ -1204,12 +1225,19 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
+                  OutlinedButton(
                     onPressed: () => _verifyUser(user, false),
-                    child: Text(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red[700],
+                      side: BorderSide(color: Colors.red[700]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                    child: const Text(
                       'Reject',
                       style: TextStyle(
-                        color: Colors.red[700],
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1219,7 +1247,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   ElevatedButton(
                     onPressed: () => _verifyUser(user, true),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[900],
+                      backgroundColor: const Color(0xFF00C49A),
+                      foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
@@ -1230,7 +1259,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                     child: const Text(
                       'Approve',
                       style: TextStyle(
-                        color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
