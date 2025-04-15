@@ -129,6 +129,12 @@ service cloud.firestore {
           resource.data.sellerId == request.auth.uid &&
           request.resource.data.isSold == true
         ) ||
+        // Any user can update soldAt for sold items in their community
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['soldAt']) &&
+          resource.data.isSold == true &&
+          resource.data.communityId == getUserCommunityId()
+        ) ||
         // Admins can update any item
         canAccessStats()
       );

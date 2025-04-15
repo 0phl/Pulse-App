@@ -633,11 +633,17 @@ class _ChatPageState extends State<ChatPage> {
         isSystemMessage: true,
       );
 
+      // Fetch the updated item to get the server timestamp
+      final updatedItem = await _marketService.getMarketItem(widget.itemId);
+
       // Update local state
       if (mounted) {
         setState(() {
           _isItemSold = true;
-          if (_marketItem != null) {
+          if (updatedItem != null) {
+            _marketItem = updatedItem;
+          } else if (_marketItem != null) {
+            // Fallback if we couldn't fetch the updated item
             _marketItem = MarketItem(
               id: _marketItem!.id,
               title: _marketItem!.title,
@@ -649,7 +655,7 @@ class _ChatPageState extends State<ChatPage> {
               communityId: _marketItem!.communityId,
               createdAt: _marketItem!.createdAt,
               isSold: true,
-              soldAt: DateTime.now(), // Set current time as soldAt
+              soldAt: DateTime.now(), // Use current time as fallback
               status: _marketItem!.status,
               rejectionReason: _marketItem!.rejectionReason,
               approvedBy: _marketItem!.approvedBy,

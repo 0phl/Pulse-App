@@ -63,10 +63,25 @@ class MarketService {
 
   // Mark an item as sold
   Future<void> markItemAsSold(String itemId) async {
+    // First update with server timestamp
     await _marketItemsCollection.doc(itemId).update({
       'isSold': true,
       'soldAt': FieldValue.serverTimestamp(),
     });
+
+    // Then fetch the updated document to get the actual server timestamp
+    final updatedDoc = await _marketItemsCollection.doc(itemId).get();
+    if (updatedDoc.exists) {
+      final data = updatedDoc.data() as Map<String, dynamic>;
+      final soldAt = data['soldAt'] as Timestamp?;
+
+      // If soldAt is still null (server timestamp not yet processed), set it manually
+      if (soldAt == null) {
+        await _marketItemsCollection.doc(itemId).update({
+          'soldAt': Timestamp.now(),
+        });
+      }
+    }
   }
 
   // Get seller ratings
@@ -379,5 +394,29 @@ class MarketService {
       'averageRating': averageRating,
       'totalRatings': ratingsCount.count,
     };
+  }
+
+  // Fix sold items with missing soldAt timestamps
+  Future<int> fixSoldItemsWithMissingSoldAt(String communityId) async {
+    int fixedCount = 0;
+
+    // Get all sold items in the community that don't have a soldAt timestamp
+    final snapshot = await _marketItemsCollection
+        .where('communityId', isEqualTo: communityId)
+        .where('isSold', isEqualTo: true)
+        .get();
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['soldAt'] == null) {
+        // Set soldAt to current time
+        await _marketItemsCollection.doc(doc.id).update({
+          'soldAt': Timestamp.now(),
+        });
+        fixedCount++;
+      }
+    }
+
+    return fixedCount;
   }
 }

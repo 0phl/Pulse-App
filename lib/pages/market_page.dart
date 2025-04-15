@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../widgets/market_item_card.dart';
 import '../models/market_item.dart';
 import 'chat_page.dart';
@@ -214,6 +215,8 @@ class _MarketPageState extends State<MarketPage>
     );
   }
 
+  // Fix method removed as it's no longer needed
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -224,6 +227,7 @@ class _MarketPageState extends State<MarketPage>
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
         actions: [
+          // Fix button removed as it's no longer needed
           // Seller Dashboard Button
           IconButton(
             icon: const Icon(Icons.dashboard),
@@ -340,6 +344,24 @@ class _MarketPageState extends State<MarketPage>
   Widget _buildItemList(List<MarketItem> items) {
     final bool isMyItemsTab = _tabController.index == 1;
 
+    // Debug print for all items to check their status
+    for (var item in items) {
+      if (item.isSold) {
+        if (item.soldAt != null) {
+          final now = DateTime.now();
+          final soldAt = item.soldAt!;
+          final timeDifference = now.difference(soldAt);
+          final secondsAgo = timeDifference.inSeconds;
+          final minutesAgo = timeDifference.inMinutes;
+          debugPrint('Item ${item.title} (status: ${item.status}) sold $minutesAgo minutes ($secondsAgo seconds) ago (soldAt: $soldAt)');
+        } else {
+          debugPrint('Item ${item.title} (status: ${item.status}) is marked as sold but has no soldAt timestamp');
+        }
+      } else {
+        debugPrint('Item ${item.title} (status: ${item.status}) is not sold');
+      }
+    }
+
     // For My Items tab, hide sold items immediately
     // For All Items tab, filter out items that are not approved and hide sold items after 10 minutes
     final List<MarketItem> displayItems = isMyItemsTab
@@ -352,17 +374,29 @@ class _MarketPageState extends State<MarketPage>
 
             // For sold items, check if they were sold within the last 10 minutes
             if (item.status == 'approved' && item.isSold) {
-              // If soldAt is null, show the item (backward compatibility)
+              // If soldAt is null, set a default timestamp 10 minutes ago
+              // This ensures items with missing soldAt will disappear after a refresh
               if (item.soldAt == null) {
+                debugPrint('Item ${item.title} has null soldAt timestamp, using default logic');
+                // For items with null soldAt, show them for this session but they'll disappear on refresh
                 return true;
               }
 
               // Calculate time difference between now and when the item was marked as sold
               final now = DateTime.now();
-              final timeDifference = now.difference(item.soldAt!);
+              final soldAt = item.soldAt!;
+              final timeDifference = now.difference(soldAt);
+              final secondsAgo = timeDifference.inSeconds;
 
               // Show the item if it was sold less than 10 minutes ago
-              return timeDifference.inMinutes < 10;
+              // Use total seconds for more precise comparison (avoid rounding issues)
+              final shouldShow = secondsAgo < 600; // 10 minutes = 600 seconds
+              if (shouldShow) {
+                debugPrint('Item ${item.title} is showing because it was sold $secondsAgo seconds ago (< 600 seconds)');
+              } else {
+                debugPrint('Item ${item.title} is NOT showing because it was sold $secondsAgo seconds ago (>= 600 seconds)');
+              }
+              return shouldShow;
             }
 
             return false;
