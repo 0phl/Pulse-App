@@ -3,14 +3,16 @@ import 'package:intl/intl.dart';
 import '../models/report.dart';
 import '../models/report_status.dart';
 import '../widgets/image_viewer_page.dart';
+import '../widgets/video_player_page.dart';
+import '../widgets/video_thumbnail.dart';
 
 class UserReportDetailDialog extends StatelessWidget {
   final Report report;
 
   const UserReportDetailDialog({
-    Key? key,
+    super.key,
     required this.report,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -170,6 +172,40 @@ class UserReportDetailDialog extends StatelessWidget {
                                     ),
                                   ),
                                 ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+
+                    if (report.videoUrls.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _buildSectionTitle('Videos'),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 200,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: report.videoUrls.length,
+                          itemBuilder: (context, index) {
+                            final videoUrl = report.videoUrls[index];
+                            return Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              width: 200,
+                              height: 200,
+                              child: VideoThumbnail(
+                                videoUrl: videoUrl,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => VideoPlayerPage(
+                                        videoUrl: videoUrl,
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             );
                           },

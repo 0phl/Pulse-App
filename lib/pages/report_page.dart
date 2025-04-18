@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 // Removed map-related imports
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:video_compress/video_compress.dart';
 import '../models/report.dart';
 import '../models/report_status.dart';
 import '../services/report_service.dart';
@@ -59,7 +60,9 @@ class _ReportPageState extends State<ReportPage>
   final List<String> _tabs = ['New Report', 'My Reports'];
   String _selectedFilter = 'All';
   final List<File> _selectedPhotos = [];
+  final List<File> _selectedVideos = [];
   final ImagePicker _imagePicker = ImagePicker();
+  bool _isVideoUploading = false;
 
   @override
   void initState() {
@@ -126,13 +129,155 @@ class _ReportPageState extends State<ReportPage>
   }
 
 
-  Future<void> _pickImage() async {
+  Future<void> _showPhotoSourceOptions() async {
+    await showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take a photo'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickSinglePhoto(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from gallery'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickMultiplePhotos();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickSinglePhoto(ImageSource source) async {
+    final XFile? image = await _imagePicker.pickImage(source: source);
+    if (image != null) {
+      setState(() {
+        _selectedPhotos.add(File(image.path));
+      });
+    }
+  }
+
+  Future<void> _pickMultiplePhotos() async {
     final List<XFile> images = await _imagePicker.pickMultiImage();
     if (images.isNotEmpty) {
       setState(() {
         _selectedPhotos.addAll(images.map((image) => File(image.path)));
       });
     }
+  }
+
+  Future<void> _showVideoSourceOptions() async {
+    await showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.videocam),
+                title: const Text('Record a video'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickVideo(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.video_library),
+                title: const Text('Choose from gallery'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickVideo(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickVideo(ImageSource source) async {
+    try {
+      final XFile? video = await _imagePicker.pickVideo(
+        source: source,
+        maxDuration: const Duration(minutes: 5),
+      );
+
+      if (video != null) {
+        // Check file size
+        final File videoFile = File(video.path);
+        final int fileSizeInBytes = await videoFile.length();
+        final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
+
+        if (fileSizeInMB > 50) {
+          if (mounted) {
+            _showSnackBar('Video size exceeds 50MB limit. Please select a smaller video.');
+          }
+          return;
+        }
+
+        // Show compression progress
+        setState(() {
+          _isVideoUploading = true;
+        });
+
+        // Compress video if it's larger than 10MB while maintaining HD quality
+        File compressedVideoFile = videoFile;
+        if (fileSizeInMB > 10) {
+          try {
+            // Show compression dialog
+            if (mounted) {
+              _showSnackBar('Compressing video to maintain quality...');
+            }
+
+            // Start compression with HD quality
+            final MediaInfo? mediaInfo = await VideoCompress.compressVideo(
+              videoFile.path,
+              quality: VideoQuality.MediumQuality, // HD quality
+              deleteOrigin: false,
+              includeAudio: true,
+            );
+
+            if (mediaInfo != null && mediaInfo.file != null) {
+              compressedVideoFile = mediaInfo.file!;
+            }
+          } catch (e) {
+            if (mounted) {
+              _showSnackBar('Error compressing video: $e. Using original video.');
+            }
+          }
+        }
+
+        setState(() {
+          _isVideoUploading = false;
+          _selectedVideos.add(compressedVideoFile);
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isVideoUploading = false;
+      });
+      if (mounted) {
+        _showSnackBar('Error picking video: $e');
+      }
+    }
+  }
+
+  void _removeVideo(int index) {
+    setState(() {
+      _selectedVideos.removeAt(index);
+    });
   }
 
   void _removePhoto(int index) {
@@ -169,6 +314,18 @@ class _ReportPageState extends State<ReportPage>
         photoUrls = await _reportService.uploadReportPhotos(_selectedPhotos);
       }
 
+      // Upload videos if any
+      List<String> videoUrls = [];
+      if (_selectedVideos.isNotEmpty) {
+        setState(() {
+          _isVideoUploading = true;
+        });
+        videoUrls = await _reportService.uploadReportVideos(_selectedVideos);
+        setState(() {
+          _isVideoUploading = false;
+        });
+      }
+
       // Get current user
       final currentUser = _authService.currentUser;
       if (currentUser == null) {
@@ -192,6 +349,7 @@ class _ReportPageState extends State<ReportPage>
             : _addressController.text,
         location: {}, // Map implementation removed
         photoUrls: photoUrls,
+        videoUrls: videoUrls,
       );
 
       setState(() {
@@ -213,6 +371,7 @@ class _ReportPageState extends State<ReportPage>
         _addressDetailsController.clear();
         _descriptionController.clear();
         _selectedPhotos.clear();
+        _selectedVideos.clear();
         // Location reset simplified
         _currentStep = 0;
         _hasConfirmedInfo = false;
@@ -220,6 +379,7 @@ class _ReportPageState extends State<ReportPage>
     } catch (e) {
       setState(() {
         _isUploading = false;
+        _isVideoUploading = false;
       });
       _showSnackBar('Failed to submit report: $e');
     }
@@ -305,12 +465,25 @@ class _ReportPageState extends State<ReportPage>
         ),
 
         // Loading Overlay
-        if (_isUploading)
+        if (_isUploading || _isVideoUploading)
           Container(
             color: Colors.black.withOpacity(0.3),
-            child: const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _isVideoUploading ? 'Compressing video...' : 'Uploading report...',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -407,22 +580,49 @@ class _ReportPageState extends State<ReportPage>
 
         // Photo Upload Section
         ReportFormField(
-          label: 'Photos',
+          label: 'Photos/Videos',
           isRequired: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              OutlinedButton.icon(
-                onPressed: _pickImage,
-                icon: const Icon(Icons.add_a_photo, size: 16),
-                label: const Text('Add Photos'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF00C49A),
-                  side: BorderSide(color: Colors.grey.shade300),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _showPhotoSourceOptions(),
+                    icon: const Icon(Icons.add_a_photo, size: 16),
+                    label: const Text('Add Photos'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF00C49A),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _showVideoSourceOptions(),
+                    icon: const Icon(Icons.videocam, size: 16),
+                    label: const Text('Add Video'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF00C49A),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Max file size: 50MB (larger files will be compressed)',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
                 ),
               ),
               if (_selectedPhotos.isNotEmpty) ...[
@@ -452,6 +652,65 @@ class _ReportPageState extends State<ReportPage>
                             top: 4,
                             child: GestureDetector(
                               onTap: () => _removePhoto(index),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.5),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+              if (_selectedVideos.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Selected Videos:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 100,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _selectedVideos.length,
+                    itemBuilder: (context, index) {
+                      return Stack(
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.play_circle_fill,
+                                color: Colors.white,
+                                size: 40,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 12,
+                            top: 4,
+                            child: GestureDetector(
+                              onTap: () => _removeVideo(index),
                               child: Container(
                                 padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(

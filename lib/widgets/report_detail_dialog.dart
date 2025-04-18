@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 import '../widgets/image_viewer_page.dart';
+import '../widgets/video_player_page.dart';
+import '../widgets/video_thumbnail.dart';
 
 class ReportDetailDialog extends StatefulWidget {
   final Map<String, dynamic> report;
@@ -11,12 +13,12 @@ class ReportDetailDialog extends StatefulWidget {
   final Function(String)? onShowRejectDialog;
 
   const ReportDetailDialog({
-    Key? key,
+    super.key,
     required this.report,
     required this.onHandleReport,
     required this.onShowResolveDialog,
     this.onShowRejectDialog,
-  }) : super(key: key);
+  });
 
   @override
   State<ReportDetailDialog> createState() => _ReportDetailDialogState();
@@ -198,6 +200,7 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
                       style: const TextStyle(fontSize: 14),
                     ),
 
+                    // Images section
                     if (widget.report['photoUrls'] != null &&
                         (widget.report['photoUrls'] as List).isNotEmpty) ...[
                       const SizedBox(height: 16),
@@ -248,7 +251,41 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
                       ),
                     ],
 
-
+                    // Videos section
+                    if (widget.report['videoUrls'] != null &&
+                        (widget.report['videoUrls'] as List).isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _buildSectionTitle('Videos'),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 200,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: (widget.report['videoUrls'] as List).length,
+                          itemBuilder: (context, index) {
+                            final videoUrl = (widget.report['videoUrls'] as List)[index].toString();
+                            return Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              width: 200,
+                              height: 200,
+                              child: VideoThumbnail(
+                                videoUrl: videoUrl,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => VideoPlayerPage(
+                                        videoUrl: videoUrl,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
 
                     if (widget.report['resolution'] != null &&
                         widget.report['resolution'].isNotEmpty) ...[

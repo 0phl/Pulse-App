@@ -10,6 +10,7 @@ class Report {
   final String address;
   final Map<String, dynamic> location; // Contains lat, lng, street, locality, subAdministrativeArea
   final List<String> photoUrls;
+  final List<String> videoUrls;
   final ReportStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -24,6 +25,7 @@ class Report {
     required this.address,
     required this.location,
     required this.photoUrls,
+    this.videoUrls = const [],
     required this.status,
     required this.createdAt,
     required this.updatedAt,
@@ -50,6 +52,7 @@ class Report {
       address: map['address'] as String,
       location: map['location'] as Map<String, dynamic>,
       photoUrls: List<String>.from(map['photoUrls']),
+      videoUrls: map['videoUrls'] != null ? List<String>.from(map['videoUrls']) : [],
       status: ReportStatus.fromString(map['status'] as String),
       createdAt: createdAt,
       updatedAt: updatedAt,
@@ -68,6 +71,7 @@ class Report {
       'address': address,
       'location': location,
       'photoUrls': photoUrls,
+      'videoUrls': videoUrls,
       'status': status.value,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -91,6 +95,7 @@ class Report {
     String? address,
     Map<String, dynamic>? location,
     List<String>? photoUrls,
+    List<String>? videoUrls,
     ReportStatus? status,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -105,6 +110,7 @@ class Report {
       address: address ?? this.address,
       location: location ?? this.location,
       photoUrls: photoUrls ?? this.photoUrls,
+      videoUrls: videoUrls ?? this.videoUrls,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

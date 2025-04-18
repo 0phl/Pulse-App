@@ -46,6 +46,9 @@ dependencies:
   qr_flutter: ^4.1.0
   uuid: ^4.0.0
   mobile_scanner: ^6.0.7
+  video_compress: ^3.1.2
+  video_player: ^2.8.2
+  chewie: ^1.7.5
 
 dev_dependencies:
   flutter_test:

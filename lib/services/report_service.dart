@@ -7,7 +7,7 @@ import 'cloudinary_service.dart';
 class ReportService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final CloudinaryService _cloudinaryService;
-  
+
   ReportService(this._cloudinaryService);
 
   // Collection reference
@@ -23,12 +23,13 @@ class ReportService {
     required String address,
     required Map<String, dynamic> location,
     required List<String> photoUrls,
+    List<String> videoUrls = const [],
     String? street,
     String? locality,
     String? subAdministrativeArea,
   }) async {
     final now = DateTime.now();
-    
+
     final docRef = await _reports.add({
       'userId': userId,
       'communityId': communityId,
@@ -37,6 +38,7 @@ class ReportService {
       'address': address,
       'location': location,
       'photoUrls': photoUrls,
+      'videoUrls': videoUrls,
       'status': ReportStatus.pending.value,
       'street': street,
       'locality': locality,
@@ -123,6 +125,11 @@ class ReportService {
   // Upload photos for a report
   Future<List<String>> uploadReportPhotos(List<File> files) async {
     return await _cloudinaryService.uploadReportImages(files);
+  }
+
+  // Upload videos for a report
+  Future<List<String>> uploadReportVideos(List<File> files) async {
+    return await _cloudinaryService.uploadReportVideos(files);
   }
 
   // Delete a report

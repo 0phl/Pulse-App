@@ -113,6 +113,31 @@ class CloudinaryService {
     return urls;
   }
 
+  Future<String> uploadReportVideo(File file) async {
+    try {
+      final cloudinaryFile = CloudinaryFile.fromFile(
+        file.path,
+        folder: 'reports/videos',
+        resourceType: CloudinaryResourceType.Video,
+      );
+
+      CloudinaryResponse response =
+          await reportCloudinary.uploadFile(cloudinaryFile);
+      return response.secureUrl;
+    } catch (e) {
+      throw Exception('Failed to upload report video: $e');
+    }
+  }
+
+  Future<List<String>> uploadReportVideos(List<File> files) async {
+    List<String> urls = [];
+    for (var file in files) {
+      String url = await uploadReportVideo(file);
+      urls.add(url);
+    }
+    return urls;
+  }
+
   Future<String> uploadProfileImage(File file) async {
     try {
       final cloudinaryFile = CloudinaryFile.fromFile(
