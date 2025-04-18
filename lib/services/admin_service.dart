@@ -1263,12 +1263,15 @@ class AdminService {
         'authorName': originalData['authorName']?.toString() ?? '',
         'authorAvatar': originalData['authorAvatar']?.toString(),
         'imageUrl': originalData['imageUrl']?.toString(),
+        'imageUrls': originalData['imageUrls'] is List ? originalData['imageUrls'] : null,
         'communityId': originalData['communityId']?.toString() ?? '',
         'createdAt': originalData['createdAt'] ?? 0,
         'updatedAt': originalData['updatedAt'] ?? 0,
         'likes': originalData['likes'] is Map ? originalData['likes'] : null,
-        'comments':
-            originalData['comments'] is Map ? originalData['comments'] : null,
+        'comments': originalData['comments'] is Map ? originalData['comments'] : null,
+        'poll': originalData['poll'] is Map ? originalData['poll'] : null,
+        'videoUrl': originalData['videoUrl']?.toString(),
+        'attachments': originalData['attachments'] is List ? originalData['attachments'] : null,
       };
       return CommunityNotice.fromMap({
         ...noticeData,
@@ -1286,6 +1289,10 @@ class AdminService {
     String title,
     String content,
     String? imageUrl,
+    {List<String>? imageUrls,
+    String? videoUrl,
+    Map<String, dynamic>? poll,
+    List<Map<String, dynamic>>? attachments}
   ) async {
     // Verify admin access first
     if (!await isCurrentUserAdmin()) {
@@ -1298,10 +1305,21 @@ class AdminService {
     }
 
     final newNoticeRef = _database.child('community_notices').push();
+
+    // Handle backward compatibility with single imageUrl
+    final List<String>? finalImageUrls = imageUrls ?? (imageUrl != null ? [imageUrl] : null);
+
+    // Debug: Print poll data
+    print('AdminService.createNotice poll data:');
+    print('Poll: $poll');
+
     await newNoticeRef.set({
       'title': title,
       'content': content,
-      'imageUrl': imageUrl,
+      'imageUrls': finalImageUrls,
+      'videoUrl': videoUrl,
+      'poll': poll,
+      'attachments': attachments,
       'communityId': community.id,
       'createdAt': ServerValue.timestamp,
       'updatedAt': ServerValue.timestamp,
@@ -1329,18 +1347,42 @@ class AdminService {
     String title,
     String content,
     String? imageUrl,
+    {List<String>? imageUrls,
+    String? videoUrl,
+    Map<String, dynamic>? poll,
+    List<Map<String, dynamic>>? attachments}
   ) async {
     final community = await getCurrentAdminCommunity();
     if (community == null) {
       throw Exception('No community found for current admin');
     }
 
-    await _database.child('community_notices').child(noticeId).update({
+    final Map<String, dynamic> updates = {
       'title': title,
       'content': content,
-      if (imageUrl != null) 'imageUrl': imageUrl,
       'updatedAt': ServerValue.timestamp,
-    });
+    };
+
+    // Handle backward compatibility with single imageUrl
+    if (imageUrls != null) {
+      updates['imageUrls'] = imageUrls;
+    } else if (imageUrl != null) {
+      updates['imageUrls'] = [imageUrl];
+    }
+
+    if (videoUrl != null) {
+      updates['videoUrl'] = videoUrl;
+    }
+
+    if (poll != null) {
+      updates['poll'] = poll;
+    }
+
+    if (attachments != null) {
+      updates['attachments'] = attachments;
+    }
+
+    await _database.child('community_notices').child(noticeId).update(updates);
   }
 
   // Delete a notice

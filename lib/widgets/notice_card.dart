@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 import 'comments_sheet.dart';
-import 'image_viewer_page.dart';
+import 'image_gallery_viewer.dart';
 
 class NoticeCard extends StatelessWidget {
   final CommunityNotice notice;
@@ -102,39 +103,203 @@ class NoticeCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (notice.imageUrl != null) ...[
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ImageViewerPage(
-                            imageUrl: notice.imageUrl!,
+                // Image Gallery
+                if (notice.imageUrls != null && notice.imageUrls!.isNotEmpty) ...[
+                  ImageGalleryViewer(
+                    imageUrls: notice.imageUrls!,
+                    height: 200,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // Video, Poll, and Attachments are handled in CommunityNoticeCard
+                // For this card, we'll just show a placeholder for these media types
+                if (notice.videoUrl != null) ...[
+                  Container(
+                    height: 200,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.play_circle_outline, size: 50, color: Colors.grey),
+                          SizedBox(height: 8),
+                          Text('Video content available'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                if (notice.poll != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          notice.poll!.question,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      );
-                    },
-                    child: Hero(
-                      tag: notice.imageUrl!,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          notice.imageUrl!,
-                          width: double.infinity,
-                          height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: double.infinity,
-                              height: 200,
-                              color: Colors.grey[100],
-                              child: const Center(
-                                child: Icon(Icons.error_outline, color: Colors.grey),
-                              ),
-                            );
-                          },
+                        const SizedBox(height: 16),
+                        ...notice.poll!.options.map((option) {
+                          final totalVotes = notice.poll!.options.fold(
+                              0, (sum, opt) => sum + (opt.voteCount));
+                          final percentage = totalVotes > 0
+                              ? (option.voteCount / totalVotes * 100).round()
+                              : 0;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        option.text,
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    ),
+                                    Text(
+                                      '$percentage%',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                LinearProgressIndicator(
+                                  value: totalVotes > 0
+                                      ? option.voteCount / totalVotes
+                                      : 0,
+                                  backgroundColor: Colors.grey[200],
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Theme.of(context).primaryColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.how_to_vote_outlined,
+                                  size: 14,
+                                  color: Colors.grey[600]
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${notice.poll!.options.fold(0, (sum, opt) => sum + opt.voteCount)} votes',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Poll End Date'),
+                                        content: Text(
+                                          DateFormat('MMMM d, y h:mm a').format(notice.poll!.expiresAt.toLocal()),
+                                          style: const TextStyle(fontSize: 16),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: const Text('Close'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.schedule,
+                                        size: 14,
+                                        color: Colors.grey[600]
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _formatExpiryDate(notice.poll!.expiresAt),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (notice.poll!.allowMultipleChoices) ...[
+                                  const SizedBox(width: 8),
+                                  Icon(Icons.check_circle_outline,
+                                    size: 14,
+                                    color: Colors.grey[600]
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Multiple choices',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                if (notice.attachments != null && notice.attachments!.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Attachments',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('${notice.attachments!.length} attachment(s) available'),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -276,6 +441,28 @@ class NoticeCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatExpiryDate(DateTime expiryDate) {
+    final now = DateTime.now();
+    final difference = expiryDate.difference(now);
+
+    if (difference.isNegative) {
+      return 'Poll ended';
+    }
+
+    if (difference.inDays > 7) {
+      final weeks = (difference.inDays / 7).floor();
+      return 'Ends in ${weeks == 1 ? '1 week' : '$weeks weeks'}';
+    } else if (difference.inDays > 0) {
+      return 'Ends in ${difference.inDays == 1 ? '1 day' : '${difference.inDays} days'}';
+    } else if (difference.inHours > 0) {
+      return 'Ends in ${difference.inHours == 1 ? '1 hour' : '${difference.inHours} hours'}';
+    } else if (difference.inMinutes > 0) {
+      return 'Ends in ${difference.inMinutes == 1 ? '1 minute' : '${difference.inMinutes} minutes'}';
+    } else {
+      return 'Ends in ${difference.inSeconds == 1 ? '1 second' : '${difference.inSeconds} seconds'}';
+    }
   }
 
   String _formatDate(DateTime date) {
