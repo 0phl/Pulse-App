@@ -37,6 +37,10 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+
+  <!-- cropperjs -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 </head>
 <body>
   <!-- Add EmailJS SDK -->
@@ -46,19 +50,19 @@
       try {
         // Initialize EmailJS with your public key
         emailjs.init("LEGY3zCFy08HEgHUA");
-        
+
         // Add a global error handler for EmailJS
         window.addEventListener('emailjs-error', function(e) {
           console.error('EmailJS Error:', e.detail);
         });
-        
+
         console.log('EmailJS initialized successfully');
       } catch (error) {
         console.error('EmailJS initialization error:', error);
       }
     })();
   </script>
-  
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

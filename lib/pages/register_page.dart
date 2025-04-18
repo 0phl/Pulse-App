@@ -11,6 +11,7 @@ import 'dart:math';
 import 'dart:async';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import '../services/cloudinary_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -104,9 +105,14 @@ class _RegisterPageState extends State<RegisterPage>
       );
 
       if (image != null) {
-        setState(() {
-          _profileImage = File(image.path);
-        });
+        // Crop the image
+        final croppedFile = await _cropImage(File(image.path));
+
+        if (croppedFile != null && mounted) {
+          setState(() {
+            _profileImage = croppedFile;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -115,6 +121,37 @@ class _RegisterPageState extends State<RegisterPage>
         );
       }
     }
+  }
+
+  Future<File?> _cropImage(File imageFile) async {
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: imageFile.path,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop Profile Picture',
+          toolbarColor: const Color(0xFF00C49A),
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.square,
+          lockAspectRatio: true,
+          activeControlsWidgetColor: const Color(0xFF00C49A),
+          aspectRatioPresets: [
+            CropAspectRatioPreset.square,
+          ],
+        ),
+        IOSUiSettings(
+          title: 'Crop Profile Picture',
+          aspectRatioLockEnabled: true,
+          resetAspectRatioEnabled: false,
+          aspectRatioPickerButtonHidden: true,
+          aspectRatioPresets: [
+            CropAspectRatioPreset.square,
+          ],
+        ),
+      ],
+    );
+
+    if (croppedFile == null) return null;
+    return File(croppedFile.path);
   }
 
   Future<String?> _uploadProfileImage() async {
