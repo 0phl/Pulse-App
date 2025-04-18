@@ -5,6 +5,7 @@ import '../../services/admin_service.dart';
 // market_item import removed as it's no longer needed
 import './admin_drawer.dart';
 import 'package:intl/intl.dart';
+import '../../widgets/image_viewer_page.dart';
 
 class AdminMarketplacePage extends StatefulWidget {
   final int initialTabIndex;
@@ -191,6 +192,16 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
     }
   }
 
+  // Method to handle image taps and open the image viewer
+  void _handleImageTap(String imageUrl) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ImageViewerPage(imageUrl: imageUrl),
+      ),
+    );
+  }
+
   // _signOut method removed as it's no longer needed
 
   Future<void> _showItemOptions(Map<String, dynamic> item) async {
@@ -259,20 +270,26 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(16)),
-                        child: AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: Image.network(
-                            item['imageUrl'] ?? '',
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey[300],
-                                child: const Icon(Icons.error),
-                              );
-                            },
+                      GestureDetector(
+                        onTap: () => _handleImageTap(item['imageUrl'] ?? ''),
+                        child: Hero(
+                          tag: item['imageUrl'] ?? '',
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(16)),
+                            child: AspectRatio(
+                              aspectRatio: 16 / 9,
+                              child: Image.network(
+                                item['imageUrl'] ?? '',
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: Colors.grey[300],
+                                    child: const Icon(Icons.error),
+                                  );
+                                },
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -689,21 +706,27 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.network(
-                transaction['imageUrl'],
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
+            leading: GestureDetector(
+              onTap: () => _handleImageTap(transaction['imageUrl']),
+              child: Hero(
+                tag: transaction['imageUrl'],
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.network(
+                    transaction['imageUrl'],
                     width: 48,
                     height: 48,
-                    color: Colors.grey[300],
-                    child: const Icon(Icons.error),
-                  );
-                },
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 48,
+                        height: 48,
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.error),
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
             title: Text(transaction['title']),
@@ -1117,16 +1140,22 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                                   child: Stack(
                                     fit: StackFit.expand,
                                     children: [
-                                      Image.network(
-                                        imageUrl,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                          return Container(
-                                            color: Colors.grey[300],
-                                            child: const Icon(Icons.error),
-                                          );
-                                        },
+                                      GestureDetector(
+                                        onTap: () => _handleImageTap(imageUrl),
+                                        child: Hero(
+                                          tag: imageUrl,
+                                          child: Image.network(
+                                            imageUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
+                                              return Container(
+                                                color: Colors.grey[300],
+                                                child: const Icon(Icons.error),
+                                              );
+                                            },
+                                          ),
+                                        ),
                                       ),
                                       if (isSold)
                                         Container(
@@ -1372,21 +1401,27 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      imageUrl,
-                                      width: 80,
-                                      height: 80,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return Container(
+                                  GestureDetector(
+                                    onTap: () => _handleImageTap(imageUrl),
+                                    child: Hero(
+                                      tag: imageUrl,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          imageUrl,
                                           width: 80,
                                           height: 80,
-                                          color: Colors.grey[300],
-                                          child: const Icon(Icons.error),
-                                        );
-                                      },
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Container(
+                                              width: 80,
+                                              height: 80,
+                                              color: Colors.grey[300],
+                                              child: const Icon(Icons.error),
+                                            );
+                                          },
+                                        ),
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 16),

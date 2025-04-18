@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
+import '../widgets/image_viewer_page.dart';
 
 class ReportDetailDialog extends StatefulWidget {
   final Map<String, dynamic> report;
@@ -200,24 +201,49 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
                     if (widget.report['photoUrls'] != null &&
                         (widget.report['photoUrls'] as List).isNotEmpty) ...[
                       const SizedBox(height: 16),
-                      _buildSectionTitle('Image'),
+                      _buildSectionTitle('Images'),
                       const SizedBox(height: 8),
-                      Center(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            (widget.report['photoUrls'] as List).first,
-                            fit: BoxFit.cover,
-                            height: 200,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                height: 200,
-                                color: Colors.grey[300],
-                                alignment: Alignment.center,
-                                child: const Text('Image not available'),
-                              );
-                            },
-                          ),
+                      SizedBox(
+                        height: 200,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: (widget.report['photoUrls'] as List).length,
+                          itemBuilder: (context, index) {
+                            final imageUrl = (widget.report['photoUrls'] as List)[index].toString();
+                            return Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              width: 200,
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ImageViewerPage(
+                                        imageUrl: imageUrl,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Hero(
+                                  tag: imageUrl,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      imageUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          color: Colors.grey[300],
+                                          alignment: Alignment.center,
+                                          child: const Text('Image not available'),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],

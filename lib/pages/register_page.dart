@@ -12,6 +12,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart' as path_provider;
+import 'package:path/path.dart' as path;
 import '../services/cloudinary_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -99,8 +102,51 @@ class _RegisterPageState extends State<RegisterPage>
 
   Future<void> _pickProfileImage() async {
     try {
+      // Show a dialog to choose between camera and gallery
+      await showModalBottomSheet(
+        context: context,
+        builder: (BuildContext context) {
+          return SafeArea(
+            child: Wrap(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_camera),
+                  title: const Text('Take a photo'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _getImage(ImageSource.camera);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('Choose from gallery'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _getImage(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _getImage(ImageSource source) async {
+    try {
+      setState(() {
+        _isUploadingImage = true; // Show loading indicator
+      });
+
       final XFile? image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         imageQuality: 70,
       );
 
@@ -120,38 +166,56 @@ class _RegisterPageState extends State<RegisterPage>
           SnackBar(content: Text('Error picking image: $e')),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingImage = false; // Hide loading indicator
+        });
+      }
     }
   }
 
   Future<File?> _cropImage(File imageFile) async {
-    final croppedFile = await ImageCropper().cropImage(
-      sourcePath: imageFile.path,
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Crop Profile Picture',
-          toolbarColor: const Color(0xFF00C49A),
-          toolbarWidgetColor: Colors.white,
-          initAspectRatio: CropAspectRatioPreset.square,
-          lockAspectRatio: true,
-          activeControlsWidgetColor: const Color(0xFF00C49A),
-          aspectRatioPresets: [
-            CropAspectRatioPreset.square,
-          ],
-        ),
-        IOSUiSettings(
-          title: 'Crop Profile Picture',
-          aspectRatioLockEnabled: true,
-          resetAspectRatioEnabled: false,
-          aspectRatioPickerButtonHidden: true,
-          aspectRatioPresets: [
-            CropAspectRatioPreset.square,
-          ],
-        ),
-      ],
-    );
+    setState(() {
+      _isUploadingImage = true; // Show loading indicator during cropping
+    });
 
-    if (croppedFile == null) return null;
-    return File(croppedFile.path);
+    try {
+      final croppedFile = await ImageCropper().cropImage(
+        sourcePath: imageFile.path,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop Profile Picture',
+            toolbarColor: const Color(0xFF00C49A),
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.square,
+            lockAspectRatio: true,
+            activeControlsWidgetColor: const Color(0xFF00C49A),
+            aspectRatioPresets: [
+              CropAspectRatioPreset.square,
+            ],
+          ),
+          IOSUiSettings(
+            title: 'Crop Profile Picture',
+            aspectRatioLockEnabled: true,
+            resetAspectRatioEnabled: false,
+            aspectRatioPickerButtonHidden: true,
+            aspectRatioPresets: [
+              CropAspectRatioPreset.square,
+            ],
+          ),
+        ],
+      );
+
+      if (croppedFile == null) return null;
+      return File(croppedFile.path);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingImage = false; // Hide loading indicator after cropping
+        });
+      }
+    }
   }
 
   Future<String?> _uploadProfileImage() async {
@@ -162,8 +226,11 @@ class _RegisterPageState extends State<RegisterPage>
     });
 
     try {
-      // Use the dedicated profile image uploader
-      return await _cloudinaryService.uploadProfileImage(_profileImage!);
+      // Compress the image before uploading to reduce file size
+      final File compressedFile = await _compressImage(_profileImage!);
+
+      // Use the dedicated profile image uploader with the compressed image
+      return await _cloudinaryService.uploadProfileImage(compressedFile);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -178,6 +245,34 @@ class _RegisterPageState extends State<RegisterPage>
         });
       }
     }
+  }
+
+  // Helper method to compress images before uploading
+  Future<File> _compressImage(File file) async {
+    // Get file path and name
+    final String filePath = file.path;
+    final int lastIndex = filePath.lastIndexOf(Platform.isWindows ? '\\' : '/');
+    final String fileName = filePath.substring(lastIndex + 1);
+
+    // Get temporary directory for storing compressed image
+    final tempDir = await path_provider.getTemporaryDirectory();
+    final targetPath = '${tempDir.path}${Platform.isWindows ? '\\' : '/'}compressed_$fileName';
+
+    // Compress the image with reduced quality (50%)
+    final result = await FlutterImageCompress.compressAndGetFile(
+      file.path,
+      targetPath,
+      quality: 50,
+      minWidth: 1000,
+      minHeight: 1000,
+    );
+
+    if (result != null) {
+      return File(result.path);
+    }
+
+    // If compression fails, return the original file
+    return file;
   }
 
   Future<void> _loadRegions() async {

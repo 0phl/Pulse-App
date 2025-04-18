@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/report.dart';
 import '../models/report_status.dart';
+import '../widgets/image_viewer_page.dart';
 
 class UserReportDetailDialog extends StatelessWidget {
   final Report report;
@@ -137,21 +138,37 @@ class UserReportDetailDialog extends StatelessWidget {
                           scrollDirection: Axis.horizontal,
                           itemCount: report.photoUrls.length,
                           itemBuilder: (context, index) {
+                            final imageUrl = report.photoUrls[index];
                             return Container(
                               margin: const EdgeInsets.only(right: 8),
                               width: 200,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  report.photoUrls[index],
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      color: Colors.grey[300],
-                                      alignment: Alignment.center,
-                                      child: const Text('Image not available'),
-                                    );
-                                  },
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ImageViewerPage(
+                                        imageUrl: imageUrl,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Hero(
+                                  tag: imageUrl,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      imageUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          color: Colors.grey[300],
+                                          alignment: Alignment.center,
+                                          child: const Text('Image not available'),
+                                        );
+                                      },
+                                    ),
+                                  ),
                                 ),
                               ),
                             );
