@@ -1370,9 +1370,9 @@ class AdminService {
       updates['imageUrls'] = [imageUrl];
     }
 
-    if (videoUrl != null) {
-      updates['videoUrl'] = videoUrl;
-    }
+    // Always include videoUrl in updates (null or not)
+    // This ensures videos can be removed when editing
+    updates['videoUrl'] = videoUrl;
 
     if (poll != null) {
       updates['poll'] = poll;
