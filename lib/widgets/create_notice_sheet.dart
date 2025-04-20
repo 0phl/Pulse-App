@@ -108,10 +108,25 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
         final int fileSizeInBytes = await videoFile.length();
         final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
-        if (fileSizeInMB > 50) {
+        // Allow larger videos since we'll compress them
+        if (fileSizeInMB > 100) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Video size exceeds 50MB limit. Please select a smaller video.')),
+              const SnackBar(content: Text('Video size exceeds 100MB limit. Please select a smaller video.')),
+            );
+          }
+          return;
+        }
+
+        // Check file extension
+        final String fileName = video.path.split(Platform.isWindows ? '\\' : '/').last;
+        final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+        final List<String> supportedFormats = ['mp4', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm'];
+
+        if (!supportedFormats.contains(fileExtension)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Unsupported video format: $fileExtension. Supported formats are: ${supportedFormats.join(', ')}')),
             );
           }
           return;
@@ -182,12 +197,32 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
     setState(() => _isUploadingMedia = true);
     try {
       final videoFile = File(_selectedVideo!.path);
+
+      // Get file info for better error messages
+      final String fileName = videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
+      final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+      final int fileSizeInBytes = await videoFile.length();
+      final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
+
+      print('Uploading video: $fileName, size: ${fileSizeInMB.toStringAsFixed(2)}MB, format: $fileExtension');
+
       final videoUrl = await _cloudinaryService.uploadNoticeVideo(videoFile);
+      print('Video upload successful: $videoUrl');
       return videoUrl;
     } catch (e) {
+      print('Video upload error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error uploading video: $e')),
+          SnackBar(
+            content: Text('Error uploading video: $e'),
+            duration: const Duration(seconds: 8),
+            action: SnackBarAction(
+              label: 'Dismiss',
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
         );
       }
       return null;
@@ -266,9 +301,35 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
       // Upload video if selected
       if (_selectedVideo != null) {
         setState(() => _isUploadingMedia = true);
-        final videoFile = File(_selectedVideo!.path);
-        videoUrl = await _cloudinaryService.uploadNoticeVideo(videoFile);
-        setState(() => _isUploadingMedia = false);
+        try {
+          final videoFile = File(_selectedVideo!.path);
+
+          // Get file info for better error messages
+          final String fileName = videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
+          final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+          final int fileSizeInBytes = await videoFile.length();
+          final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
+
+          print('Saving notice with video: $fileName, size: ${fileSizeInMB.toStringAsFixed(2)}MB, format: $fileExtension');
+
+          videoUrl = await _cloudinaryService.uploadNoticeVideo(videoFile);
+          print('Video upload successful during notice save: $videoUrl');
+        } catch (videoError) {
+          print('Video upload error during notice save: $videoError');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error uploading video: $videoError'),
+                duration: const Duration(seconds: 8),
+              ),
+            );
+          }
+          // Continue with the rest of the notice creation without the video
+        } finally {
+          if (mounted) {
+            setState(() => _isUploadingMedia = false);
+          }
+        }
       }
 
       // Upload attachments if any

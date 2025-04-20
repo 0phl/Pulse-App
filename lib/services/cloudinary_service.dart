@@ -1,5 +1,9 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:cloudinary_public/cloudinary_public.dart';
+import 'package:http/http.dart' as http;
+import 'package:video_compress/video_compress.dart';
+import 'package:path/path.dart' as path;
 
 class CloudinaryService {
   static final CloudinaryService _instance = CloudinaryService._internal();
@@ -64,18 +68,84 @@ class CloudinaryService {
 
   Future<String> uploadNoticeVideo(File file) async {
     try {
+      // Get file info
+      final String fileName = file.path.split(Platform.isWindows ? '\\' : '/').last;
+      final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+
+      // Check if file is a supported video format
+      final List<String> supportedFormats = ['mp4', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm'];
+      if (!supportedFormats.contains(fileExtension)) {
+        throw Exception('Unsupported video format: $fileExtension. Supported formats are: ${supportedFormats.join(', ')}');
+      }
+
+      // Check file size
+      final int fileSizeInBytes = await file.length();
+      final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
+
+      // Compress video if it's larger than 5MB
+      File videoFile = file;
+      if (fileSizeInMB > 5) {
+        try {
+          // Show compression info
+          debugPrint('Compressing video: $fileName, original size: ${fileSizeInMB.toStringAsFixed(2)}MB');
+
+          // Compress video
+          final MediaInfo? mediaInfo = await VideoCompress.compressVideo(
+            file.path,
+            quality: VideoQuality.MediumQuality,
+            deleteOrigin: false,
+            includeAudio: true,
+          );
+
+          if (mediaInfo != null && mediaInfo.file != null) {
+            videoFile = mediaInfo.file!;
+            final int compressedSizeInBytes = await videoFile.length();
+            final double compressedSizeInMB = compressedSizeInBytes / (1024 * 1024);
+            debugPrint('Video compressed: ${compressedSizeInMB.toStringAsFixed(2)}MB (${(compressedSizeInMB / fileSizeInMB * 100).toStringAsFixed(0)}% of original)');
+          } else {
+            debugPrint('Video compression failed, using original file');
+          }
+        } catch (compressError) {
+          debugPrint('Error compressing video: $compressError');
+          // Continue with original file if compression fails
+        }
+      }
+
+      // Create cloudinary file with proper settings
       final cloudinaryFile = CloudinaryFile.fromFile(
-        file.path,
+        videoFile.path,
         folder: 'notices/videos',
         resourceType: CloudinaryResourceType.Video,
       );
 
-      CloudinaryResponse response =
-          await noticeCloudinary.uploadFile(cloudinaryFile);
+      // Upload with detailed error handling
+      CloudinaryResponse response;
+      try {
+        response = await noticeCloudinary.uploadFile(cloudinaryFile);
+        debugPrint('Video upload successful: ${response.secureUrl}');
+      } catch (uploadError) {
+        debugPrint('Cloudinary upload error details: $uploadError');
+        throw Exception('Video upload failed: $uploadError');
+      }
+
       return response.secureUrl;
     } catch (e) {
+      debugPrint('Detailed video upload error: $e');
       throw Exception('Failed to upload notice video: $e');
+    } finally {
+      // Clear any resources used by VideoCompress
+      try {
+        await VideoCompress.cancelCompression();
+      } catch (e) {
+        // Ignore errors when canceling compression
+      }
     }
+  }
+
+  // Helper method to print debug messages
+  void debugPrint(String message) {
+    // Use print in development, but in production you might want to use a logging framework
+    print(message);
   }
 
   Future<String> uploadNoticeAttachment(File file) async {
@@ -176,17 +246,77 @@ class CloudinaryService {
 
   Future<String> uploadReportVideo(File file) async {
     try {
+      // Get file info
+      final String fileName = file.path.split(Platform.isWindows ? '\\' : '/').last;
+      final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+
+      // Check if file is a supported video format
+      final List<String> supportedFormats = ['mp4', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm'];
+      if (!supportedFormats.contains(fileExtension)) {
+        throw Exception('Unsupported video format: $fileExtension. Supported formats are: ${supportedFormats.join(', ')}');
+      }
+
+      // Check file size
+      final int fileSizeInBytes = await file.length();
+      final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
+
+      // Compress video if it's larger than 5MB
+      File videoFile = file;
+      if (fileSizeInMB > 5) {
+        try {
+          // Show compression info
+          debugPrint('Compressing report video: $fileName, original size: ${fileSizeInMB.toStringAsFixed(2)}MB');
+
+          // Compress video
+          final MediaInfo? mediaInfo = await VideoCompress.compressVideo(
+            file.path,
+            quality: VideoQuality.MediumQuality,
+            deleteOrigin: false,
+            includeAudio: true,
+          );
+
+          if (mediaInfo != null && mediaInfo.file != null) {
+            videoFile = mediaInfo.file!;
+            final int compressedSizeInBytes = await videoFile.length();
+            final double compressedSizeInMB = compressedSizeInBytes / (1024 * 1024);
+            debugPrint('Report video compressed: ${compressedSizeInMB.toStringAsFixed(2)}MB (${(compressedSizeInMB / fileSizeInMB * 100).toStringAsFixed(0)}% of original)');
+          } else {
+            debugPrint('Report video compression failed, using original file');
+          }
+        } catch (compressError) {
+          debugPrint('Error compressing report video: $compressError');
+          // Continue with original file if compression fails
+        }
+      }
+
+      // Create cloudinary file with proper settings
       final cloudinaryFile = CloudinaryFile.fromFile(
-        file.path,
+        videoFile.path,
         folder: 'reports/videos',
         resourceType: CloudinaryResourceType.Video,
       );
 
-      CloudinaryResponse response =
-          await reportCloudinary.uploadFile(cloudinaryFile);
+      // Upload with detailed error handling
+      CloudinaryResponse response;
+      try {
+        response = await reportCloudinary.uploadFile(cloudinaryFile);
+        debugPrint('Report video upload successful: ${response.secureUrl}');
+      } catch (uploadError) {
+        debugPrint('Cloudinary report video upload error details: $uploadError');
+        throw Exception('Report video upload failed: $uploadError');
+      }
+
       return response.secureUrl;
     } catch (e) {
+      debugPrint('Detailed report video upload error: $e');
       throw Exception('Failed to upload report video: $e');
+    } finally {
+      // Clear any resources used by VideoCompress
+      try {
+        await VideoCompress.cancelCompression();
+      } catch (e) {
+        // Ignore errors when canceling compression
+      }
     }
   }
 
