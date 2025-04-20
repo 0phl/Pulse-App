@@ -28,8 +28,10 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
   late TabController _tabController;
   int _currentTabIndex = 0;
 
-  // Error state
+  // Error states
   bool _contentError = false;
+  bool _pollQuestionError = false;
+  List<bool> _pollOptionErrors = [false, false];
 
   // Media state variables for Community Notice
   List<XFile> _selectedImages = [];
@@ -401,22 +403,16 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
     try {
       final videoFile = File(_selectedVideo!.path);
 
-      // Get file info for better error messages
-      final String fileName =
-          videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
-      final String fileExtension =
-          fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
-      final int fileSizeInBytes = await videoFile.length();
-      final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
-
-      print(
-          'Uploading video: $fileName, size: ${fileSizeInMB.toStringAsFixed(2)}MB, format: $fileExtension');
+      // Get file info for debugging if needed
+      // final String fileName = videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
+      // final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+      // final int fileSizeInBytes = await videoFile.length();
+      // final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
       final videoUrl = await _cloudinaryService.uploadNoticeVideo(videoFile);
-      print('Video upload successful: $videoUrl');
       return videoUrl;
     } catch (e) {
-      print('Video upload error: $e');
+      // Video upload error occurred
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -570,9 +566,13 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
   }
 
   Future<void> _saveNotice() async {
-    // Reset error state
+    // Reset all error states
     setState(() {
       _contentError = false;
+      _pollQuestionError = false;
+      for (int i = 0; i < _pollOptionErrors.length; i++) {
+        _pollOptionErrors[i] = false;
+      }
     });
 
     // Validate based on current tab
@@ -584,25 +584,44 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
       return;
     } else if (_currentTabIndex == 1) {
       // Poll tab requires question and at least 2 options
+      bool hasValidationErrors = false;
+
+      // Check poll question
       if (_pollQuestionController.text.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a poll question')),
-        );
-        return;
+        setState(() {
+          _pollQuestionError = true;
+          hasValidationErrors = true;
+        });
       }
 
-      // Count valid options
+      // Check poll options
       int validOptions = 0;
-      for (var controller in _pollOptionControllers) {
-        if (controller.text.trim().isNotEmpty) {
+      for (int i = 0; i < _pollOptionControllers.length; i++) {
+        // Ensure _pollOptionErrors has enough entries
+        while (_pollOptionErrors.length <= i) {
+          _pollOptionErrors.add(false);
+        }
+
+        if (_pollOptionControllers[i].text.trim().isEmpty) {
+          setState(() {
+            _pollOptionErrors[i] = true;
+            hasValidationErrors = true;
+          });
+        } else {
           validOptions++;
         }
       }
 
+      // Show a message if we need more options
       if (validOptions < 2) {
+        // If we have fewer than 2 valid options, show a message
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please add at least 2 poll options')),
         );
+        hasValidationErrors = true;
+      }
+
+      if (hasValidationErrors) {
         return;
       }
     }
@@ -634,22 +653,15 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
         try {
           final videoFile = File(_selectedVideo!.path);
 
-          // Get file info for better error messages
-          final String fileName =
-              videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
-          final String fileExtension = fileName.contains('.')
-              ? fileName.split('.').last.toLowerCase()
-              : '';
-          final int fileSizeInBytes = await videoFile.length();
-          final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
-
-          print(
-              'Saving notice with video: $fileName, size: ${fileSizeInMB.toStringAsFixed(2)}MB, format: $fileExtension');
+          // Get file info for debugging if needed
+          // final String fileName = videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
+          // final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+          // final int fileSizeInBytes = await videoFile.length();
+          // final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
           videoUrl = await _cloudinaryService.uploadNoticeVideo(videoFile);
-          print('Video upload successful during notice save: $videoUrl');
         } catch (videoError) {
-          print('Video upload error during notice save: $videoError');
+          // Video upload error occurred
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -1029,11 +1041,21 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Video placeholder
-                  Container(
-                    color: Colors.grey[300],
+                  // Video placeholder with network image
+                  Image.network(
+                    // Extract thumbnail from video URL if possible
+                    videoUrl.replaceFirst('.mp4', '.jpg'),
                     height: 100,
                     width: 100,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Fallback to a colored container if thumbnail not available
+                      return Container(
+                        color: Colors.grey[300],
+                        height: 100,
+                        width: 100,
+                      );
+                    },
                   ),
                   // Play icon overlay
                   Container(
@@ -1042,8 +1064,7 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                       shape: BoxShape.circle,
                     ),
                     padding: const EdgeInsets.all(6),
-                    child: const Icon(Icons.play_arrow,
-                        color: Colors.white, size: 24),
+                    child: const Icon(Icons.play_arrow, color: Colors.white, size: 24),
                   ),
                 ],
               ),
@@ -1235,6 +1256,11 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
 
   // Helper method to build poll option input
   Widget _buildPollOptionInput(TextEditingController controller, int index) {
+    // Ensure _pollOptionErrors has enough entries
+    while (_pollOptionErrors.length <= index) {
+      _pollOptionErrors.add(false);
+    }
+
     return Row(
       children: [
         Expanded(
@@ -1243,18 +1269,31 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
             decoration: InputDecoration(
               hintText: 'Option ${index + 1}',
               border: const OutlineInputBorder(),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              errorBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.red),
+              ),
+              focusedErrorBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.red),
+              ),
+              errorText: _pollOptionErrors[index] ? 'Please enter an option' : null,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
+            onChanged: (value) {
+              if (_pollOptionErrors[index] && value.isNotEmpty) {
+                setState(() {
+                  _pollOptionErrors[index] = false;
+                });
+              }
+            },
           ),
         ),
-        if (_pollOptionControllers.length >
-            2) // Allow removing if more than minimum options
+        if (_pollOptionControllers.length > 2) // Allow removing if more than minimum options
           IconButton(
             onPressed: () {
               setState(() {
                 controller.dispose();
                 _pollOptionControllers.removeAt(index);
+                _pollOptionErrors.removeAt(index);
               });
             },
             icon: const Icon(Icons.remove_circle_outline),
@@ -1416,11 +1455,27 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                           const SizedBox(height: 8),
                           TextField(
                             controller: _pollQuestionController,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               hintText: 'Ask a question...',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              border: const OutlineInputBorder(),
+                              errorBorder: const OutlineInputBorder(
+                                borderSide: BorderSide(color: Colors.red),
+                              ),
+                              focusedErrorBorder: const OutlineInputBorder(
+                                borderSide: BorderSide(color: Colors.red),
+                              ),
+                              errorText: _pollQuestionError ? 'Please enter a poll question' : null,
+                              helperText: 'Poll question is required',
+                              helperStyle: const TextStyle(fontStyle: FontStyle.italic),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             ),
+                            onChanged: (value) {
+                              if (_pollQuestionError && value.isNotEmpty) {
+                                setState(() {
+                                  _pollQuestionError = false;
+                                });
+                              }
+                            },
                           ),
                           const SizedBox(height: 8),
                           const Text(
