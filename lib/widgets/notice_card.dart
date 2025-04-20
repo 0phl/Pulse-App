@@ -9,6 +9,8 @@ import 'image_gallery_viewer.dart';
 import 'video_player_page.dart';
 import 'media_gallery_widget.dart';
 import 'multi_image_viewer_page.dart';
+import 'poll_voters_dialog.dart';
+import 'poll_all_voters_dialog.dart';
 
 class NoticeCard extends StatelessWidget {
   final CommunityNotice notice;
@@ -289,6 +291,51 @@ class NoticeCard extends StatelessWidget {
                                               ),
                                             ),
                                           ),
+                                          // View voters button
+                                          if (option.votedBy.isNotEmpty)
+                                            GestureDetector(
+                                              onTap: () {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (context) => PollVotersDialog(
+                                                    option: option,
+                                                    pollQuestion: notice.poll!.question,
+                                                  ),
+                                                );
+                                              },
+                                              child: Container(
+                                                margin: const EdgeInsets.only(right: 8),
+                                                padding: const EdgeInsets.symmetric(
+                                                    horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey.shade100,
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color: Colors.grey.shade300,
+                                                    width: 1,
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.people_outline,
+                                                      size: 12,
+                                                      color: Colors.grey.shade700,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      '${option.votedBy.length}',
+                                                      style: TextStyle(
+                                                        color: Colors.grey.shade700,
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
                                           Container(
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 8, vertical: 4),
@@ -348,18 +395,36 @@ class NoticeCard extends StatelessWidget {
                                 children: [
                                   Row(
                                     children: [
-                                      Icon(
-                                        Icons.how_to_vote_outlined,
-                                        size: 16,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${notice.poll!.options.fold(0, (sum, opt) => sum + opt.voteCount)} votes',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.grey.shade600,
+                                      GestureDetector(
+                                        onTap: () {
+                                          final totalVotes = notice.poll!.options
+                                              .fold(0, (sum, opt) => sum + opt.voteCount);
+                                          if (totalVotes > 0) {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) => PollAllVotersDialog(
+                                                poll: notice.poll!,
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.how_to_vote_outlined,
+                                              size: 16,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '${notice.poll!.options.fold(0, (sum, opt) => sum + opt.voteCount)} votes',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
@@ -554,6 +619,51 @@ class NoticeCard extends StatelessWidget {
                                         ),
                                       ),
                                     ),
+                                    // View voters button
+                                    if (option.votedBy.isNotEmpty)
+                                      GestureDetector(
+                                        onTap: () {
+                                          showDialog(
+                                            context: context,
+                                            builder: (context) => PollVotersDialog(
+                                              option: option,
+                                              pollQuestion: notice.poll!.question,
+                                            ),
+                                          );
+                                        },
+                                        child: Container(
+                                          margin: const EdgeInsets.only(right: 8),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade100,
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: Colors.grey.shade300,
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.people_outline,
+                                                size: 12,
+                                                color: Colors.grey.shade700,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${option.votedBy.length}',
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade700,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 8, vertical: 4),
@@ -613,18 +723,36 @@ class NoticeCard extends StatelessWidget {
                           children: [
                             Row(
                               children: [
-                                Icon(
-                                  Icons.how_to_vote_outlined,
-                                  size: 16,
-                                  color: Colors.grey.shade600,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${notice.poll!.options.fold(0, (sum, opt) => sum + opt.voteCount)} votes',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.grey.shade600,
+                                GestureDetector(
+                                  onTap: () {
+                                    final totalVotes = notice.poll!.options
+                                        .fold(0, (sum, opt) => sum + opt.voteCount);
+                                    if (totalVotes > 0) {
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => PollAllVotersDialog(
+                                          poll: notice.poll!,
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.how_to_vote_outlined,
+                                        size: 16,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${notice.poll!.options.fold(0, (sum, opt) => sum + opt.voteCount)} votes',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
