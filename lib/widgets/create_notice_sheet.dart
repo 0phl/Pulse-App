@@ -45,10 +45,15 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
   XFile? _pollSelectedVideo;
   List<XFile> _pollSelectedAttachments = [];
 
-  // Variables to track existing media
+  // Variables to track existing media for community notices
   List<String> _existingImageUrls = [];
   String? _existingVideoUrl;
   List<Map<String, dynamic>> _existingAttachments = [];
+
+  // Variables to track existing media for polls
+  List<String> _existingPollImageUrls = [];
+  String? _existingPollVideoUrl;
+  List<Map<String, dynamic>> _existingPollAttachments = [];
 
   // Poll state variables
   final _pollQuestionController = TextEditingController();
@@ -70,8 +75,14 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
     // Determine if this is a new post, a regular notice, or a poll
     bool isNewPost = widget.notice == null;
     bool isPoll = !isNewPost && widget.notice!.poll != null;
+    // A poll is considered primary if it has no content or if it has images
     bool isPrimaryPoll = isPoll &&
-        (widget.notice!.content.isEmpty || widget.notice!.content.length < 10);
+        (widget.notice!.content.isEmpty ||
+            widget.notice!.content.length < 10 ||
+            (widget.notice!.poll!.imageUrls != null &&
+                widget.notice!.poll!.imageUrls!.isNotEmpty) ||
+            (widget.notice!.imageUrls != null &&
+                widget.notice!.imageUrls!.isNotEmpty));
 
     // For new posts: show both tabs
     // For regular notices: show only Community Notice tab
@@ -134,8 +145,37 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
           _pollOptionControllers.add(TextEditingController(text: option.text));
         }
 
-        // When editing a poll, we need to make sure we're showing the poll tab
-        // The media is already loaded from the notice itself
+        // Load poll images if available
+        if (widget.notice!.poll!.imageUrls != null &&
+            widget.notice!.poll!.imageUrls!.isNotEmpty) {
+          // Store poll images in _existingPollImageUrls
+          _existingPollImageUrls =
+              List<String>.from(widget.notice!.poll!.imageUrls!);
+
+          // We will now display directly from _existingPollImageUrls when on the poll tab,
+          // so no need to copy them to _existingImageUrls.
+          // _existingImageUrls =
+          //     List<String>.from(widget.notice!.poll!.imageUrls!);
+        }
+
+        // Load poll video if available
+        if (widget.notice!.poll!.videoUrl != null) {
+          _existingPollVideoUrl = widget.notice!.poll!.videoUrl;
+          _existingVideoUrl =
+              widget.notice!.poll!.videoUrl; // For display purposes
+        }
+
+        // Load poll attachments if available
+        if (widget.notice!.poll!.attachments != null &&
+            widget.notice!.poll!.attachments!.isNotEmpty) {
+          _existingPollAttachments = widget.notice!.poll!.attachments!
+              .map((attachment) => attachment.toMap())
+              .toList();
+
+          // Also store in _existingAttachments for display purposes
+          _existingAttachments.clear();
+          _existingAttachments.addAll(_existingPollAttachments);
+        }
 
         // Always set tab to Poll when editing a poll
         if (_tabController.length == 1) {
@@ -491,20 +531,23 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
     try {
       final List<File> imageFiles =
           _pollSelectedImages.map((xFile) => File(xFile.path)).toList();
-      final List<String> imageUrls =
+      final List<String> newPollImageUrls =
           await _cloudinaryService.uploadNoticeImages(imageFiles);
-      return imageUrls;
+
+      if (mounted) {
+        setState(() => _isUploadingMedia = false);
+      }
+      return newPollImageUrls;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error uploading poll images: $e')),
         );
       }
-      return [];
-    } finally {
       if (mounted) {
         setState(() => _isUploadingMedia = false);
       }
+      return [];
     }
   }
 
@@ -636,13 +679,25 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
     setState(() => _isLoading = true);
 
     try {
-      // Prepare media lists - start with existing media
-      List<String> imageUrls = List<String>.from(_existingImageUrls);
-      // Always pass videoUrl (null if removed, existing if not changed, new if selected)
-      String? videoUrl = _existingVideoUrl;
-      List<Map<String, dynamic>> attachmentsData =
-          List<Map<String, dynamic>>.from(_existingAttachments);
+      // Prepare media lists based on the current tab
+      List<String> imageUrls = [];
+      String? videoUrl;
+      List<Map<String, dynamic>> attachmentsData = [];
       Map<String, dynamic>? pollData;
+
+      // Only include media in the appropriate section based on current tab
+      if (_currentTabIndex == 0) {
+        // Community Notice tab - use notice media
+        imageUrls = List<String>.from(_existingImageUrls);
+        videoUrl = _existingVideoUrl;
+        attachmentsData = List<Map<String, dynamic>>.from(_existingAttachments);
+      } else {
+        // Poll tab - media will be included in poll data only
+        // Explicitly clear notice media when saving from the poll tab
+        imageUrls = [];
+        videoUrl = null;
+        attachmentsData = [];
+      }
 
       // Upload images if any
       if (_selectedImages.isNotEmpty) {
@@ -748,8 +803,10 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
           setState(() => _isUploadingMedia = true);
           final List<File> imageFiles =
               _pollSelectedImages.map((xFile) => File(xFile.path)).toList();
-          pollImageUrls =
+          final List<String> newPollImageUrls =
               await _cloudinaryService.uploadNoticeImages(imageFiles);
+          // Add new images to list
+          pollImageUrls = newPollImageUrls;
           setState(() => _isUploadingMedia = false);
         }
 
@@ -799,19 +856,55 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
           setState(() => _isUploadingMedia = false);
         }
 
-        // Create poll data if we have a question and at least 2 options
-        if (_pollQuestionController.text.isNotEmpty && options.length >= 2) {
-          pollData = {
-            'question': _pollQuestionController.text,
-            'options': options,
-            'expiresAt': _pollExpiryDate.millisecondsSinceEpoch,
-            'allowMultipleChoices': _allowMultipleChoices,
-            'imageUrls': pollImageUrls.isNotEmpty ? pollImageUrls : null,
-            'videoUrl': pollVideoUrl,
-            'attachments':
-                pollAttachmentsData.isNotEmpty ? pollAttachmentsData : null,
-          };
+        // Handle poll images with separate tracking
+        List<String> finalPollImageUrls = [];
+
+        if (_pollSelectedImages.isNotEmpty) {
+          // If new images were selected, add them to existing ones (don't completely replace)
+          finalPollImageUrls = List<String>.from(_existingPollImageUrls);
+          finalPollImageUrls.addAll(pollImageUrls);
+        } else if (_existingPollImageUrls.isNotEmpty) {
+          // Use the current state of _existingPollImageUrls which already reflects removals
+          finalPollImageUrls = List<String>.from(_existingPollImageUrls);
         }
+
+        // Handle poll video with separate tracking
+        String? finalPollVideoUrl = pollVideoUrl;
+
+        if (pollVideoUrl == null && _existingPollVideoUrl != null) {
+          // Use the current state of _existingPollVideoUrl which already reflects removals
+          finalPollVideoUrl = _existingPollVideoUrl;
+        }
+
+        // Handle poll attachments with separate tracking
+        List<Map<String, dynamic>> finalPollAttachmentsData =
+            pollAttachmentsData;
+
+        if (pollAttachmentsData.isEmpty &&
+            _existingPollAttachments.isNotEmpty) {
+          // Use the current state of _existingPollAttachments which already reflects removals
+          finalPollAttachmentsData =
+              List<Map<String, dynamic>>.from(_existingPollAttachments);
+        }
+
+        // Create the poll data with proper handling of media
+        pollData = {
+          'question': _pollQuestionController.text,
+          'options': options,
+          'expiresAt': _pollExpiryDate.millisecondsSinceEpoch,
+          'allowMultipleChoices': _allowMultipleChoices,
+          // Always include imageUrls (null if empty)
+          'imageUrls':
+              finalPollImageUrls.isNotEmpty ? finalPollImageUrls : null,
+          // Always include videoUrl (null if removed)
+          'videoUrl': finalPollVideoUrl,
+          // Only include attachments if we have any
+          'attachments': finalPollAttachmentsData.isNotEmpty
+              ? finalPollAttachmentsData
+              : null,
+        };
+
+        // No debug logs in production code
       }
 
       if (widget.notice != null) {
@@ -1216,8 +1309,14 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
   bool _shouldShowCommunityNoticeContent() {
     bool isNewPost = widget.notice == null;
     bool isPoll = !isNewPost && widget.notice!.poll != null;
+    // A poll is considered primary if it has no content or if it has images
     bool isPrimaryPoll = isPoll &&
-        (widget.notice!.content.isEmpty || widget.notice!.content.length < 10);
+        (widget.notice!.content.isEmpty ||
+            widget.notice!.content.length < 10 ||
+            (widget.notice!.poll!.imageUrls != null &&
+                widget.notice!.poll!.imageUrls!.isNotEmpty) ||
+            (widget.notice!.imageUrls != null &&
+                widget.notice!.imageUrls!.isNotEmpty));
 
     // For primary polls with only one tab, we should show poll content
     if (isPrimaryPoll) {
@@ -1247,8 +1346,14 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
   List<Widget> _buildTabsBasedOnNoticeType() {
     bool isNewPost = widget.notice == null;
     bool isPoll = !isNewPost && widget.notice!.poll != null;
+    // A poll is considered primary if it has no content or if it has images
     bool isPrimaryPoll = isPoll &&
-        (widget.notice!.content.isEmpty || widget.notice!.content.length < 10);
+        (widget.notice!.content.isEmpty ||
+            widget.notice!.content.length < 10 ||
+            (widget.notice!.poll!.imageUrls != null &&
+                widget.notice!.poll!.imageUrls!.isNotEmpty) ||
+            (widget.notice!.imageUrls != null &&
+                widget.notice!.imageUrls!.isNotEmpty));
 
     if (isNewPost) {
       // New post - show both tabs
@@ -1854,38 +1959,157 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                     color: Color(0xFF00C49A)),
                               ),
                               const SizedBox(height: 8),
-                              OutlinedButton.icon(
-                                onPressed: _isLoading ? null : _pickPollImages,
-                                icon: const Icon(Icons.photo_library,
-                                    size: 18, color: Color(0xFF00C49A)),
-                                label: const Text('Add Photos',
-                                    style: TextStyle(
-                                        fontSize: 14,
-                                        color: Color(0xFF00C49A))),
-                                style: OutlinedButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    side: const BorderSide(
-                                        color: Color(0xFF00C49A)),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed:
+                                        _isLoading ? null : _pickPollImages,
+                                    icon: const Icon(Icons.photo_library,
+                                        size: 18, color: Color(0xFF00C49A)),
+                                    label: const Text('Add Photos',
+                                        style: TextStyle(
+                                            fontSize: 14,
+                                            color: Color(0xFF00C49A))),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        side: const BorderSide(
+                                            color: Color(0xFF00C49A)),
+                                      ),
+                                      backgroundColor: const Color(0xFF00C49A)
+                                          .withOpacity(0.05),
+                                    ),
                                   ),
-                                  backgroundColor:
-                                      const Color(0xFF00C49A).withOpacity(0.05),
-                                ),
+
+                                  // Directly show selected poll images
+                                  if (_pollSelectedImages.isNotEmpty) ...[
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'New Poll Images (${_pollSelectedImages.length})',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 14),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    SizedBox(
+                                      height: 100,
+                                      child: ListView.builder(
+                                        scrollDirection: Axis.horizontal,
+                                        itemCount: _pollSelectedImages.length,
+                                        itemBuilder: (context, index) {
+                                          return Padding(
+                                            padding:
+                                                const EdgeInsets.only(right: 8),
+                                            child: Container(
+                                              width: 100,
+                                              height: 100,
+                                              decoration: BoxDecoration(
+                                                border: Border.all(
+                                                    color: Colors.grey),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Stack(
+                                                children: [
+                                                  ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                    child: Image.file(
+                                                      File(_pollSelectedImages[
+                                                              index]
+                                                          .path),
+                                                      width: 100,
+                                                      height: 100,
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                  ),
+                                                  Positioned(
+                                                    top: 4,
+                                                    right: 4,
+                                                    child: GestureDetector(
+                                                      onTap: () {
+                                                        setState(() {
+                                                          _pollSelectedImages
+                                                              .removeAt(index);
+                                                        });
+                                                      },
+                                                      child: Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .all(4),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: Colors.black
+                                                              .withOpacity(0.5),
+                                                          shape:
+                                                              BoxShape.circle,
+                                                        ),
+                                                        child: const Icon(
+                                                          Icons.close,
+                                                          color: Colors.white,
+                                                          size: 16,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
+
+                              // MOVED: Existing Poll Images preview - Show only if poll tab is active and images exist
+                              if (_existingPollImageUrls.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Existing Poll Images',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w500, fontSize: 14),
+                                ),
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  height: 120,
+                                  child: ListView.separated(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: _existingPollImageUrls.length,
+                                    separatorBuilder: (context, index) =>
+                                        const SizedBox(width: 8),
+                                    itemBuilder: (context, index) {
+                                      final imageUrl = _existingPollImageUrls[index];
+                                      return _buildExistingImagePreview(
+                                        imageUrl,
+                                        () => setState(() {
+                                          // Remove directly from the poll list
+                                          _existingPollImageUrls.removeAt(index);
+                                        }),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                              // END MOVED SECTION
                             ],
                           ),
                   ),
                   const SizedBox(height: 16),
 
-                  // Existing Images preview
-                  if (_existingImageUrls.isNotEmpty) ...[
-                    const Align(
+                  // Existing Images preview - NOW ONLY FOR COMMUNITY NOTICE TAB
+                  if (_currentTabIndex == 0 && _existingImageUrls.isNotEmpty) ...[
+                    const Align( // Changed Text widget to const
                       alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Existing Images',
-                        style: TextStyle(fontWeight: FontWeight.w500),
+                      child: Text( // Keep Text widget non-const if needed elsewhere, but seems fine here
+                        'Existing Images', // No longer conditional
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w500, fontSize: 14),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -1893,14 +2117,17 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                       height: 120,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
-                        itemCount: _existingImageUrls.length,
+                        itemCount: _existingImageUrls.length, // Only notice images here
                         separatorBuilder: (context, index) =>
                             const SizedBox(width: 8),
                         itemBuilder: (context, index) {
+                          final imageUrl = _existingImageUrls[index]; // Only notice images here
                           return _buildExistingImagePreview(
-                            _existingImageUrls[index],
-                            () => setState(
-                                () => _existingImageUrls.removeAt(index)),
+                            imageUrl,
+                            () => setState(() {
+                              // Only remove from notice list here
+                              _existingImageUrls.removeAt(index);
+                            }),
                           );
                         },
                       ),
@@ -1922,7 +2149,15 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                       height: 120,
                       child: _buildExistingVideoPreview(
                         _existingVideoUrl!,
-                        () => setState(() => _existingVideoUrl = null),
+                        () => setState(() {
+                          // Remove from the appropriate list based on current tab
+                          if (_currentTabIndex == 1) {
+                            // Remove from poll video
+                            _existingPollVideoUrl = null;
+                          }
+                          // Always remove from display variable
+                          _existingVideoUrl = null;
+                        }),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -2005,42 +2240,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                     const SizedBox(height: 4),
                   ],
 
-                  // Poll media previews
-                  if (_pollSelectedImages.isNotEmpty &&
-                      _currentTabIndex == 1) ...[
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Poll Images',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w500, fontSize: 14),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      padding: const EdgeInsets.all(12),
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _pollSelectedImages.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(width: 12),
-                        itemBuilder: (context, index) {
-                          return _buildImagePreview(
-                            _pollSelectedImages[index],
-                            () => setState(
-                                () => _pollSelectedImages.removeAt(index)),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                  // Poll media previews - REMOVED - we now use the direct display above
+                  // Poll media previews section removed
 
                   // Poll creator section removed - we now handle poll editing in the poll tab
                   const SizedBox(height: 8),

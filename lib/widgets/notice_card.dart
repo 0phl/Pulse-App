@@ -8,6 +8,7 @@ import 'comments_sheet.dart';
 import 'image_gallery_viewer.dart';
 import 'video_player_page.dart';
 import 'media_gallery_widget.dart';
+import 'multi_image_viewer_page.dart';
 
 class NoticeCard extends StatelessWidget {
   final CommunityNotice notice;
@@ -119,7 +120,346 @@ class NoticeCard extends StatelessWidget {
                   const SizedBox(height: 12),
                 ],
 
-                if (notice.poll != null) ...[
+                // Check if poll has images
+                if (notice.poll != null &&
+                    ((notice.poll!.imageUrls != null && notice.poll!.imageUrls!.isNotEmpty) ||
+                     (notice.imageUrls != null && notice.imageUrls!.isNotEmpty))) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Image at the top
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(16)),
+                          child: SizedBox(
+                            height: 180,
+                            width: double.infinity,
+                            child: PageView.builder(
+                              itemCount: (notice.poll!.imageUrls != null && notice.poll!.imageUrls!.isNotEmpty)
+                                  ? notice.poll!.imageUrls!.length
+                                  : notice.imageUrls!.length,
+                              itemBuilder: (context, index) {
+                                final imageUrls = (notice.poll!.imageUrls != null && notice.poll!.imageUrls!.isNotEmpty)
+                                    ? notice.poll!.imageUrls!
+                                    : notice.imageUrls!;
+                                return GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            MultiImageViewerPage(
+                                          imageUrls: imageUrls,
+                                          initialIndex: index,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Image.network(
+                                    imageUrls[index],
+                                    fit: BoxFit.cover,
+                                    loadingBuilder:
+                                        (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Center(
+                                        child: CircularProgressIndicator(
+                                          value: loadingProgress
+                                                      .expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                              : null,
+                                          color: const Color(0xFF00C49A),
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Center(
+                                        child: Icon(
+                                          Icons.broken_image,
+                                          color: Colors.grey[400],
+                                          size: 40,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+
+                        // Poll content
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.poll_outlined,
+                                      color: Color(0xFF00C49A), size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      notice.poll!.question,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              // Poll options
+                              ...notice.poll!.options.map((option) {
+                                final totalVotes = notice.poll!.options
+                                    .fold(0, (sum, opt) => sum + (opt.voteCount));
+                                final percentage = totalVotes > 0
+                                    ? (option.voteCount / totalVotes * 100).round()
+                                    : 0;
+                                final isUserVoted =
+                                    adminService.currentUserId != null &&
+                                        option.votedBy
+                                            .contains(adminService.currentUserId);
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12, horizontal: 16),
+                                  decoration: BoxDecoration(
+                                    color: isUserVoted
+                                        ? const Color(0xFF00C49A).withOpacity(0.1)
+                                        : Colors.grey.shade50,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isUserVoted
+                                          ? const Color(0xFF00C49A)
+                                          : Colors.grey.shade200,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          if (isUserVoted)
+                                            Container(
+                                              padding: const EdgeInsets.all(2),
+                                              margin: const EdgeInsets.only(right: 8),
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFF00C49A),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const Icon(
+                                                Icons.check,
+                                                color: Colors.white,
+                                                size: 12,
+                                              ),
+                                            ),
+                                          Expanded(
+                                            child: Text(
+                                              option.text,
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: isUserVoted
+                                                    ? FontWeight.w600
+                                                    : FontWeight.w400,
+                                                color: isUserVoted
+                                                    ? const Color(0xFF00C49A)
+                                                    : Colors.black87,
+                                              ),
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: isUserVoted
+                                                  ? const Color(0xFF00C49A)
+                                                  : Colors.grey.shade200,
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              '$percentage%',
+                                              style: TextStyle(
+                                                color: isUserVoted
+                                                    ? Colors.white
+                                                    : Colors.black54,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Stack(
+                                        children: [
+                                          Container(
+                                            height: 6,
+                                            width: double.infinity,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade200,
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                          Container(
+                                            height: 6,
+                                            width: MediaQuery.of(context).size.width *
+                                                percentage /
+                                                100 *
+                                                0.7,
+                                            decoration: BoxDecoration(
+                                              color: isUserVoted
+                                                  ? const Color(0xFF00C49A)
+                                                  : const Color(0xFF00C49A)
+                                                      .withOpacity(0.5),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                              const SizedBox(height: 16),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.how_to_vote_outlined,
+                                        size: 16,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${notice.poll!.options.fold(0, (sum, opt) => sum + opt.voteCount)} votes',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  GestureDetector(
+                                    onTap: () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          title: const Row(
+                                            children: [
+                                              Icon(Icons.calendar_today,
+                                                  size: 20, color: Color(0xFF00C49A)),
+                                              SizedBox(width: 8),
+                                              Text('Poll End Date'),
+                                            ],
+                                          ),
+                                          content: Text(
+                                            DateFormat('MMMM d, y h:mm a').format(
+                                                notice.poll!.expiresAt.toLocal()),
+                                            style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w500),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(context),
+                                              child: const Text('Close',
+                                                  style: TextStyle(
+                                                      color: Color(0xFF00C49A))),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            const Color(0xFF00C49A).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.timer_outlined,
+                                            size: 12,
+                                            color: Color(0xFF00C49A),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            _formatExpiryDate(notice.poll!.expiresAt),
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF00C49A),
+                                            ),
+                                          ),
+                                          if (notice.poll!.allowMultipleChoices) ...[
+                                            const SizedBox(width: 8),
+                                            const Icon(
+                                              Icons.check_circle_outline,
+                                              size: 12,
+                                              color: Color(0xFF00C49A),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (notice.poll!.allowMultipleChoices) ...[
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Icon(Icons.check_circle_outline,
+                                        size: 14, color: Colors.grey.shade600),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Multiple choices allowed',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontStyle: FontStyle.italic,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ] else if (notice.poll != null) ...[
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -138,8 +478,8 @@ class NoticeCard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.poll_outlined,
-                                color: const Color(0xFF00C49A), size: 20),
+                            const Icon(Icons.poll_outlined,
+                                color: Color(0xFF00C49A), size: 20),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -266,7 +606,7 @@ class NoticeCard extends StatelessWidget {
                               ],
                             ),
                           );
-                        }).toList(),
+                        }),
                         const SizedBox(height: 16),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -330,10 +670,10 @@ class NoticeCard extends StatelessWidget {
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(
+                                    const Icon(
                                       Icons.timer_outlined,
                                       size: 12,
-                                      color: const Color(0xFF00C49A),
+                                      color: Color(0xFF00C49A),
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
