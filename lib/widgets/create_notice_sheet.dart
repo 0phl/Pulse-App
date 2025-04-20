@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:video_compress/video_compress.dart';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 import '../services/cloudinary_service.dart';
@@ -112,21 +114,36 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
         if (fileSizeInMB > 100) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Video size exceeds 100MB limit. Please select a smaller video.')),
+              const SnackBar(
+                  content: Text(
+                      'Video size exceeds 100MB limit. Please select a smaller video.')),
             );
           }
           return;
         }
 
         // Check file extension
-        final String fileName = video.path.split(Platform.isWindows ? '\\' : '/').last;
-        final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
-        final List<String> supportedFormats = ['mp4', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm'];
+        final String fileName =
+            video.path.split(Platform.isWindows ? '\\' : '/').last;
+        final String fileExtension = fileName.contains('.')
+            ? fileName.split('.').last.toLowerCase()
+            : '';
+        final List<String> supportedFormats = [
+          'mp4',
+          'mov',
+          'avi',
+          'wmv',
+          'flv',
+          'mkv',
+          'webm'
+        ];
 
         if (!supportedFormats.contains(fileExtension)) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Unsupported video format: $fileExtension. Supported formats are: ${supportedFormats.join(', ')}')),
+              SnackBar(
+                  content: Text(
+                      'Unsupported video format: $fileExtension. Supported formats are: ${supportedFormats.join(', ')}')),
             );
           }
           return;
@@ -173,8 +190,10 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
 
     setState(() => _isUploadingMedia = true);
     try {
-      final List<File> imageFiles = _selectedImages.map((xFile) => File(xFile.path)).toList();
-      final List<String> imageUrls = await _cloudinaryService.uploadNoticeImages(imageFiles);
+      final List<File> imageFiles =
+          _selectedImages.map((xFile) => File(xFile.path)).toList();
+      final List<String> imageUrls =
+          await _cloudinaryService.uploadNoticeImages(imageFiles);
       return imageUrls;
     } catch (e) {
       if (mounted) {
@@ -199,12 +218,15 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
       final videoFile = File(_selectedVideo!.path);
 
       // Get file info for better error messages
-      final String fileName = videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
-      final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+      final String fileName =
+          videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
+      final String fileExtension =
+          fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
       final int fileSizeInBytes = await videoFile.length();
       final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
-      print('Uploading video: $fileName, size: ${fileSizeInMB.toStringAsFixed(2)}MB, format: $fileExtension');
+      print(
+          'Uploading video: $fileName, size: ${fileSizeInMB.toStringAsFixed(2)}MB, format: $fileExtension');
 
       final videoUrl = await _cloudinaryService.uploadNoticeVideo(videoFile);
       print('Video upload successful: $videoUrl');
@@ -247,7 +269,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
         final int fileSize = await file.length();
         final String fileType = fileName.split('.').last.toLowerCase();
 
-        final String url = await _cloudinaryService.uploadNoticeAttachment(file);
+        final String url =
+            await _cloudinaryService.uploadNoticeAttachment(file);
 
         attachmentData.add({
           'id': DateTime.now().millisecondsSinceEpoch.toString(),
@@ -293,7 +316,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
       // Upload images if any
       if (_selectedImages.isNotEmpty) {
         setState(() => _isUploadingMedia = true);
-        final List<File> imageFiles = _selectedImages.map((xFile) => File(xFile.path)).toList();
+        final List<File> imageFiles =
+            _selectedImages.map((xFile) => File(xFile.path)).toList();
         imageUrls = await _cloudinaryService.uploadNoticeImages(imageFiles);
         setState(() => _isUploadingMedia = false);
       }
@@ -305,12 +329,16 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
           final videoFile = File(_selectedVideo!.path);
 
           // Get file info for better error messages
-          final String fileName = videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
-          final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+          final String fileName =
+              videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
+          final String fileExtension = fileName.contains('.')
+              ? fileName.split('.').last.toLowerCase()
+              : '';
           final int fileSizeInBytes = await videoFile.length();
           final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
-          print('Saving notice with video: $fileName, size: ${fileSizeInMB.toStringAsFixed(2)}MB, format: $fileExtension');
+          print(
+              'Saving notice with video: $fileName, size: ${fileSizeInMB.toStringAsFixed(2)}MB, format: $fileExtension');
 
           videoUrl = await _cloudinaryService.uploadNoticeVideo(videoFile);
           print('Video upload successful during notice save: $videoUrl');
@@ -341,7 +369,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
           final int fileSize = await file.length();
           final String fileType = fileName.split('.').last.toLowerCase();
 
-          final String url = await _cloudinaryService.uploadNoticeAttachment(file);
+          final String url =
+              await _cloudinaryService.uploadNoticeAttachment(file);
 
           attachmentsData.add({
             'id': DateTime.now().millisecondsSinceEpoch.toString(),
@@ -360,9 +389,11 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
         final Map<String, Map<dynamic, dynamic>> existingVotes = {};
         if (widget.notice?.poll != null) {
           for (var option in widget.notice!.poll!.options) {
-            existingVotes[option.text] = {'votedBy': option.votedBy.isEmpty ? null : {
-              for (var userId in option.votedBy) userId: true
-            }};
+            existingVotes[option.text] = {
+              'votedBy': option.votedBy.isEmpty
+                  ? null
+                  : {for (var userId in option.votedBy) userId: true}
+            };
           }
         }
 
@@ -442,74 +473,159 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
 
   // Helper method to build image preview
   Widget _buildImagePreview(XFile image, VoidCallback onRemove) {
-    return Stack(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.file(
-            File(image.path),
-            height: 120,
-            width: 120,
-            fit: BoxFit.cover,
-          ),
-        ),
-        Positioned(
-          top: 4,
-          right: 4,
-          child: IconButton.filled(
-            onPressed: onRemove,
-            icon: const Icon(Icons.close, size: 16),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.black54,
-              iconSize: 16,
-              minimumSize: const Size(24, 24),
-              padding: EdgeInsets.zero,
+    return SizedBox(
+      width: 120,
+      height: 120,
+      child: Stack(
+        children: [
+          // Image container
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(
+              File(image.path),
+              height: 120,
+              width: 120,
+              fit: BoxFit.cover,
             ),
           ),
-        ),
-      ],
+          // Close button overlay
+          Positioned(
+            right: 12,
+            top: 4,
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.close,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   // Helper method to build video preview
   Widget _buildVideoPreview(XFile video, VoidCallback onRemove) {
-    return Stack(
-      children: [
-        Container(
-          height: 120,
+    return FutureBuilder<Uint8List?>(
+      future: _getVideoThumbnail(video.path),
+      builder: (context, snapshot) {
+        return SizedBox(
           width: 120,
-          decoration: BoxDecoration(
-            color: Colors.black12,
-            borderRadius: BorderRadius.circular(8),
+          height: 120,
+          child: Stack(
+            children: [
+              // Video thumbnail container
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  height: 120,
+                  width: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Show a thumbnail of the video file if possible
+                      if (snapshot.hasData && snapshot.data != null)
+                        Image.memory(
+                          snapshot.data!,
+                          height: 120,
+                          width: 120,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[300],
+                              height: 120,
+                              width: 120,
+                            );
+                          },
+                        )
+                      else
+                        Container(
+                          color: Colors.grey[300],
+                          height: 120,
+                          width: 120,
+                          child: snapshot.connectionState ==
+                                  ConnectionState.waiting
+                              ? const Center(child: CircularProgressIndicator())
+                              : null,
+                        ),
+                      // Play icon overlay
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.3),
+                          shape: BoxShape.circle,
+                        ),
+                        padding: const EdgeInsets.all(8),
+                        child: const Icon(Icons.play_arrow,
+                            color: Colors.white, size: 30),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Close button overlay
+              Positioned(
+                right: 252,
+                top: 4,
+                child: GestureDetector(
+                  onTap: onRemove,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          child: const Center(
-            child: Icon(Icons.play_circle_fill, size: 40, color: Colors.white70),
-          ),
-        ),
-        Positioned(
-          top: 4,
-          right: 4,
-          child: IconButton.filled(
-            onPressed: onRemove,
-            icon: const Icon(Icons.close, size: 16),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.black54,
-              iconSize: 16,
-              minimumSize: const Size(24, 24),
-              padding: EdgeInsets.zero,
-            ),
-          ),
-        ),
-      ],
+        );
+      },
     );
+  }
+
+  // Get video thumbnail using VideoCompress
+  Future<Uint8List?> _getVideoThumbnail(String videoPath) async {
+    try {
+      final thumbnail = await VideoCompress.getByteThumbnail(
+        videoPath,
+        quality: 50, // 0-100, higher is better quality
+        position: -1, // -1 means get thumbnail from the middle of the video
+      );
+      return thumbnail;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating video thumbnail: $e')),
+        );
+      }
+      return null;
+    }
   }
 
   // Helper method to build attachment preview
   Widget _buildAttachmentPreview(XFile file, VoidCallback onRemove) {
     final String fileName = file.name;
-    final String extension = fileName.contains('.')
-        ? fileName.split('.').last.toLowerCase()
-        : '';
+    final String extension =
+        fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
 
     IconData iconData;
     Color iconColor;
@@ -566,7 +682,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                             : '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
                         return Text(
                           sizeText,
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600]),
                         );
                       },
                     ),
@@ -595,11 +712,13 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
             decoration: InputDecoration(
               hintText: 'Option ${index + 1}',
               border: const OutlineInputBorder(),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
           ),
         ),
-        if (_pollOptionControllers.length > 2) // Allow removing if more than minimum options
+        if (_pollOptionControllers.length >
+            2) // Allow removing if more than minimum options
           IconButton(
             onPressed: () {
               setState(() {
@@ -684,11 +803,13 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: _selectedImages.length,
-                        separatorBuilder: (context, index) => const SizedBox(width: 8),
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(width: 8),
                         itemBuilder: (context, index) {
                           return _buildImagePreview(
                             _selectedImages[index],
-                            () => setState(() => _selectedImages.removeAt(index)),
+                            () =>
+                                setState(() => _selectedImages.removeAt(index)),
                           );
                         },
                       ),
@@ -706,9 +827,12 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _buildVideoPreview(
-                      _selectedVideo!,
-                      () => setState(() => _selectedVideo = null),
+                    SizedBox(
+                      height: 120,
+                      child: _buildVideoPreview(
+                        _selectedVideo!,
+                        () => setState(() => _selectedVideo = null),
+                      ),
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -729,7 +853,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: _buildAttachmentPreview(
                           _selectedAttachments[index],
-                          () => setState(() => _selectedAttachments.removeAt(index)),
+                          () => setState(
+                              () => _selectedAttachments.removeAt(index)),
                         ),
                       ),
                     ),
@@ -760,7 +885,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                       _pollOptionControllers.length,
                       (index) => Padding(
                         padding: const EdgeInsets.only(bottom: 8),
-                        child: _buildPollOptionInput(_pollOptionControllers[index], index),
+                        child: _buildPollOptionInput(
+                            _pollOptionControllers[index], index),
                       ),
                     ),
                     Row(
@@ -769,7 +895,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                         TextButton.icon(
                           onPressed: () {
                             setState(() {
-                              _pollOptionControllers.add(TextEditingController());
+                              _pollOptionControllers
+                                  .add(TextEditingController());
                             });
                           },
                           icon: const Icon(Icons.add),
@@ -798,11 +925,13 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                             const Text('Poll ends: '),
                             TextButton(
                               onPressed: () async {
-                                final DateTime? pickedDate = await showDatePicker(
+                                final DateTime? pickedDate =
+                                    await showDatePicker(
                                   context: context,
                                   initialDate: _pollExpiryDate,
                                   firstDate: DateTime.now(),
-                                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                                  lastDate: DateTime.now()
+                                      .add(const Duration(days: 365)),
                                 );
                                 if (pickedDate != null) {
                                   // Keep current time when changing date
@@ -820,7 +949,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                               },
                               child: Text(
                                 DateFormat('MMM d, y').format(_pollExpiryDate),
-                                style: const TextStyle(fontWeight: FontWeight.w500),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w500),
                               ),
                             ),
                           ],
@@ -830,9 +960,11 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                             const Text('Time: '),
                             TextButton(
                               onPressed: () async {
-                                final TimeOfDay? pickedTime = await showTimePicker(
+                                final TimeOfDay? pickedTime =
+                                    await showTimePicker(
                                   context: context,
-                                  initialTime: TimeOfDay.fromDateTime(_pollExpiryDate),
+                                  initialTime:
+                                      TimeOfDay.fromDateTime(_pollExpiryDate),
                                 );
                                 if (pickedTime != null) {
                                   final newDate = DateTime(
@@ -849,7 +981,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                               },
                               child: Text(
                                 DateFormat('h:mm a').format(_pollExpiryDate),
-                                style: const TextStyle(fontWeight: FontWeight.w500),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w500),
                               ),
                             ),
                           ],
@@ -891,7 +1024,9 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _isLoading || _selectedVideo != null ? null : _pickVideo,
+                          onPressed: _isLoading || _selectedVideo != null
+                              ? null
+                              : _pickVideo,
                           icon: const Icon(Icons.videocam),
                           label: const Text('Video'),
                         ),
@@ -911,11 +1046,13 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _isLoading || _showPollCreator ? null : () {
-                            setState(() {
-                              _showPollCreator = true;
-                            });
-                          },
+                          onPressed: _isLoading || _showPollCreator
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _showPollCreator = true;
+                                  });
+                                },
                           icon: const Icon(Icons.poll),
                           label: const Text('Poll'),
                         ),
@@ -924,7 +1061,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                   ),
                   const SizedBox(height: 16),
                   FilledButton(
-                    onPressed: _isLoading || _isUploadingMedia ? null : _saveNotice,
+                    onPressed:
+                        _isLoading || _isUploadingMedia ? null : _saveNotice,
                     child: _isLoading || _isUploadingMedia
                         ? const SizedBox(
                             height: 20,

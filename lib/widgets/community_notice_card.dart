@@ -9,6 +9,7 @@ import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'image_gallery_viewer.dart';
+import 'media_gallery_widget.dart';
 
 class CommentsPage extends StatefulWidget {
   final CommunityNotice notice;
@@ -263,7 +264,7 @@ class _CommentsPageState extends State<CommentsPage> {
                           child: Form(
                             key: _formKey,
                             child: TextFormField(
-        controller: _commentController,
+                              controller: _commentController,
                               decoration: InputDecoration(
                                 hintText: 'Write a comment...',
                                 hintStyle: TextStyle(
@@ -401,7 +402,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   Future<void> _initializePlayer() async {
     try {
-      _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      _videoPlayerController =
+          VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
       await _videoPlayerController.initialize();
 
       _chewieController = ChewieController(
@@ -575,7 +577,8 @@ class _PollWidgetState extends State<PollWidget> {
   }
 
   int _getTotalVotes() {
-    return widget.notice.poll!.options.fold(0, (sum, option) => sum + option.voteCount);
+    return widget.notice.poll!.options
+        .fold(0, (sum, option) => sum + option.voteCount);
   }
 
   @override
@@ -604,17 +607,23 @@ class _PollWidgetState extends State<PollWidget> {
           const SizedBox(height: 12),
           ...poll.options.map((option) {
             final hasVoted = _hasVoted(option);
-            final percentage = totalVotes > 0 ? (option.voteCount / totalVotes * 100).round() : 0;
+            final percentage = totalVotes > 0
+                ? (option.voteCount / totalVotes * 100).round()
+                : 0;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: InkWell(
-                onTap: isPollExpired || _isVoting ? null : () => _vote(option.id),
+                onTap:
+                    isPollExpired || _isVoting ? null : () => _vote(option.id),
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                   decoration: BoxDecoration(
-                    color: hasVoted ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+                    color: hasVoted
+                        ? Colors.blue.withOpacity(0.1)
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: hasVoted ? Colors.blue : Colors.grey[300]!,
@@ -629,13 +638,16 @@ class _PollWidgetState extends State<PollWidget> {
                             child: Text(
                               option.text,
                               style: TextStyle(
-                                fontWeight: hasVoted ? FontWeight.bold : FontWeight.normal,
+                                fontWeight: hasVoted
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                                 color: hasVoted ? Colors.blue : null,
                               ),
                             ),
                           ),
                           if (hasVoted)
-                            const Icon(Icons.check_circle, color: Colors.blue, size: 16),
+                            const Icon(Icons.check_circle,
+                                color: Colors.blue, size: 16),
                           const SizedBox(width: 8),
                           Text(
                             '$percentage%',
@@ -672,7 +684,8 @@ class _PollWidgetState extends State<PollWidget> {
               ),
               if (isPollExpired)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.red[50],
                     borderRadius: BorderRadius.circular(4),
@@ -690,8 +703,10 @@ class _PollWidgetState extends State<PollWidget> {
                       builder: (context) => AlertDialog(
                         title: const Text('Poll End Date'),
                         content: Text(
-                          DateFormat('MMMM d, y h:mm a').format(poll.expiresAt.toLocal()),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          DateFormat('MMMM d, y h:mm a')
+                              .format(poll.expiresAt.toLocal()),
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w500),
                         ),
                         actions: [
                           TextButton(
@@ -713,7 +728,10 @@ class _PollWidgetState extends State<PollWidget> {
             const SizedBox(height: 8),
             Text(
               'Multiple choices allowed',
-              style: TextStyle(color: Colors.grey[600], fontSize: 12, fontStyle: FontStyle.italic),
+              style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic),
             ),
           ],
         ],
@@ -933,18 +951,16 @@ class CommunityNoticeCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Image Gallery
-                if (notice.imageUrls != null && notice.imageUrls!.isNotEmpty) ...[
-                  ImageGalleryViewer(
-                    imageUrls: notice.imageUrls!,
-                    height: 200,
-                  ),
-                  const SizedBox(height: 12),
-                ],
 
-                // Video Player
-                if (notice.videoUrl != null) ...[
-                  VideoPlayerWidget(videoUrl: notice.videoUrl!),
+                // Media Gallery (combines image and video)
+                if ((notice.imageUrls != null &&
+                        notice.imageUrls!.isNotEmpty) ||
+                    notice.videoUrl != null) ...[
+                  MediaGalleryWidget(
+                    imageUrls: notice.imageUrls,
+                    videoUrl: notice.videoUrl,
+                    height: 250,
+                  ),
                   const SizedBox(height: 12),
                 ],
 
@@ -955,7 +971,8 @@ class CommunityNoticeCard extends StatelessWidget {
                 ],
 
                 // Attachments
-                if (notice.attachments != null && notice.attachments!.isNotEmpty) ...[
+                if (notice.attachments != null &&
+                    notice.attachments!.isNotEmpty) ...[
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -964,7 +981,8 @@ class CommunityNoticeCard extends StatelessWidget {
                         style: TextStyle(fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(height: 8),
-                      ...notice.attachments!.map((attachment) => AttachmentWidget(attachment: attachment)),
+                      ...notice.attachments!.map((attachment) =>
+                          AttachmentWidget(attachment: attachment)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -988,43 +1006,43 @@ class CommunityNoticeCard extends StatelessWidget {
                     ),
                   ),
                   child: Row(
-                  children: [
+                    children: [
                       Expanded(
                         child: InkWell(
-                      onTap: () async {
-                        final user = FirebaseAuth.instance.currentUser;
-                        if (user != null) {
+                          onTap: () async {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user != null) {
                               await noticeService.likeNotice(
                                   notice.id, user.uid);
-                        }
-                      },
-                      child: Row(
+                            }
+                          },
+                          child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
+                            children: [
+                              Icon(
                                 notice.isLikedBy(FirebaseAuth
                                             .instance.currentUser?.uid ??
                                         '')
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                            size: 20,
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                size: 20,
                                 color: notice.isLikedBy(FirebaseAuth
                                             .instance.currentUser?.uid ??
                                         '')
-                                ? Colors.red
-                                : Colors.grey[600],
+                                    ? Colors.red
+                                    : Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                notice.likesCount.toString(),
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            notice.likesCount.toString(),
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
                       ),
                       Container(
                         height: 24,
@@ -1041,26 +1059,26 @@ class CommunityNoticeCard extends StatelessWidget {
                                     CommentsPage(notice: notice),
                               ),
                             );
-                      },
-                      child: Row(
+                          },
+                          child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.chat_bubble_outline,
-                            size: 20,
-                            color: Colors.grey[600],
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 20,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                notice.commentsCount.toString(),
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            notice.commentsCount.toString(),
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
                       ),
                       Container(
                         height: 24,
@@ -1070,15 +1088,15 @@ class CommunityNoticeCard extends StatelessWidget {
                       Expanded(
                         child: InkWell(
                           onTap: () {
-                        // Implement share functionality
-                      },
+                            // Implement share functionality
+                          },
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
                                 Icons.share_outlined,
                                 size: 20,
-                      color: Colors.grey[600],
+                                color: Colors.grey[600],
                               ),
                               const SizedBox(width: 4),
                               Text(

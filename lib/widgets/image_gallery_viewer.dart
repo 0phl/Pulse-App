@@ -35,76 +35,86 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
       return const SizedBox();
     }
 
-    return Column(
-      children: [
-        SizedBox(
-          height: widget.height,
-          width: widget.width ?? double.infinity,
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: widget.imageUrls.length,
-            onPageChanged: (index) {
-              setState(() {
-                _currentPage = index;
-              });
-            },
-            itemBuilder: (context, index) {
-              final imageUrl = widget.imageUrls[index];
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => MultiImageViewerPage(
-                        imageUrls: widget.imageUrls,
-                        initialIndex: index,
+    // Calculate image height by reserving space for dots if multiple images
+    final double paginationHeight = widget.imageUrls.length > 1 ? 16 : 0;
+    final double imageHeight = widget.height - paginationHeight;
+
+    return SizedBox(
+      height: widget.height,
+      width: widget.width ?? double.infinity,
+      child: Column(
+        children: [
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: widget.imageUrls.length,
+              onPageChanged: (index) {
+                setState(() {
+                  _currentPage = index;
+                });
+              },
+              itemBuilder: (context, index) {
+                final imageUrl = widget.imageUrls[index];
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MultiImageViewerPage(
+                          imageUrls: widget.imageUrls,
+                          initialIndex: index,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Hero(
+                    tag: imageUrl,
+                    child: ClipRRect(
+                      borderRadius: widget.borderRadius,
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey[100],
+                            child: const Center(
+                              child:
+                                  Icon(Icons.error_outline, color: Colors.grey),
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  );
-                },
-                child: Hero(
-                  tag: imageUrl,
-                  child: ClipRRect(
-                    borderRadius: widget.borderRadius,
-                    child: Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey[100],
-                          child: const Center(
-                            child: Icon(Icons.error_outline, color: Colors.grey),
-                          ),
-                        );
-                      },
+                  ),
+                );
+              },
+            ),
+          ),
+          if (widget.imageUrls.length > 1)
+            SizedBox(
+              height: paginationHeight,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(
+                    widget.imageUrls.length,
+                    (index) => Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _currentPage == index
+                            ? Theme.of(context).primaryColor
+                            : Colors.grey[300],
+                      ),
                     ),
                   ),
                 ),
-              );
-            },
-          ),
-        ),
-        if (widget.imageUrls.length > 1) ...[
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              widget.imageUrls.length,
-              (index) => Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _currentPage == index
-                      ? Theme.of(context).primaryColor
-                      : Colors.grey[300],
-                ),
               ),
             ),
-          ),
         ],
-      ],
+      ),
     );
   }
 }

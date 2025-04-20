@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 import 'comments_sheet.dart';
 import 'image_gallery_viewer.dart';
+import 'video_player_page.dart';
+import 'media_gallery_widget.dart';
 
 class NoticeCard extends StatelessWidget {
   final CommunityNotice notice;
@@ -103,35 +107,15 @@ class NoticeCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Image Gallery
-                if (notice.imageUrls != null && notice.imageUrls!.isNotEmpty) ...[
-                  ImageGalleryViewer(
-                    imageUrls: notice.imageUrls!,
-                    height: 200,
-                  ),
-                  const SizedBox(height: 12),
-                ],
 
-                // Video, Poll, and Attachments are handled in CommunityNoticeCard
-                // For this card, we'll just show a placeholder for these media types
-                if (notice.videoUrl != null) ...[
-                  Container(
-                    height: 200,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.play_circle_outline, size: 50, color: Colors.grey),
-                          SizedBox(height: 8),
-                          Text('Video content available'),
-                        ],
-                      ),
-                    ),
+                // Media Gallery (combines image and video)
+                if ((notice.imageUrls != null &&
+                        notice.imageUrls!.isNotEmpty) ||
+                    notice.videoUrl != null) ...[
+                  MediaGalleryWidget(
+                    imageUrls: notice.imageUrls,
+                    videoUrl: notice.videoUrl,
+                    height: 250,
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -156,8 +140,8 @@ class NoticeCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
                         ...notice.poll!.options.map((option) {
-                          final totalVotes = notice.poll!.options.fold(
-                              0, (sum, opt) => sum + (opt.voteCount));
+                          final totalVotes = notice.poll!.options
+                              .fold(0, (sum, opt) => sum + (opt.voteCount));
                           final percentage = totalVotes > 0
                               ? (option.voteCount / totalVotes * 100).round()
                               : 0;
@@ -205,9 +189,7 @@ class NoticeCard extends StatelessWidget {
                             Row(
                               children: [
                                 Icon(Icons.how_to_vote_outlined,
-                                  size: 14,
-                                  color: Colors.grey[600]
-                                ),
+                                    size: 14, color: Colors.grey[600]),
                                 const SizedBox(width: 4),
                                 Text(
                                   '${notice.poll!.options.fold(0, (sum, opt) => sum + opt.voteCount)} votes',
@@ -227,12 +209,14 @@ class NoticeCard extends StatelessWidget {
                                       builder: (context) => AlertDialog(
                                         title: const Text('Poll End Date'),
                                         content: Text(
-                                          DateFormat('MMMM d, y h:mm a').format(notice.poll!.expiresAt.toLocal()),
+                                          DateFormat('MMMM d, y h:mm a').format(
+                                              notice.poll!.expiresAt.toLocal()),
                                           style: const TextStyle(fontSize: 16),
                                         ),
                                         actions: [
                                           TextButton(
-                                            onPressed: () => Navigator.pop(context),
+                                            onPressed: () =>
+                                                Navigator.pop(context),
                                             child: const Text('Close'),
                                           ),
                                         ],
@@ -242,12 +226,11 @@ class NoticeCard extends StatelessWidget {
                                   child: Row(
                                     children: [
                                       Icon(Icons.schedule,
-                                        size: 14,
-                                        color: Colors.grey[600]
-                                      ),
+                                          size: 14, color: Colors.grey[600]),
                                       const SizedBox(width: 4),
                                       Text(
-                                        _formatExpiryDate(notice.poll!.expiresAt),
+                                        _formatExpiryDate(
+                                            notice.poll!.expiresAt),
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: Colors.grey[600],
@@ -259,9 +242,7 @@ class NoticeCard extends StatelessWidget {
                                 if (notice.poll!.allowMultipleChoices) ...[
                                   const SizedBox(width: 8),
                                   Icon(Icons.check_circle_outline,
-                                    size: 14,
-                                    color: Colors.grey[600]
-                                  ),
+                                      size: 14, color: Colors.grey[600]),
                                   const SizedBox(width: 4),
                                   Text(
                                     'Multiple choices',
@@ -282,7 +263,8 @@ class NoticeCard extends StatelessWidget {
                   const SizedBox(height: 12),
                 ],
 
-                if (notice.attachments != null && notice.attachments!.isNotEmpty) ...[
+                if (notice.attachments != null &&
+                    notice.attachments!.isNotEmpty) ...[
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -298,7 +280,8 @@ class NoticeCard extends StatelessWidget {
                           style: TextStyle(fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(height: 8),
-                        Text('${notice.attachments!.length} attachment(s) available'),
+                        Text(
+                            '${notice.attachments!.length} attachment(s) available'),
                       ],
                     ),
                   ),
@@ -484,5 +467,144 @@ class NoticeCard extends StatelessWidget {
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }
+  }
+}
+
+class VideoPlayerWidget extends StatefulWidget {
+  final String videoUrl;
+
+  const VideoPlayerWidget({super.key, required this.videoUrl});
+
+  @override
+  State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
+}
+
+class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
+  late VideoPlayerController _videoPlayerController;
+  ChewieController? _chewieController;
+  bool _isInitialized = false;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializePlayer();
+  }
+
+  Future<void> _initializePlayer() async {
+    try {
+      _videoPlayerController =
+          VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      await _videoPlayerController.initialize();
+
+      _chewieController = ChewieController(
+        videoPlayerController: _videoPlayerController,
+        aspectRatio: _videoPlayerController.value.aspectRatio,
+        autoPlay: false,
+        looping: false,
+        placeholder: Container(
+          color: Colors.grey[200],
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+        errorBuilder: (context, errorMessage) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, color: Colors.red, size: 30),
+                const SizedBox(height: 8),
+                Text(
+                  'Error loading video',
+                  style: TextStyle(color: Colors.grey[700]),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _videoPlayerController.dispose();
+    _chewieController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      return GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VideoPlayerPage(videoUrl: widget.videoUrl),
+            ),
+          );
+        },
+        child: Container(
+          height: 200,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 50, color: Colors.red),
+                SizedBox(height: 8),
+                Text('Error loading video. Tap to try again.'),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!_isInitialized) {
+      return Container(
+        height: 200,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VideoPlayerPage(videoUrl: widget.videoUrl),
+          ),
+        );
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: AspectRatio(
+          aspectRatio: _videoPlayerController.value.aspectRatio,
+          child: Chewie(controller: _chewieController!),
+        ),
+      ),
+    );
   }
 }
