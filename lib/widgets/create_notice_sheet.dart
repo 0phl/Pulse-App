@@ -30,6 +30,11 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
   List<XFile> _selectedAttachments = [];
   bool _showPollCreator = false;
 
+  // Variables to track existing media
+  List<String> _existingImageUrls = [];
+  String? _existingVideoUrl;
+  List<Map<String, dynamic>> _existingAttachments = [];
+
   // Poll state variables
   final _pollQuestionController = TextEditingController();
   final List<TextEditingController> _pollOptionControllers = [
@@ -49,6 +54,19 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
     if (widget.notice != null) {
       _titleController.text = widget.notice!.title;
       _contentController.text = widget.notice!.content;
+
+      // Initialize existing media if available
+      if (widget.notice!.imageUrls != null && widget.notice!.imageUrls!.isNotEmpty) {
+        _existingImageUrls = List<String>.from(widget.notice!.imageUrls!);
+      }
+
+      if (widget.notice!.videoUrl != null) {
+        _existingVideoUrl = widget.notice!.videoUrl;
+      }
+
+      if (widget.notice!.attachments != null && widget.notice!.attachments!.isNotEmpty) {
+        _existingAttachments = widget.notice!.attachments!.map((attachment) => attachment.toMap()).toList();
+      }
 
       // Initialize poll data if exists
       if (widget.notice!.poll != null) {
@@ -307,10 +325,10 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
     setState(() => _isLoading = true);
 
     try {
-      // Upload all media
-      List<String> imageUrls = [];
-      String? videoUrl;
-      List<Map<String, dynamic>> attachmentsData = [];
+      // Prepare media lists - start with existing media
+      List<String> imageUrls = List<String>.from(_existingImageUrls);
+      String? videoUrl = _existingVideoUrl;
+      List<Map<String, dynamic>> attachmentsData = List<Map<String, dynamic>>.from(_existingAttachments);
       Map<String, dynamic>? pollData;
 
       // Upload images if any
@@ -439,7 +457,7 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
           _titleController.text,
           _contentController.text,
           null, // No longer using single imageUrl
-          imageUrls: imageUrls.isNotEmpty ? imageUrls : null,
+          imageUrls: imageUrls,
           videoUrl: videoUrl,
           poll: pollData,
           attachments: attachmentsData.isNotEmpty ? attachmentsData : null,
@@ -486,6 +504,56 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
               height: 120,
               width: 120,
               fit: BoxFit.cover,
+            ),
+          ),
+          // Close button overlay
+          Positioned(
+            right: 12,
+            top: 4,
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.close,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to build existing image preview
+  Widget _buildExistingImagePreview(String imageUrl, VoidCallback onRemove) {
+    return SizedBox(
+      width: 120,
+      height: 120,
+      child: Stack(
+        children: [
+          // Image container
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              imageUrl,
+              height: 120,
+              width: 120,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  color: Colors.grey[300],
+                  height: 120,
+                  width: 120,
+                  child: const Center(child: Icon(Icons.error_outline)),
+                );
+              },
             ),
           ),
           // Close button overlay
@@ -577,7 +645,7 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
               ),
               // Close button overlay
               Positioned(
-                right: 252,
+                right: 251,
                 top: 4,
                 child: GestureDetector(
                   onTap: onRemove,
@@ -599,6 +667,71 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
           ),
         );
       },
+    );
+  }
+
+  // Helper method to build existing video preview
+  Widget _buildExistingVideoPreview(String videoUrl, VoidCallback onRemove) {
+    return SizedBox(
+      width: 120,
+      height: 120,
+      child: Stack(
+        children: [
+          // Video thumbnail container
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Video placeholder
+                  Container(
+                    color: Colors.grey[300],
+                    height: 120,
+                    width: 120,
+                  ),
+                  // Play icon overlay
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(8),
+                    child: const Icon(Icons.play_arrow,
+                        color: Colors.white, size: 30),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Close button overlay
+          Positioned(
+            right: 12,
+            top: 4,
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.close,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -788,12 +921,60 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Images preview
+                  // Existing Images preview
+                  if (_existingImageUrls.isNotEmpty) ...[
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Existing Images',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 120,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _existingImageUrls.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          return _buildExistingImagePreview(
+                            _existingImageUrls[index],
+                            () => setState(() => _existingImageUrls.removeAt(index)),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Existing Video preview
+                  if (_existingVideoUrl != null) ...[
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Existing Video',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 120,
+                      child: _buildExistingVideoPreview(
+                        _existingVideoUrl!,
+                        () => setState(() => _existingVideoUrl = null),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // New Images preview
                   if (_selectedImages.isNotEmpty) ...[
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Images',
+                        'New Images',
                         style: TextStyle(fontWeight: FontWeight.w500),
                       ),
                     ),
@@ -822,7 +1003,7 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> {
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Video',
+                        'New Video',
                         style: TextStyle(fontWeight: FontWeight.w500),
                       ),
                     ),
