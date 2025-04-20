@@ -100,6 +100,13 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
 
   @override
   Widget build(BuildContext context) {
+    // If there are no images and no video, return an empty container
+    bool hasNoMedia = (widget.imageUrls == null || widget.imageUrls!.isEmpty) &&
+                     widget.videoUrl == null;
+    if (hasNoMedia) {
+      return const SizedBox.shrink(); // Return empty widget when no media
+    }
+
     // If there's only images, show the image gallery directly
     if (widget.imageUrls != null &&
         widget.imageUrls!.isNotEmpty &&

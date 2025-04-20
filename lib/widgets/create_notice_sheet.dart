@@ -17,7 +17,8 @@ class CreateNoticeSheet extends StatefulWidget {
   State<CreateNoticeSheet> createState() => _CreateNoticeSheetState();
 }
 
-class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTickerProviderStateMixin {
+class _CreateNoticeSheetState extends State<CreateNoticeSheet>
+    with SingleTickerProviderStateMixin {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final _adminService = AdminService();
@@ -69,7 +70,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
     // Determine if this is a new post, a regular notice, or a poll
     bool isNewPost = widget.notice == null;
     bool isPoll = !isNewPost && widget.notice!.poll != null;
-    bool isPrimaryPoll = isPoll && (widget.notice!.content.isEmpty || widget.notice!.content.length < 10);
+    bool isPrimaryPoll = isPoll &&
+        (widget.notice!.content.isEmpty || widget.notice!.content.length < 10);
 
     // For new posts: show both tabs
     // For regular notices: show only Community Notice tab
@@ -79,7 +81,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
     // Initialize tab controller with appropriate length
     _tabController = TabController(length: tabCount, vsync: this);
     _tabController.addListener(() {
-      if (!_tabController.indexIsChanging && _tabController.index != _currentTabIndex) {
+      if (!_tabController.indexIsChanging &&
+          _tabController.index != _currentTabIndex) {
         setState(() {
           _currentTabIndex = _tabController.index;
         });
@@ -102,7 +105,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
       _contentController.text = widget.notice!.content;
 
       // Initialize existing media if available
-      if (widget.notice!.imageUrls != null && widget.notice!.imageUrls!.isNotEmpty) {
+      if (widget.notice!.imageUrls != null &&
+          widget.notice!.imageUrls!.isNotEmpty) {
         _existingImageUrls = List<String>.from(widget.notice!.imageUrls!);
       }
 
@@ -110,8 +114,11 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
         _existingVideoUrl = widget.notice!.videoUrl;
       }
 
-      if (widget.notice!.attachments != null && widget.notice!.attachments!.isNotEmpty) {
-        _existingAttachments = widget.notice!.attachments!.map((attachment) => attachment.toMap()).toList();
+      if (widget.notice!.attachments != null &&
+          widget.notice!.attachments!.isNotEmpty) {
+        _existingAttachments = widget.notice!.attachments!
+            .map((attachment) => attachment.toMap())
+            .toList();
       }
 
       // Initialize poll data if exists
@@ -633,7 +640,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
       List<String> imageUrls = List<String>.from(_existingImageUrls);
       // Always pass videoUrl (null if removed, existing if not changed, new if selected)
       String? videoUrl = _existingVideoUrl;
-      List<Map<String, dynamic>> attachmentsData = List<Map<String, dynamic>>.from(_existingAttachments);
+      List<Map<String, dynamic>> attachmentsData =
+          List<Map<String, dynamic>>.from(_existingAttachments);
       Map<String, dynamic>? pollData;
 
       // Upload images if any
@@ -641,7 +649,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
         setState(() => _isUploadingMedia = true);
         final List<File> imageFiles =
             _selectedImages.map((xFile) => File(xFile.path)).toList();
-        final List<String> newImageUrls = await _cloudinaryService.uploadNoticeImages(imageFiles);
+        final List<String> newImageUrls =
+            await _cloudinaryService.uploadNoticeImages(imageFiles);
         // Add new images to existing ones instead of replacing them
         imageUrls.addAll(newImageUrls);
         setState(() => _isUploadingMedia = false);
@@ -739,7 +748,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
           setState(() => _isUploadingMedia = true);
           final List<File> imageFiles =
               _pollSelectedImages.map((xFile) => File(xFile.path)).toList();
-          pollImageUrls = await _cloudinaryService.uploadNoticeImages(imageFiles);
+          pollImageUrls =
+              await _cloudinaryService.uploadNoticeImages(imageFiles);
           setState(() => _isUploadingMedia = false);
         }
 
@@ -748,7 +758,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
           setState(() => _isUploadingMedia = true);
           try {
             final videoFile = File(_pollSelectedVideo!.path);
-            pollVideoUrl = await _cloudinaryService.uploadNoticeVideo(videoFile);
+            pollVideoUrl =
+                await _cloudinaryService.uploadNoticeVideo(videoFile);
           } catch (videoError) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -797,7 +808,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
             'allowMultipleChoices': _allowMultipleChoices,
             'imageUrls': pollImageUrls.isNotEmpty ? pollImageUrls : null,
             'videoUrl': pollVideoUrl,
-            'attachments': pollAttachmentsData.isNotEmpty ? pollAttachmentsData : null,
+            'attachments':
+                pollAttachmentsData.isNotEmpty ? pollAttachmentsData : null,
           };
         }
       }
@@ -902,7 +914,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                   color: Colors.grey[300],
                   height: 100,
                   width: 100,
-                  child: const Center(child: Icon(Icons.error_outline, size: 20)),
+                  child:
+                      const Center(child: Icon(Icons.error_outline, size: 20)),
                 );
               },
             ),
@@ -977,7 +990,9 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                           width: 100,
                           child: snapshot.connectionState ==
                                   ConnectionState.waiting
-                              ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                              ? const Center(
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
                               : null,
                         ),
                       // Play icon overlay
@@ -1064,7 +1079,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                       shape: BoxShape.circle,
                     ),
                     padding: const EdgeInsets.all(6),
-                    child: const Icon(Icons.play_arrow, color: Colors.white, size: 24),
+                    child: const Icon(Icons.play_arrow,
+                        color: Colors.white, size: 24),
                   ),
                 ],
               ),
@@ -1161,7 +1177,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                   children: [
                     Text(
                       fileName,
-                      style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w500, fontSize: 13),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1199,7 +1216,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
   bool _shouldShowCommunityNoticeContent() {
     bool isNewPost = widget.notice == null;
     bool isPoll = !isNewPost && widget.notice!.poll != null;
-    bool isPrimaryPoll = isPoll && (widget.notice!.content.isEmpty || widget.notice!.content.length < 10);
+    bool isPrimaryPoll = isPoll &&
+        (widget.notice!.content.isEmpty || widget.notice!.content.length < 10);
 
     // For primary polls with only one tab, we should show poll content
     if (isPrimaryPoll) {
@@ -1211,12 +1229,14 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
       if (_tabController.length == 1) {
         return false; // Show poll content for single-tab poll
       }
-      return _currentTabIndex == 0; // Show community notice content only when tab index is 0
+      return _currentTabIndex ==
+          0; // Show community notice content only when tab index is 0
     }
 
     // For new posts, check the current tab index
     if (isNewPost) {
-      return _currentTabIndex == 0; // Show community notice content only when tab index is 0
+      return _currentTabIndex ==
+          0; // Show community notice content only when tab index is 0
     }
 
     // For regular notices, always show community notice content
@@ -1227,7 +1247,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
   List<Widget> _buildTabsBasedOnNoticeType() {
     bool isNewPost = widget.notice == null;
     bool isPoll = !isNewPost && widget.notice!.poll != null;
-    bool isPrimaryPoll = isPoll && (widget.notice!.content.isEmpty || widget.notice!.content.length < 10);
+    bool isPrimaryPoll = isPoll &&
+        (widget.notice!.content.isEmpty || widget.notice!.content.length < 10);
 
     if (isNewPost) {
       // New post - show both tabs
@@ -1262,21 +1283,48 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
     }
 
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        CircleAvatar(
+          radius: 12,
+          backgroundColor: const Color(0xFF00C49A).withOpacity(0.1),
+          child: Text(
+            String.fromCharCode(65 + index), // A, B, C, etc.
+            style: const TextStyle(
+              color: Color(0xFF00C49A),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: TextField(
             controller: controller,
             decoration: InputDecoration(
               hintText: 'Option ${index + 1}',
-              border: const OutlineInputBorder(),
-              errorBorder: const OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.red),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey.shade200),
               ),
-              focusedErrorBorder: const OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.red),
-              ),
-              errorText: _pollOptionErrors[index] ? 'Please enter an option' : null,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              filled: true,
+              fillColor: Colors.white,
+              errorText:
+                  _pollOptionErrors[index] ? 'Please enter an option' : null,
+              suffixIcon: index > 1
+                  ? IconButton(
+                      icon:
+                          const Icon(Icons.close, size: 16, color: Colors.grey),
+                      onPressed: () {
+                        setState(() {
+                          _pollOptionControllers.removeAt(index);
+                          _pollOptionErrors.removeAt(index);
+                        });
+                      },
+                    )
+                  : null,
             ),
             onChanged: (value) {
               if (_pollOptionErrors[index] && value.isNotEmpty) {
@@ -1287,18 +1335,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
             },
           ),
         ),
-        if (_pollOptionControllers.length > 2) // Allow removing if more than minimum options
-          IconButton(
-            onPressed: () {
-              setState(() {
-                controller.dispose();
-                _pollOptionControllers.removeAt(index);
-                _pollOptionErrors.removeAt(index);
-              });
-            },
-            icon: const Icon(Icons.remove_circle_outline),
-            color: Colors.red[400],
-          ),
       ],
     );
   }
@@ -1356,340 +1392,490 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
                     child: _shouldShowCommunityNoticeContent()
-                      // Community Notice Tab
-                      ? Column(
-                        key: const ValueKey('notice'),
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          TextField(
-                            controller: _titleController,
-                            decoration: const InputDecoration(
-                              hintText: 'Title (optional)',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _contentController,
-                            decoration: InputDecoration(
-                              hintText: 'What\'s happening in your community?',
-                              border: const OutlineInputBorder(),
-                              errorBorder: const OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.red),
-                              ),
-                              focusedErrorBorder: const OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.red),
-                              ),
-                              errorText: _contentError ? 'Please enter some content' : null,
-                              helperText: 'Content is required',
-                              helperStyle: const TextStyle(fontStyle: FontStyle.italic),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                            ),
-                            maxLines: 3,
-                            onChanged: (value) {
-                              if (_contentError && value.isNotEmpty) {
-                                setState(() {
-                                  _contentError = false;
-                                });
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
+                        // Community Notice Tab
+                        ? Column(
+                            key: const ValueKey('notice'),
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _isLoading ? null : _pickImages,
-                                  icon: const Icon(Icons.photo_library, size: 18),
-                                  label: const Text('Photos', style: TextStyle(fontSize: 13)),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                  ),
+                              TextField(
+                                controller: _titleController,
+                                decoration: const InputDecoration(
+                                  hintText: 'Title (optional)',
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 12),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _isLoading || _selectedVideo != null || _existingVideoUrl != null
-                                      ? null
-                                      : _pickVideo,
-                                  icon: const Icon(Icons.videocam, size: 18),
-                                  label: const Text('Video', style: TextStyle(fontSize: 13)),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _contentController,
+                                decoration: InputDecoration(
+                                  hintText:
+                                      'What\'s happening in your community?',
+                                  border: const OutlineInputBorder(),
+                                  errorBorder: const OutlineInputBorder(
+                                    borderSide: BorderSide(color: Colors.red),
                                   ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _isLoading ? null : _pickAttachments,
-                                  icon: const Icon(Icons.attach_file, size: 18),
-                                  label: const Text('Attachment', style: TextStyle(fontSize: 13)),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                  focusedErrorBorder: const OutlineInputBorder(
+                                    borderSide: BorderSide(color: Colors.red),
                                   ),
+                                  errorText: _contentError
+                                      ? 'Please enter some content'
+                                      : null,
+                                  helperText: 'Content is required',
+                                  helperStyle: const TextStyle(
+                                      fontStyle: FontStyle.italic),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 12),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      )
-                      : Column(
-                        key: const ValueKey('poll'),
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          TextField(
-                            controller: _titleController,
-                            decoration: const InputDecoration(
-                              hintText: 'Poll Title (optional)',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _pollQuestionController,
-                            decoration: InputDecoration(
-                              hintText: 'Ask a question...',
-                              border: const OutlineInputBorder(),
-                              errorBorder: const OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.red),
-                              ),
-                              focusedErrorBorder: const OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.red),
-                              ),
-                              errorText: _pollQuestionError ? 'Please enter a poll question' : null,
-                              helperText: 'Poll question is required',
-                              helperStyle: const TextStyle(fontStyle: FontStyle.italic),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                            ),
-                            onChanged: (value) {
-                              if (_pollQuestionError && value.isNotEmpty) {
-                                setState(() {
-                                  _pollQuestionError = false;
-                                });
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Poll Options',
-                            style: TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey[200]!),
-                            ),
-                            child: Column(
-                              children: [
-                                ...List.generate(
-                                  _pollOptionControllers.length,
-                                  (index) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 6),
-                                    child: _buildPollOptionInput(
-                                        _pollOptionControllers[index], index),
-                                  ),
-                                ),
-                                TextButton.icon(
-                                  onPressed: () {
+                                maxLines: 3,
+                                onChanged: (value) {
+                                  if (_contentError && value.isNotEmpty) {
                                     setState(() {
-                                      _pollOptionControllers
-                                          .add(TextEditingController());
+                                      _contentError = false;
                                     });
-                                  },
-                                  icon: const Icon(Icons.add, size: 18),
-                                  label: const Text('Add Option', style: TextStyle(fontSize: 13)),
-                                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 4)),
+                                  }
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed:
+                                          _isLoading ? null : _pickImages,
+                                      icon: const Icon(Icons.photo_library,
+                                          size: 18),
+                                      label: const Text('Photos',
+                                          style: TextStyle(fontSize: 13)),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 8),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: _isLoading ||
+                                              _selectedVideo != null ||
+                                              _existingVideoUrl != null
+                                          ? null
+                                          : _pickVideo,
+                                      icon:
+                                          const Icon(Icons.videocam, size: 18),
+                                      label: const Text('Video',
+                                          style: TextStyle(fontSize: 13)),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 8),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed:
+                                          _isLoading ? null : _pickAttachments,
+                                      icon: const Icon(Icons.attach_file,
+                                          size: 18),
+                                      label: const Text('Attachment',
+                                          style: TextStyle(fontSize: 13)),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 8),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          )
+                        : Column(
+                            key: const ValueKey('poll'),
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextField(
+                                controller: _titleController,
+                                decoration: InputDecoration(
+                                  hintText: 'Poll Title (optional)',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide:
+                                        BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 16),
+                                  filled: true,
+                                  fillColor: Colors.grey.shade50,
+                                  prefixIcon: const Icon(Icons.title,
+                                      color: Color(0xFF00C49A)),
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Poll Settings',
-                            style: TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey[200]!),
-                            ),
-                            child: Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              ),
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: _pollQuestionController,
+                                decoration: InputDecoration(
+                                  hintText: 'Ask a question...',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide:
+                                        BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide:
+                                        const BorderSide(color: Colors.red),
+                                  ),
+                                  focusedErrorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide:
+                                        const BorderSide(color: Colors.red),
+                                  ),
+                                  errorText: _pollQuestionError
+                                      ? 'Please enter a poll question'
+                                      : null,
+                                  helperText: 'Poll question is required',
+                                  helperStyle: const TextStyle(
+                                      fontStyle: FontStyle.italic),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 16),
+                                  filled: true,
+                                  fillColor: Colors.grey.shade50,
+                                  prefixIcon: const Icon(Icons.help_outline,
+                                      color: Color(0xFF00C49A)),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Poll Options',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: Color(0xFF00C49A)),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border:
+                                      Border.all(color: Colors.grey.shade200),
+                                ),
+                                child: Column(
                                   children: [
-                                    const Text('Allow multiple choices', style: TextStyle(fontSize: 13)),
-                                    Switch(
-                                      value: _allowMultipleChoices,
-                                      onChanged: (value) {
+                                    ...List.generate(
+                                      _pollOptionControllers.length,
+                                      (index) => Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 10),
+                                        child: _buildPollOptionInput(
+                                            _pollOptionControllers[index],
+                                            index),
+                                      ),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () {
                                         setState(() {
-                                          _allowMultipleChoices = value;
+                                          _pollOptionControllers
+                                              .add(TextEditingController());
                                         });
                                       },
-
+                                      icon: const Icon(
+                                        Icons.add_circle_outline,
+                                        size: 18,
+                                        color: Color(0xFF00C49A),
+                                      ),
+                                      label: const Text('Add Option',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF00C49A),
+                                          )),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
-                                const Divider(height: 16),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Poll Settings',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: Color(0xFF00C49A)),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border:
+                                      Border.all(color: Colors.grey.shade200),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    // Allow multiple choices toggle
                                     Row(
                                       children: [
-                                        const Text('Poll ends: ', style: TextStyle(fontSize: 13)),
-                                        TextButton(
-                                          onPressed: () async {
-                                            final DateTime? pickedDate =
-                                                await showDatePicker(
-                                              context: context,
-                                              initialDate: _pollExpiryDate,
-                                              firstDate: DateTime.now(),
-                                              lastDate: DateTime.now()
-                                                  .add(const Duration(days: 365)),
-                                            );
-                                            if (pickedDate != null) {
-                                              // Keep current time when changing date
-                                              final newDate = DateTime(
-                                                pickedDate.year,
-                                                pickedDate.month,
-                                                pickedDate.day,
-                                                _pollExpiryDate.hour,
-                                                _pollExpiryDate.minute,
-                                              );
-                                              setState(() {
-                                                _pollExpiryDate = newDate;
-                                              });
-                                            }
-                                          },
-                                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
+                                        const Icon(
+                                          Icons.check_circle_outline,
+                                          size: 20,
+                                          color: Color(0xFF00C49A),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        const Expanded(
                                           child: Text(
-                                            DateFormat('MMM d, y').format(_pollExpiryDate),
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w500, fontSize: 13),
+                                            'Allow multiple choices',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                           ),
+                                        ),
+                                        Switch(
+                                          value: _allowMultipleChoices,
+                                          onChanged: (value) {
+                                            setState(() {
+                                              _allowMultipleChoices = value;
+                                            });
+                                          },
+                                          activeColor: const Color(0xFF00C49A),
                                         ),
                                       ],
                                     ),
+                                    const Divider(height: 32),
+                                    // Poll end date
                                     Row(
                                       children: [
-                                        const Text('Time: ', style: TextStyle(fontSize: 13)),
-                                        TextButton(
-                                          onPressed: () async {
-                                            final TimeOfDay? pickedTime =
-                                                await showTimePicker(
-                                              context: context,
-                                              initialTime:
-                                                  TimeOfDay.fromDateTime(_pollExpiryDate),
-                                            );
-                                            if (pickedTime != null) {
-                                              final newDate = DateTime(
-                                                _pollExpiryDate.year,
-                                                _pollExpiryDate.month,
-                                                _pollExpiryDate.day,
-                                                pickedTime.hour,
-                                                pickedTime.minute,
-                                              );
-                                              setState(() {
-                                                _pollExpiryDate = newDate;
-                                              });
-                                            }
-                                          },
-                                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
-                                          child: Text(
-                                            DateFormat('h:mm a').format(_pollExpiryDate),
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w500, fontSize: 13),
+                                        const Icon(
+                                          Icons.calendar_today,
+                                          size: 20,
+                                          color: Color(0xFF00C49A),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        const Text(
+                                          'Poll ends:',
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              // Date picker
+                                              TextButton(
+                                                onPressed: () async {
+                                                  final pickedDate =
+                                                      await showDatePicker(
+                                                    context: context,
+                                                    initialDate:
+                                                        _pollExpiryDate,
+                                                    firstDate: DateTime.now(),
+                                                    lastDate:
+                                                        DateTime.now().add(
+                                                      const Duration(days: 365),
+                                                    ),
+                                                    builder: (context, child) {
+                                                      return Theme(
+                                                        data: Theme.of(context)
+                                                            .copyWith(
+                                                          colorScheme:
+                                                              const ColorScheme
+                                                                  .light(
+                                                            primary: Color(
+                                                                0xFF00C49A),
+                                                          ),
+                                                        ),
+                                                        child: child!,
+                                                      );
+                                                    },
+                                                  );
+                                                  if (pickedDate != null) {
+                                                    final newDate = DateTime(
+                                                      pickedDate.year,
+                                                      pickedDate.month,
+                                                      pickedDate.day,
+                                                      _pollExpiryDate.hour,
+                                                      _pollExpiryDate.minute,
+                                                    );
+                                                    setState(() {
+                                                      _pollExpiryDate = newDate;
+                                                    });
+                                                  }
+                                                },
+                                                style: TextButton.styleFrom(
+                                                  backgroundColor: Colors.white,
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 8),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                    side: BorderSide(
+                                                        color: Colors
+                                                            .grey.shade300),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  DateFormat('MMM d, yyyy')
+                                                      .format(_pollExpiryDate),
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w500,
+                                                    fontSize: 14,
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              // Time picker
+                                              TextButton(
+                                                onPressed: () async {
+                                                  final pickedTime =
+                                                      await showTimePicker(
+                                                    context: context,
+                                                    initialTime:
+                                                        TimeOfDay.fromDateTime(
+                                                            _pollExpiryDate),
+                                                    builder: (context, child) {
+                                                      return Theme(
+                                                        data: Theme.of(context)
+                                                            .copyWith(
+                                                          colorScheme:
+                                                              const ColorScheme
+                                                                  .light(
+                                                            primary: Color(
+                                                                0xFF00C49A),
+                                                          ),
+                                                        ),
+                                                        child: child!,
+                                                      );
+                                                    },
+                                                  );
+                                                  if (pickedTime != null) {
+                                                    final newDate = DateTime(
+                                                      _pollExpiryDate.year,
+                                                      _pollExpiryDate.month,
+                                                      _pollExpiryDate.day,
+                                                      pickedTime.hour,
+                                                      pickedTime.minute,
+                                                    );
+                                                    setState(() {
+                                                      _pollExpiryDate = newDate;
+                                                    });
+                                                  }
+                                                },
+                                                style: TextButton.styleFrom(
+                                                  backgroundColor: Colors.white,
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 8),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                    side: BorderSide(
+                                                        color: Colors
+                                                            .grey.shade300),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  DateFormat('h:mm a')
+                                                      .format(_pollExpiryDate),
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w500,
+                                                    fontSize: 14,
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Description (optional)',
-                            style: TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(height: 4),
-                          TextField(
-                            controller: _contentController,
-                            decoration: const InputDecoration(
-                              hintText: 'Add more details about your poll...',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                            ),
-                            maxLines: 2,
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Media (optional)',
-                            style: TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _isLoading ? null : _pickPollImages,
-                                  icon: const Icon(Icons.photo_library, size: 18),
-                                  label: const Text('Photos', style: TextStyle(fontSize: 13)),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                  ),
-                                ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _isLoading || _pollSelectedVideo != null ||
-                                      (widget.notice != null && widget.notice!.poll != null &&
-                                       widget.notice!.poll!.toMap().containsKey('videoUrl') &&
-                                       widget.notice!.poll!.toMap()['videoUrl'] != null)
-                                      ? null
-                                      : _pickPollVideo,
-                                  icon: const Icon(Icons.videocam, size: 18),
-                                  label: const Text('Video', style: TextStyle(fontSize: 13)),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                  ),
-                                ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Description (optional)',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: Color(0xFF00C49A)),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _isLoading ? null : _pickPollAttachments,
-                                  icon: const Icon(Icons.attach_file, size: 18),
-                                  label: const Text('Attachment', style: TextStyle(fontSize: 13)),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _contentController,
+                                decoration: InputDecoration(
+                                  hintText:
+                                      'Add more details about your poll...',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide:
+                                        BorderSide(color: Colors.grey.shade300),
                                   ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 16),
+                                  filled: true,
+                                  fillColor: Colors.grey.shade50,
+                                  prefixIcon: const Icon(
+                                      Icons.description_outlined,
+                                      color: Color(0xFF00C49A)),
+                                ),
+                                maxLines: 3,
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Media (optional)',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: Color(0xFF00C49A)),
+                              ),
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                onPressed: _isLoading ? null : _pickPollImages,
+                                icon: const Icon(Icons.photo_library,
+                                    size: 18, color: Color(0xFF00C49A)),
+                                label: const Text('Add Photos',
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF00C49A))),
+                                style: OutlinedButton.styleFrom(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: const BorderSide(
+                                        color: Color(0xFF00C49A)),
+                                  ),
+                                  backgroundColor:
+                                      const Color(0xFF00C49A).withOpacity(0.05),
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                      ),
                   ),
                   const SizedBox(height: 16),
 
@@ -1713,7 +1899,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                         itemBuilder: (context, index) {
                           return _buildExistingImagePreview(
                             _existingImageUrls[index],
-                            () => setState(() => _existingImageUrls.removeAt(index)),
+                            () => setState(
+                                () => _existingImageUrls.removeAt(index)),
                           );
                         },
                       ),
@@ -1747,7 +1934,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'New Images',
-                        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w500, fontSize: 13),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1776,7 +1964,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'New Video',
-                        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w500, fontSize: 13),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1791,12 +1980,14 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                   ],
 
                   // Attachments preview
-                  if (_selectedAttachments.isNotEmpty && _currentTabIndex == 0) ...[
+                  if (_selectedAttachments.isNotEmpty &&
+                      _currentTabIndex == 0) ...[
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Attachments',
-                        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w500, fontSize: 13),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1815,90 +2006,57 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                   ],
 
                   // Poll media previews
-                  if (_pollSelectedImages.isNotEmpty && _currentTabIndex == 1) ...[
+                  if (_pollSelectedImages.isNotEmpty &&
+                      _currentTabIndex == 1) ...[
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Poll Images',
-                        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w500, fontSize: 14),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      height: 100,
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      padding: const EdgeInsets.all(12),
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: _pollSelectedImages.length,
                         separatorBuilder: (context, index) =>
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 12),
                         itemBuilder: (context, index) {
                           return _buildImagePreview(
                             _pollSelectedImages[index],
-                            () =>
-                                setState(() => _pollSelectedImages.removeAt(index)),
+                            () => setState(
+                                () => _pollSelectedImages.removeAt(index)),
                           );
                         },
                       ),
                     ),
-                    const SizedBox(height: 4),
-                  ],
-
-                  // Poll video preview
-                  if (_pollSelectedVideo != null && _currentTabIndex == 1) ...[
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Poll Video',
-                        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      height: 100,
-                      child: _buildVideoPreview(
-                        _pollSelectedVideo!,
-                        () => setState(() => _pollSelectedVideo = null),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-
-                  // Poll attachments preview
-                  if (_pollSelectedAttachments.isNotEmpty && _currentTabIndex == 1) ...[
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Poll Attachments',
-                        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    ...List.generate(
-                      _pollSelectedAttachments.length,
-                      (index) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: _buildAttachmentPreview(
-                          _pollSelectedAttachments[index],
-                          () => setState(
-                              () => _pollSelectedAttachments.removeAt(index)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 12),
                   ],
 
                   // Poll creator section removed - we now handle poll editing in the poll tab
                   const SizedBox(height: 8),
+                  const SizedBox(height: 24),
                   FilledButton(
                     onPressed:
                         _isLoading || _isUploadingMedia ? null : _saveNotice,
                     style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
+                      minimumSize: const Size.fromHeight(50),
                       backgroundColor: const Color(0xFF00C49A),
+                      foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
+                      elevation: 0,
                     ),
                     child: _isLoading || _isUploadingMedia
                         ? const SizedBox(
@@ -1909,13 +2067,30 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet> with SingleTicker
                               color: Colors.white,
                             ),
                           )
-                        : Text(
-                            widget.notice != null
-                              ? 'Save Changes'
-                              : _currentTabIndex == 0
-                                ? 'Post Notice'
-                                : 'Create Poll',
-                            style: const TextStyle(fontSize: 16),
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                widget.notice != null
+                                    ? Icons.save_outlined
+                                    : _currentTabIndex == 0
+                                        ? Icons.post_add
+                                        : Icons.poll_outlined,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                widget.notice != null
+                                    ? 'Save Changes'
+                                    : _currentTabIndex == 0
+                                        ? 'Post Notice'
+                                        : 'Create Poll',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                   ),
                 ],

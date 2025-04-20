@@ -1,16 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class Poll {
   final String question;
   final List<PollOption> options;
   final DateTime expiresAt;
   final bool allowMultipleChoices;
+  final List<String>? imageUrls;
+  final String? videoUrl;
+  final List<FileAttachment>? attachments;
 
   Poll({
     required this.question,
     required this.options,
     required this.expiresAt,
     this.allowMultipleChoices = false,
+    this.imageUrls,
+    this.videoUrl,
+    this.attachments,
   });
 
   factory Poll.fromMap(Map<dynamic, dynamic> map) {
@@ -31,6 +38,23 @@ class Poll {
       // Ensure allowMultipleChoices is a boolean
       final bool allowMultiple = map['allowMultipleChoices'] == true;
 
+      // Parse imageUrls if available
+      List<String>? imageUrls;
+      if (map['imageUrls'] is List) {
+        imageUrls = (map['imageUrls'] as List).map((url) => url.toString()).toList();
+      }
+
+      // Parse videoUrl if available
+      final String? videoUrl = map['videoUrl']?.toString();
+
+      // Parse attachments if available
+      List<FileAttachment>? attachments;
+      if (map['attachments'] is List) {
+        attachments = (map['attachments'] as List)
+            .map((attachment) => FileAttachment.fromMap(attachment as Map<dynamic, dynamic>))
+            .toList();
+      }
+
       return Poll(
         question: question,
         options: optionsList
@@ -38,9 +62,12 @@ class Poll {
             .toList(),
         expiresAt: expiresAt,
         allowMultipleChoices: allowMultiple,
+        imageUrls: imageUrls,
+        videoUrl: videoUrl,
+        attachments: attachments,
       );
     } catch (e) {
-      print('Error parsing poll data: $e');
+      debugPrint('Error parsing poll data: $e');
       rethrow;
     }
   }
@@ -51,6 +78,9 @@ class Poll {
       'options': options.map((option) => option.toMap()).toList(),
       'expiresAt': expiresAt,
       'allowMultipleChoices': allowMultipleChoices,
+      'imageUrls': imageUrls,
+      'videoUrl': videoUrl,
+      'attachments': attachments?.map((attachment) => attachment.toMap()).toList(),
     };
   }
 }
@@ -88,7 +118,7 @@ class PollOption {
         votedBy: votedBy,
       );
     } catch (e) {
-      print('Error parsing poll option data: $e');
+      debugPrint('Error parsing poll option data: $e');
       rethrow;
     }
   }
@@ -233,7 +263,7 @@ class CommunityNotice {
               return null;
             }
           } catch (e) {
-            print('Error parsing poll data: $e');
+            debugPrint('Error parsing poll data: $e');
             return null;
           }
         })() : null,
