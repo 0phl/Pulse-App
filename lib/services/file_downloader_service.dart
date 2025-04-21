@@ -5,11 +5,13 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as path;
+import '../services/media_saver_service.dart';
 
 
 class FileDownloaderService {
   static final FileDownloaderService _instance = FileDownloaderService._internal();
   final Dio _dio = Dio();
+  final MediaSaverService _mediaSaverService = MediaSaverService();
 
   factory FileDownloaderService() {
     return _instance;
@@ -251,6 +253,108 @@ class FileDownloaderService {
     } catch (e) {
       // Fallback to temporary directory if we can't get the downloads directory
       return await getTemporaryDirectory();
+    }
+  }
+
+  /// Downloads a file from the given URL and saves it to the PULSE album
+  /// Returns a Future<String?> with the local file path if successful, null otherwise
+  Future<String?> downloadAndSaveToPulseAlbum({
+    required String url,
+    required String fileName,
+    required BuildContext context,
+    Function(double)? onProgress,
+  }) async {
+    try {
+      // Check and request storage permission
+      if (!await _checkPermission()) {
+        if (context.mounted) {
+          _showSnackBar(
+            context,
+            'Storage permission is required to download files',
+            isError: true,
+          );
+        }
+        return null;
+      }
+
+      // Show downloading indicator
+      if (context.mounted) {
+        _showSnackBar(
+          context,
+          'Downloading $fileName...',
+          duration: const Duration(seconds: 2),
+        );
+      }
+
+      // Get temporary directory
+      final tempDir = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final tempFileName = 'PULSE_temp_${timestamp}_$fileName';
+      final filePath = path.join(tempDir.path, tempFileName);
+
+      // Download the file
+      await _dio.download(
+        url,
+        filePath,
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            final progress = received / total;
+            onProgress?.call(progress);
+          }
+        },
+        options: Options(
+          headers: {
+            HttpHeaders.acceptEncodingHeader: '*',
+          },
+        ),
+      );
+
+      // Save to PULSE album
+      if (context.mounted) {
+        final fileExtension = path.extension(fileName).toLowerCase();
+        final isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].contains(fileExtension);
+        final isVideo = ['.mp4', '.mov', '.avi', '.mkv', '.webm'].contains(fileExtension);
+        final isPdf = ['.pdf'].contains(fileExtension);
+        final isDocument = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'].contains(fileExtension);
+
+        if (isImage) {
+          await _mediaSaverService.saveImageToGallery(
+            filePath: filePath,
+            context: context,
+            album: 'PULSE',
+          );
+        } else if (isVideo) {
+          await _mediaSaverService.saveVideoToGallery(
+            filePath: filePath,
+            context: context,
+            album: 'PULSE',
+          );
+        } else if (isPdf || isDocument) {
+          // For PDFs and other document types, save to Downloads/PULSE folder
+          await _mediaSaverService.saveDocumentToDownloads(
+            filePath: filePath,
+            context: context,
+            album: 'PULSE',
+          );
+        } else {
+          // For other file types, just show a success message
+          _showSnackBar(
+            context,
+            'File downloaded successfully',
+          );
+        }
+      }
+
+      return filePath;
+    } catch (e) {
+      if (context.mounted) {
+        _showSnackBar(
+          context,
+          'Error: ${e.toString()}',
+          isError: true,
+        );
+      }
+      return null;
     }
   }
 

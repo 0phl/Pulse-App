@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/file_downloader_service.dart';
 import 'image_viewer_page.dart';
 import 'file_download_progress.dart';
+import 'pdf_viewer_page.dart';
+import 'video_player_page.dart';
 
 class DocumentViewerDialog extends StatefulWidget {
   final List<String> documents;
@@ -61,13 +63,54 @@ class _DocumentViewerDialogState extends State<DocumentViewerDialog> {
     }
   }
 
+  bool _isVideoUrl(String url) {
+    final lowercaseUrl = url.toLowerCase();
+    return lowercaseUrl.endsWith('.mp4') ||
+           lowercaseUrl.endsWith('.mov') ||
+           lowercaseUrl.endsWith('.avi') ||
+           lowercaseUrl.endsWith('.mkv') ||
+           lowercaseUrl.endsWith('.webm') ||
+           lowercaseUrl.contains('/video/upload/');
+  }
+
   Future<void> _openDocument(BuildContext context, String url) async {
+    final fileName = _getFileNameFromUrl(url);
+
     if (_isImageUrl(url)) {
       // For images, use the image viewer
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => ImageViewerPage(imageUrl: url),
+        ),
+      );
+      return;
+    } else if (_isPdfUrl(url)) {
+      // For PDFs, ensure we have the download parameter
+      String fileUrl = url;
+      if (!url.contains('dl=1')) {
+        fileUrl = '$url${url.contains('?') ? '&' : '?'}dl=1';
+      }
+
+      // Open PDF in the PDF viewer
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PdfViewerPage(
+            pdfUrl: fileUrl,
+            fileName: fileName,
+          ),
+        ),
+      );
+      return;
+    } else if (_isVideoUrl(url)) {
+      // Open video in the video player
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VideoPlayerPage(
+            videoUrl: url,
+          ),
         ),
       );
       return;
@@ -82,16 +125,35 @@ class _DocumentViewerDialogState extends State<DocumentViewerDialog> {
     });
 
     try {
-      // For PDFs, ensure we have the download parameter
-      String fileUrl = url;
-      if (_isPdfUrl(url) && !url.contains('dl=1')) {
-        fileUrl = '$url${url.contains('?') ? '&' : '?'}dl=1';
+      // Show download options dialog
+      final bool? shouldDownload = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Download File'),
+          content: Text('Do you want to download "$fileName"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Download'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldDownload != true || !mounted) {
+        setState(() {
+          _downloadingUrl = null;
+        });
+        return;
       }
 
-      final fileName = _getFileNameFromUrl(url);
-
-      await _fileDownloader.downloadAndOpenFile(
-        url: fileUrl,
+      // Download and save to PULSE album
+      await _fileDownloader.downloadAndSaveToPulseAlbum(
+        url: url,
         fileName: fileName,
         context: context,
         onProgress: (progress) {
@@ -152,18 +214,35 @@ class _DocumentViewerDialogState extends State<DocumentViewerDialog> {
                         final url = widget.documents[index];
                         final isImage = _isImageUrl(url);
                         final isPdf = _isPdfUrl(url);
+                        final isVideo = _isVideoUrl(url);
                         final fileName = _getFileNameFromUrl(url);
                         final isDownloading = _downloadingUrl == url;
 
+                        // Determine file type icon and text
+                        IconData fileIcon;
+                        String fileTypeText;
+
+                        if (isImage) {
+                          fileIcon = Icons.image;
+                          fileTypeText = 'Image File';
+                        } else if (isPdf) {
+                          fileIcon = Icons.picture_as_pdf;
+                          fileTypeText = 'PDF File';
+                        } else if (isVideo) {
+                          fileIcon = Icons.videocam;
+                          fileTypeText = 'Video File';
+                        } else {
+                          fileIcon = Icons.file_present;
+                          fileTypeText = 'Document File';
+                        }
+
                         return ListTile(
                           leading: Icon(
-                            isImage ? Icons.image : (isPdf ? Icons.picture_as_pdf : Icons.file_present),
+                            fileIcon,
                             color: isDownloading ? const Color(0xFF00C49A) : Theme.of(context).primaryColor,
                           ),
                           title: Text(fileName),
-                          subtitle: Text(
-                            isImage ? 'Image File' : (isPdf ? 'PDF File' : 'Document File'),
-                          ),
+                          subtitle: Text(fileTypeText),
                           onTap: () => _openDocument(context, url),
                           trailing: isDownloading
                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))

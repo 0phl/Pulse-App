@@ -11,6 +11,9 @@ import 'package:chewie/chewie.dart';
 import 'media_gallery_widget.dart';
 import 'multi_image_viewer_page.dart';
 import 'file_download_progress.dart';
+import 'image_viewer_page.dart';
+import 'pdf_viewer_page.dart';
+import 'video_player_page.dart';
 
 class CommentsPage extends StatefulWidget {
   final CommunityNotice notice;
@@ -1186,39 +1189,93 @@ class _AttachmentWidgetState extends State<AttachmentWidget> {
   }
 
   Future<void> _downloadAndOpenFile() async {
-    if (_isDownloading) return;
+    // Check file type to determine how to handle it
+    final fileType = widget.attachment.type.toLowerCase();
+    final url = widget.attachment.url;
+    final fileName = widget.attachment.name;
 
-    setState(() {
-      _isDownloading = true;
-      _downloadProgress = 0.0;
-    });
-
-    try {
-      // Ensure we have the download parameter for PDFs
-      String url = widget.attachment.url;
-      final bool isPdf = widget.attachment.type.toLowerCase() == 'pdf' ||
-                         url.toLowerCase().contains('.pdf');
-      if (isPdf && !url.contains('dl=1')) {
-        url = '$url${url.contains('?') ? '&' : '?'}dl=1';
-      }
-
-      await _fileDownloader.downloadAndOpenFile(
-        url: url,
-        fileName: widget.attachment.name,
-        context: context,
-        onProgress: (progress) {
-          if (mounted) {
-            setState(() {
-              _downloadProgress = progress;
-            });
-          }
-        },
+    // Handle different file types
+    if (fileType == 'pdf' || url.toLowerCase().contains('.pdf')) {
+      // Open PDF in the PDF viewer
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PdfViewerPage(
+            pdfUrl: url,
+            fileName: fileName,
+          ),
+        ),
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isDownloading = false;
-        });
+    } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(fileType)) {
+      // Open image in the image viewer
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ImageViewerPage(
+            imageUrl: url,
+          ),
+        ),
+      );
+    } else if (['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(fileType)) {
+      // Open video in the video player
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VideoPlayerPage(
+            videoUrl: url,
+          ),
+        ),
+      );
+    } else {
+      // For other file types, download and open using the system
+      if (_isDownloading) return;
+
+      setState(() {
+        _isDownloading = true;
+        _downloadProgress = 0.0;
+      });
+
+      try {
+        // Show download options dialog
+        final bool? shouldDownload = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Download File'),
+            content: Text('Do you want to download "$fileName"?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Download'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldDownload != true || !mounted) return;
+
+        // Download and save to PULSE album
+        await _fileDownloader.downloadAndSaveToPulseAlbum(
+          url: url,
+          fileName: fileName,
+          context: context,
+          onProgress: (progress) {
+            if (mounted) {
+              setState(() {
+                _downloadProgress = progress;
+              });
+            }
+          },
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isDownloading = false;
+          });
+        }
       }
     }
   }
@@ -1277,22 +1334,28 @@ class _AttachmentWidgetState extends State<AttachmentWidget> {
         ),
         if (_isDownloading)
           Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: SizedBox(
-                  width: 200,
-                  child: FileDownloadProgress(
-                    progress: _downloadProgress,
-                    fileName: widget.attachment.name,
-                    onCancel: () {
-                      setState(() {
-                        _isDownloading = false;
-                      });
-                    },
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(25),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.7,
+                      maxHeight: 100, // Limit the height to prevent overflow
+                    ),
+                    child: FileDownloadProgress(
+                      progress: _downloadProgress,
+                      fileName: widget.attachment.name,
+                      onCancel: () {
+                        setState(() {
+                          _isDownloading = false;
+                        });
+                      },
+                    ),
                   ),
                 ),
               ),

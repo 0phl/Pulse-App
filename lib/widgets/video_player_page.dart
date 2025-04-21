@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import '../services/media_saver_service.dart';
 
 class VideoPlayerPage extends StatefulWidget {
   final String videoUrl;
@@ -21,10 +25,66 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   bool _hasError = false;
   String _errorMessage = '';
 
+  // For downloading and saving video
+  bool _isDownloading = false;
+  bool _isDownloaded = false;
+  String? _tempFilePath;
+  double _downloadProgress = 0.0;
+
   @override
   void initState() {
     super.initState();
     _initializePlayer();
+  }
+
+  // Download the video to a temporary file
+  Future<void> _downloadVideo() async {
+    try {
+      setState(() {
+        _isDownloading = true;
+        _downloadProgress = 0.0;
+      });
+
+      // Get temporary directory
+      final tempDir = await getTemporaryDirectory();
+      final fileName = widget.videoUrl.split('/').last;
+      final filePath = '${tempDir.path}/$fileName';
+
+      // Download the video with progress tracking
+      await Dio().download(
+        widget.videoUrl,
+        filePath,
+        onReceiveProgress: (received, total) {
+          if (total != -1) {
+            setState(() {
+              _downloadProgress = received / total;
+            });
+          }
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _tempFilePath = filePath;
+          _isDownloaded = true;
+          _isDownloading = false;
+        });
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Video downloaded successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading video: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _initializePlayer() async {
@@ -119,16 +179,66 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           'Video Player',
           style: TextStyle(color: Colors.white),
         ),
+        actions: [
+          if (!_isDownloading && !_isDownloaded)
+            IconButton(
+              icon: const Icon(Icons.download, color: Colors.white),
+              onPressed: _downloadVideo,
+              tooltip: 'Download Video',
+            )
+          else if (_isDownloaded && _tempFilePath != null)
+            IconButton(
+              icon: const Icon(Icons.save_alt, color: Colors.white),
+              onPressed: () {
+                if (_tempFilePath != null) {
+                  final mediaSaverService = MediaSaverService();
+                  mediaSaverService.saveVideoToGallery(
+                    filePath: _tempFilePath!,
+                    context: context,
+                    album: 'PULSE',
+                  );
+                }
+              },
+              tooltip: 'Save to PULSE Album',
+            ),
+        ],
       ),
-      body: _hasError
-          ? _buildErrorWidget()
-          : _isInitialized
-              ? Chewie(controller: _chewieController!)
-              : const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
-                  ),
+      body: Stack(
+        children: [
+          // Main content
+          _hasError
+              ? _buildErrorWidget()
+              : _isInitialized
+                  ? Chewie(controller: _chewieController!)
+                  : const Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                      ),
+                    ),
+
+          // Download progress overlay
+          if (_isDownloading)
+            Container(
+              color: Colors.black.withAlpha(179),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(
+                      value: _downloadProgress,
+                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Downloading video... ${(_downloadProgress * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ],
                 ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -145,9 +255,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
               size: 60,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Error loading video',
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
