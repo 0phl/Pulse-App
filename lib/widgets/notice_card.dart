@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
+import '../services/file_downloader_service.dart';
 import 'comments_sheet.dart';
 import 'image_gallery_viewer.dart';
 import 'video_player_page.dart';
@@ -12,6 +12,7 @@ import 'media_gallery_widget.dart';
 import 'multi_image_viewer_page.dart';
 import 'poll_voters_dialog.dart';
 import 'poll_all_voters_dialog.dart';
+import 'file_download_progress.dart';
 
 class NoticeCard extends StatelessWidget {
   final CommunityNotice notice;
@@ -925,65 +926,7 @@ class NoticeCard extends StatelessWidget {
                         style: TextStyle(fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(height: 8),
-                      ...notice.attachments!.map((attachment) => Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(color: Colors.grey[300]!),
-                        ),
-                        child: InkWell(
-                          onTap: () async {
-                            try {
-                              final Uri url = Uri.parse(attachment.url);
-                              if (await canLaunchUrl(url)) {
-                                await launchUrl(url, mode: LaunchMode.externalApplication);
-                              } else {
-                                throw 'Could not launch $url';
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error opening file: $e')),
-                                );
-                              }
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _getIconForFileType(attachment.type),
-                                  color: _getColorForFileType(attachment.type),
-                                  size: 24,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        attachment.name,
-                                        style: const TextStyle(fontWeight: FontWeight.w500),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _formatFileSize(attachment.size),
-                                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Icon(Icons.download, color: Colors.grey[600], size: 20),
-                              ],
-                            ),
-                          ),
-                        ),
-                      )),
+                      ...notice.attachments!.map((attachment) => _AttachmentItem(attachment: attachment)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -1150,24 +1093,201 @@ class NoticeCard extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
+    return DateFormat('MMM d, y h:mm a').format(date);
+  }
+}
 
-    if (difference.inDays == 0) {
-      if (difference.inHours == 0) {
-        if (difference.inMinutes == 0) {
-          return 'Just now';
-        }
-        return '${difference.inMinutes}m ago';
-      }
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
+class _AttachmentItem extends StatefulWidget {
+  final FileAttachment attachment;
+
+  const _AttachmentItem({required this.attachment});
+
+  @override
+  State<_AttachmentItem> createState() => _AttachmentItemState();
+}
+
+class _AttachmentItemState extends State<_AttachmentItem> {
+  bool _isDownloading = false;
+  double _downloadProgress = 0.0;
+  final _fileDownloader = FileDownloaderService();
+
+  IconData _getIconForFileType(String type) {
+    switch (type.toLowerCase()) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        return Icons.image;
+      case 'mp4':
+      case 'mov':
+      case 'avi':
+        return Icons.video_file;
+      default:
+        return Icons.insert_drive_file;
     }
+  }
+
+  Color _getColorForFileType(String type) {
+    switch (type.toLowerCase()) {
+      case 'pdf':
+        return Colors.red;
+      case 'doc':
+      case 'docx':
+        return Colors.blue;
+      case 'xls':
+      case 'xlsx':
+        return Colors.green;
+      case 'ppt':
+      case 'pptx':
+        return Colors.orange;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        return Colors.purple;
+      case 'mp4':
+      case 'mov':
+      case 'avi':
+        return Colors.red[700]!;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    } else if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    } else {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+  }
+
+  Future<void> _downloadAndOpenFile() async {
+    if (_isDownloading) return;
+
+    setState(() {
+      _isDownloading = true;
+      _downloadProgress = 0.0;
+    });
+
+    try {
+      // Ensure we have the download parameter for PDFs
+      String url = widget.attachment.url;
+      final bool isPdf = widget.attachment.type.toLowerCase() == 'pdf' ||
+                         url.toLowerCase().contains('.pdf');
+      if (isPdf && !url.contains('dl=1')) {
+        url = '$url${url.contains('?') ? '&' : '?'}dl=1';
+      }
+
+      await _fileDownloader.downloadAndOpenFile(
+        url: url,
+        fileName: widget.attachment.name,
+        context: context,
+        onProgress: (progress) {
+          if (mounted) {
+            setState(() {
+              _downloadProgress = progress;
+            });
+          }
+        },
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: Colors.grey[300]!),
+          ),
+          child: InkWell(
+            onTap: _downloadAndOpenFile,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(
+                    _getIconForFileType(widget.attachment.type),
+                    color: _getColorForFileType(widget.attachment.type),
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.attachment.name,
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatFileSize(widget.attachment.size),
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _isDownloading ? Icons.downloading : Icons.download,
+                    color: _isDownloading ? const Color(0xFF00C49A) : Colors.grey[600],
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_isDownloading)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: SizedBox(
+                  width: 200,
+                  child: FileDownloadProgress(
+                    progress: _downloadProgress,
+                    fileName: widget.attachment.name,
+                    onCancel: () {
+                      setState(() {
+                        _isDownloading = false;
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 

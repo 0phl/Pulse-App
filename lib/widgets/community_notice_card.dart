@@ -4,12 +4,13 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 import '../models/community_notice.dart';
 import '../services/community_notice_service.dart';
+import '../services/file_downloader_service.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'media_gallery_widget.dart';
 import 'multi_image_viewer_page.dart';
+import 'file_download_progress.dart';
 
 class CommentsPage extends StatefulWidget {
   final CommunityNotice notice;
@@ -1108,10 +1109,19 @@ class _PollWidgetState extends State<PollWidget> {
   }
 }
 
-class AttachmentWidget extends StatelessWidget {
+class AttachmentWidget extends StatefulWidget {
   final FileAttachment attachment;
 
   const AttachmentWidget({super.key, required this.attachment});
+
+  @override
+  State<AttachmentWidget> createState() => _AttachmentWidgetState();
+}
+
+class _AttachmentWidgetState extends State<AttachmentWidget> {
+  bool _isDownloading = false;
+  double _downloadProgress = 0.0;
+  final _fileDownloader = FileDownloaderService();
 
   IconData _getIconForFileType(String type) {
     switch (type.toLowerCase()) {
@@ -1175,68 +1185,120 @@ class AttachmentWidget extends StatelessWidget {
     }
   }
 
-  Future<void> _openFile(BuildContext context) async {
+  Future<void> _downloadAndOpenFile() async {
+    if (_isDownloading) return;
+
+    setState(() {
+      _isDownloading = true;
+      _downloadProgress = 0.0;
+    });
+
     try {
-      final Uri url = Uri.parse(attachment.url);
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-      } else {
-        throw 'Could not launch $url';
+      // Ensure we have the download parameter for PDFs
+      String url = widget.attachment.url;
+      final bool isPdf = widget.attachment.type.toLowerCase() == 'pdf' ||
+                         url.toLowerCase().contains('.pdf');
+      if (isPdf && !url.contains('dl=1')) {
+        url = '$url${url.contains('?') ? '&' : '?'}dl=1';
       }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error opening file: $e')),
-        );
+
+      await _fileDownloader.downloadAndOpenFile(
+        url: url,
+        fileName: widget.attachment.name,
+        context: context,
+        onProgress: (progress) {
+          if (mounted) {
+            setState(() {
+              _downloadProgress = progress;
+            });
+          }
+        },
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+        });
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Colors.grey[300]!),
-      ),
-      child: InkWell(
-        onTap: () => _openFile(context),
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Icon(
-                _getIconForFileType(attachment.type),
-                color: _getColorForFileType(attachment.type),
-                size: 24,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      attachment.name,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+    return Stack(
+      children: [
+        Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: Colors.grey[300]!),
+          ),
+          child: InkWell(
+            onTap: _downloadAndOpenFile,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(
+                    _getIconForFileType(widget.attachment.type),
+                    color: _getColorForFileType(widget.attachment.type),
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.attachment.name,
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatFileSize(widget.attachment.size),
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _formatFileSize(attachment.size),
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
+                  ),
+                  Icon(
+                    _isDownloading ? Icons.downloading : Icons.download,
+                    color: _isDownloading ? const Color(0xFF00C49A) : Colors.grey[600],
+                    size: 20,
+                  ),
+                ],
               ),
-              Icon(Icons.download, color: Colors.grey[600], size: 20),
-            ],
+            ),
           ),
         ),
-      ),
+        if (_isDownloading)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: SizedBox(
+                  width: 200,
+                  child: FileDownloadProgress(
+                    progress: _downloadProgress,
+                    fileName: widget.attachment.name,
+                    onCancel: () {
+                      setState(() {
+                        _isDownloading = false;
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

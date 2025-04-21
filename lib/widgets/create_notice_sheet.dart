@@ -1150,7 +1150,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
   }
 
   // Helper method to build existing attachment preview
-  Widget _buildExistingAttachmentPreview(Map<String, dynamic> attachment, VoidCallback onRemove) {
+  Widget _buildExistingAttachmentPreview(
+      Map<String, dynamic> attachment, VoidCallback onRemove) {
     final String fileName = attachment['name'] as String;
     final String fileType = attachment['type'] as String;
     final int fileSize = attachment['size'] as int;
@@ -2274,12 +2275,14 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                   ],
 
                   // Existing Attachments preview
-                  if (_currentTabIndex == 0 && _existingAttachments.isNotEmpty) ...[
+                  if (_currentTabIndex == 0 &&
+                      _existingAttachments.isNotEmpty) ...[
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Existing Attachments',
-                        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w500, fontSize: 14),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -2289,7 +2292,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                         padding: const EdgeInsets.only(bottom: 8),
                         child: _buildExistingAttachmentPreview(
                           _existingAttachments[index],
-                          () => setState(() => _existingAttachments.removeAt(index)),
+                          () => setState(
+                              () => _existingAttachments.removeAt(index)),
                         ),
                       ),
                     ),
