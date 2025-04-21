@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 import 'comments_sheet.dart';
@@ -25,6 +26,69 @@ class NoticeCard extends StatelessWidget {
     this.onDelete,
     this.onRefresh,
   });
+
+  // Helper methods for file attachments
+  IconData _getIconForFileType(String type) {
+    switch (type.toLowerCase()) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        return Icons.image;
+      case 'mp4':
+      case 'mov':
+      case 'avi':
+        return Icons.video_file;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  Color _getColorForFileType(String type) {
+    switch (type.toLowerCase()) {
+      case 'pdf':
+        return Colors.red;
+      case 'doc':
+      case 'docx':
+        return Colors.blue;
+      case 'xls':
+      case 'xlsx':
+        return Colors.green;
+      case 'ppt':
+      case 'pptx':
+        return Colors.orange;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        return Colors.purple;
+      case 'mp4':
+      case 'mov':
+      case 'avi':
+        return Colors.red[700]!;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    } else if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    } else {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -853,25 +917,74 @@ class NoticeCard extends StatelessWidget {
 
                 if (notice.attachments != null &&
                     notice.attachments!.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey[200]!),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Attachments',
-                          style: TextStyle(fontWeight: FontWeight.w500),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Attachments',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 8),
+                      ...notice.attachments!.map((attachment) => Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: Colors.grey[300]!),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                            '${notice.attachments!.length} attachment(s) available'),
-                      ],
-                    ),
+                        child: InkWell(
+                          onTap: () async {
+                            try {
+                              final Uri url = Uri.parse(attachment.url);
+                              if (await canLaunchUrl(url)) {
+                                await launchUrl(url, mode: LaunchMode.externalApplication);
+                              } else {
+                                throw 'Could not launch $url';
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Error opening file: $e')),
+                                );
+                              }
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _getIconForFileType(attachment.type),
+                                  color: _getColorForFileType(attachment.type),
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        attachment.name,
+                                        style: const TextStyle(fontWeight: FontWeight.w500),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _formatFileSize(attachment.size),
+                                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(Icons.download, color: Colors.grey[600], size: 20),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )),
+                    ],
                   ),
                   const SizedBox(height: 12),
                 ],

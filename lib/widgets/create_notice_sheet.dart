@@ -840,7 +840,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
           imageUrls: imageUrls,
           videoUrl: videoUrl,
           poll: pollData,
-          attachments: attachmentsData.isNotEmpty ? attachmentsData : null,
+          // Always send attachments array (empty if all were removed)
+          attachments: attachmentsData,
         );
       } else {
         await _adminService.createNotice(
@@ -850,7 +851,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
           imageUrls: imageUrls.isNotEmpty ? imageUrls : null,
           videoUrl: videoUrl,
           poll: pollData,
-          attachments: attachmentsData.isNotEmpty ? attachmentsData : null,
+          // Always send attachments array (empty if none were added)
+          attachments: attachmentsData,
         );
       }
       if (mounted) {
@@ -1145,6 +1147,103 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
       }
       return null;
     }
+  }
+
+  // Helper method to build existing attachment preview
+  Widget _buildExistingAttachmentPreview(Map<String, dynamic> attachment, VoidCallback onRemove) {
+    final String fileName = attachment['name'] as String;
+    final String fileType = attachment['type'] as String;
+    final int fileSize = attachment['size'] as int;
+
+    IconData iconData;
+    Color iconColor;
+
+    // Determine icon based on file type
+    if (['pdf'].contains(fileType)) {
+      iconData = Icons.picture_as_pdf;
+      iconColor = Colors.red;
+    } else if (['doc', 'docx'].contains(fileType)) {
+      iconData = Icons.description;
+      iconColor = Colors.blue;
+    } else if (['xls', 'xlsx'].contains(fileType)) {
+      iconData = Icons.table_chart;
+      iconColor = Colors.green;
+    } else if (['ppt', 'pptx'].contains(fileType)) {
+      iconData = Icons.slideshow;
+      iconColor = Colors.orange;
+    } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].contains(fileType)) {
+      iconData = Icons.image;
+      iconColor = Colors.purple;
+    } else if (['txt', 'rtf'].contains(fileType)) {
+      iconData = Icons.text_snippet;
+      iconColor = Colors.teal;
+    } else if (['zip', 'rar', '7z'].contains(fileType)) {
+      iconData = Icons.folder_zip;
+      iconColor = Colors.amber;
+    } else {
+      iconData = Icons.insert_drive_file;
+      iconColor = Colors.grey;
+    }
+
+    // Format file size
+    final String sizeText = fileSize < 1024 * 1024
+        ? '${(fileSize / 1024).toStringAsFixed(1)} KB'
+        : '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Row(
+        children: [
+          if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].contains(fileType))
+            // For images, show a thumbnail preview
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.network(
+                attachment['url'] as String,
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(iconData, color: iconColor, size: 40);
+                },
+              ),
+            )
+          else
+            Icon(iconData, color: iconColor, size: 28),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  fileName,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w500, fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$fileType · $sizeText',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onRemove,
+            icon: const Icon(Icons.close, size: 14),
+            color: Colors.grey[600],
+          ),
+        ],
+      ),
+    );
   }
 
   // Helper method to build attachment preview
@@ -2169,6 +2268,29 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                             }),
                           );
                         },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Existing Attachments preview
+                  if (_currentTabIndex == 0 && _existingAttachments.isNotEmpty) ...[
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Existing Attachments',
+                        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...List.generate(
+                      _existingAttachments.length,
+                      (index) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _buildExistingAttachmentPreview(
+                          _existingAttachments[index],
+                          () => setState(() => _existingAttachments.removeAt(index)),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
