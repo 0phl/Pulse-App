@@ -65,13 +65,14 @@ class _CommentsPageState extends State<CommentsPage> {
         if (userSnapshot.exists) {
           final userData = userSnapshot.value as Map<dynamic, dynamic>;
           final fullName = userData['fullName'] as String;
+          final profileImageUrl = userData['profileImageUrl'] as String?;
 
           await _noticeService.addComment(
             widget.notice.id,
             _commentController.text,
             user.uid,
             fullName,
-            user.photoURL,
+            profileImageUrl,
           );
 
           // Create a temporary comment to show immediately
@@ -80,7 +81,7 @@ class _CommentsPageState extends State<CommentsPage> {
             content: _commentController.text,
             authorId: user.uid,
             authorName: fullName,
-            authorAvatar: user.photoURL,
+            authorAvatar: profileImageUrl,
             createdAt: DateTime.now(),
           );
 
@@ -241,22 +242,29 @@ class _CommentsPageState extends State<CommentsPage> {
                     builder: (context, snapshot) {
                       String initial =
                           'S'; // Default to 'S' for better appearance
+                      String? profileImageUrl;
                       if (snapshot.hasData && snapshot.data!.exists) {
                         final userData =
                             snapshot.data!.value as Map<dynamic, dynamic>;
                         initial = (userData['fullName'] as String)[0];
+                        profileImageUrl = userData['profileImageUrl'] as String?;
                       }
                       return CircleAvatar(
                         radius: 16,
                         backgroundColor: Colors.blue[50],
-                        child: Text(
-                          initial.toUpperCase(),
-                          style: TextStyle(
-                            color: Colors.blue[700],
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        backgroundImage: profileImageUrl != null
+                            ? NetworkImage(profileImageUrl)
+                            : null,
+                        child: profileImageUrl == null
+                            ? Text(
+                                initial.toUpperCase(),
+                                style: TextStyle(
+                                  color: Colors.blue[700],
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              )
+                            : null,
                       );
                     },
                   ),
@@ -332,14 +340,19 @@ class _CommentItem extends StatelessWidget {
             backgroundColor: isAdmin
                 ? const Color(0xFF00C49A).withOpacity(0.1)
                 : Colors.blue[50],
-            child: Text(
-              comment.authorName[0].toUpperCase(),
-              style: TextStyle(
-                color: isAdmin ? const Color(0xFF00C49A) : Colors.blue[700],
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            backgroundImage: comment.authorAvatar != null
+                ? NetworkImage(comment.authorAvatar!)
+                : null,
+            child: comment.authorAvatar == null
+                ? Text(
+                    comment.authorName[0].toUpperCase(),
+                    style: TextStyle(
+                      color: isAdmin ? const Color(0xFF00C49A) : Colors.blue[700],
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(width: 12),
           Expanded(

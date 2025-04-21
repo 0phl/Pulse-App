@@ -438,8 +438,14 @@ class _SellerProfilePageState extends State<SellerProfilePage>
                 Row(
                   children: [
                     CircleAvatar(
+                      radius: 20,
                       backgroundColor: Colors.grey[200],
-                      child: const Icon(Icons.person, color: Colors.grey),
+                      backgroundImage: rating.buyerAvatar != null
+                          ? NetworkImage(rating.buyerAvatar!)
+                          : null,
+                      child: rating.buyerAvatar == null
+                          ? const Icon(Icons.person, color: Colors.grey)
+                          : null,
                     ),
                     const SizedBox(width: 12),
                     Expanded(

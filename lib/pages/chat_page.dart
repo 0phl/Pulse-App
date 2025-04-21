@@ -308,6 +308,26 @@ class _ChatPageState extends State<ChatPage> {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return;
 
+      String? profileImageUrl;
+
+      // Only get profile image for non-system messages
+      if (!isSystemMessage) {
+        try {
+          final userSnapshot = await FirebaseDatabase.instance
+              .ref()
+              .child('users')
+              .child(currentUser.uid)
+              .get();
+
+          if (userSnapshot.exists) {
+            final userData = userSnapshot.value as Map<dynamic, dynamic>;
+            profileImageUrl = userData['profileImageUrl'] as String?;
+          }
+        } catch (e) {
+          // Silently handle error, profile image is optional
+        }
+      }
+
       final newMessage = ChatMessage(
         message: messageText,
         senderId: isSystemMessage ? 'system' : currentUser.uid,
@@ -317,6 +337,7 @@ class _ChatPageState extends State<ChatPage> {
         timestamp: DateTime.now(),
         isInitialMessage: isInitial,
         isSystemMessage: isSystemMessage,
+        profileImageUrl: profileImageUrl,
       );
 
       await _chatRef.child('messages').push().set(newMessage.toJson());
@@ -821,6 +842,23 @@ class _ChatPageState extends State<ChatPage> {
       if (currentUser == null) return;
 
       String buyerName = _userNames[currentUser.uid] ?? 'User';
+      String? profileImageUrl;
+
+      // Get the user's profile image URL
+      try {
+        final userSnapshot = await FirebaseDatabase.instance
+            .ref()
+            .child('users')
+            .child(currentUser.uid)
+            .get();
+
+        if (userSnapshot.exists) {
+          final userData = userSnapshot.value as Map<dynamic, dynamic>;
+          profileImageUrl = userData['profileImageUrl'] as String?;
+        }
+      } catch (e) {
+        print('Error getting profile image: $e');
+      }
 
       // If user chose not to show full name, create a discreet version
       if (!showFullName) {
@@ -832,6 +870,7 @@ class _ChatPageState extends State<ChatPage> {
         sellerId: widget.sellerId,
         buyerId: currentUser.uid,
         buyerName: buyerName,
+        buyerAvatar: profileImageUrl,
         rating: rating,
         comment: comment.isNotEmpty ? comment : null,
         createdAt: DateTime.now(),
@@ -917,11 +956,17 @@ class _ChatPageState extends State<ChatPage> {
         children: [
           if (!isMe) ...[
             CircleAvatar(
+              radius: 16,
               backgroundColor: Colors.grey[300],
-              child: Text(
-                message.senderName[0].toUpperCase(),
-                style: const TextStyle(color: Colors.black87),
-              ),
+              backgroundImage: message.profileImageUrl != null
+                  ? NetworkImage(message.profileImageUrl!)
+                  : null,
+              child: message.profileImageUrl == null
+                  ? Text(
+                      message.senderName[0].toUpperCase(),
+                      style: const TextStyle(color: Colors.black87),
+                    )
+                  : null,
             ),
             const SizedBox(width: 8),
           ],
@@ -958,6 +1003,7 @@ class ChatMessage {
   final DateTime timestamp;
   final bool isInitialMessage;
   final bool isSystemMessage;
+  final String? profileImageUrl;
 
   ChatMessage({
     required this.message,
@@ -966,6 +1012,7 @@ class ChatMessage {
     required this.timestamp,
     this.isInitialMessage = false,
     this.isSystemMessage = false,
+    this.profileImageUrl,
   });
 
   Map<String, dynamic> toJson() {
@@ -981,6 +1028,9 @@ class ChatMessage {
     if (isSystemMessage) {
       json['isSystemMessage'] = true;
     }
+    if (profileImageUrl != null) {
+      json['profileImageUrl'] = profileImageUrl as Object;
+    }
     return json;
   }
 
@@ -992,6 +1042,7 @@ class ChatMessage {
       timestamp: DateTime.fromMillisecondsSinceEpoch(json['timestamp']),
       isInitialMessage: json['isInitialMessage'] ?? false,
       isSystemMessage: json['isSystemMessage'] ?? false,
+      profileImageUrl: json['profileImageUrl'] as String?,
     );
   }
 }

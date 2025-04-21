@@ -75,6 +75,7 @@ class AdminService {
               DateTime.fromMillisecondsSinceEpoch(value['createdAt'] ?? 0),
           'isActive': value['isActive'] ?? false,
           'verificationStatus': verificationStatus,
+          'profileImageUrl': value['profileImageUrl'],
         });
       }
     });
@@ -115,20 +116,35 @@ class AdminService {
             final verificationStatus =
                 userData['verificationStatus'] ?? 'pending';
             final isActive = verificationStatus == 'verified';
+            final profileImageUrl = userData['profileImageUrl'];
 
             // Update our local list for immediate UI update
             communityUsers[userIndex]['verificationStatus'] =
                 verificationStatus;
             communityUsers[userIndex]['isActive'] = isActive;
 
+            // Update profile image URL if it exists in Firestore but not in our local list
+            if (profileImageUrl != null && communityUsers[userIndex]['profileImageUrl'] == null) {
+              communityUsers[userIndex]['profileImageUrl'] = profileImageUrl;
+            }
+
             // Update RTDB with the verification status if it's different
             if (communityUsers[userIndex]['verificationStatus'] !=
                     verificationStatus ||
-                communityUsers[userIndex]['isActive'] != isActive) {
-              await _database.child('users').child(userId).update({
+                communityUsers[userIndex]['isActive'] != isActive ||
+                (profileImageUrl != null && communityUsers[userIndex]['profileImageUrl'] == null)) {
+
+              final updates = <String, dynamic>{
                 'isActive': isActive,
                 'verificationStatus': verificationStatus,
-              });
+              };
+
+              // Include profile image URL in the update if it exists in Firestore but not in RTDB
+              if (profileImageUrl != null && communityUsers[userIndex]['profileImageUrl'] == null) {
+                updates['profileImageUrl'] = profileImageUrl;
+              }
+
+              await _database.child('users').child(userId).update(updates);
             }
           }
         } catch (e) {

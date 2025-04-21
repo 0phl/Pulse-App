@@ -1336,19 +1336,31 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // User avatar
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF00C49A).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: const Icon(
-                  Icons.person_outline_rounded,
-                  color: Color(0xFF00C49A),
-                  size: 24,
-                ),
-              ),
+              user['profileImageUrl'] != null
+                ? Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      image: DecorationImage(
+                        image: NetworkImage(user['profileImageUrl']),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  )
+                : Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00C49A).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Icon(
+                      Icons.person_outline_rounded,
+                      color: Color(0xFF00C49A),
+                      size: 24,
+                    ),
+                  ),
               const SizedBox(width: 16),
               // User information
               Expanded(
@@ -1478,19 +1490,31 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // User avatar
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00C49A).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: const Icon(
-                      Icons.person_outline_rounded,
-                      color: Color(0xFF00C49A),
-                      size: 24,
-                    ),
-                  ),
+                  user.profileImageUrl != null
+                    ? Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          image: DecorationImage(
+                            image: NetworkImage(user.profileImageUrl!),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00C49A).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: const Icon(
+                          Icons.person_outline_rounded,
+                          color: Color(0xFF00C49A),
+                          size: 24,
+                        ),
+                      ),
                   const SizedBox(width: 16),
                   // User information
                   Expanded(
@@ -1809,19 +1833,35 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // User avatar
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Icon(
-                      Icons.person_off_outlined,
-                      color: Colors.red[700],
-                      size: 24,
-                    ),
-                  ),
+                  user.profileImageUrl != null
+                    ? Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          image: DecorationImage(
+                            image: NetworkImage(user.profileImageUrl!),
+                            fit: BoxFit.cover,
+                          ),
+                          border: Border.all(
+                            color: Colors.red[300]!,
+                            width: 2,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Icon(
+                          Icons.person_off_outlined,
+                          color: Colors.red[700],
+                          size: 24,
+                        ),
+                      ),
                   const SizedBox(width: 16),
                   // User information
                   Expanded(
@@ -2074,19 +2114,31 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
         // Profile section
         Row(
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: const Color(0xFF00C49A).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.person_outline_rounded,
-                color: Color(0xFF00C49A),
-                size: 32,
-              ),
-            ),
+            user['profileImageUrl'] != null
+              ? Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    image: DecorationImage(
+                      image: NetworkImage(user['profileImageUrl']),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                )
+              : Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00C49A).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.person_outline_rounded,
+                    color: Color(0xFF00C49A),
+                    size: 32,
+                  ),
+                ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(

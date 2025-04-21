@@ -174,7 +174,7 @@ class MarketService {
       'name': userData['fullName'] ?? userData['username'] ?? 'Unknown User',
       'email': userData['email'] ?? 'N/A',
       'phone': userData['phone'] ?? 'N/A',
-      'profileImage': userData['profileImage'] ?? '',
+      'profileImage': userData['profileImageUrl'] ?? '',
       'averageRating': averageRating,
       'ratingsCount': ratingsCount.count,
       'joinedDate': (userData['createdAt'] as Timestamp?)?.toDate(),

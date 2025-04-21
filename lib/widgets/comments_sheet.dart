@@ -46,17 +46,20 @@ class _CommentsSheetState extends State<CommentsSheet> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         String fullName = 'Admin';  // Default name
-        
+
         // Try to get admin data from Firestore first
         final adminDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .get();
 
+        String? profileImageUrl;
+
         if (adminDoc.exists) {
           // User is an admin, get name from Firestore
           final adminData = adminDoc.data() as Map<String, dynamic>;
           fullName = 'Admin ${adminData['fullName'] as String}';
+          profileImageUrl = adminData['profileImageUrl'] as String?;
         } else {
           // If not in Firestore, try RTDB (for regular users)
           final userSnapshot = await FirebaseDatabase.instance
@@ -68,6 +71,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
           if (userSnapshot.exists) {
             final userData = userSnapshot.value as Map<dynamic, dynamic>;
             fullName = userData['fullName'] as String;
+            profileImageUrl = userData['profileImageUrl'] as String?;
           }
         }
 
@@ -82,7 +86,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
           content: _commentController.text,
           authorId: user.uid,
           authorName: fullName,
-          authorAvatar: user.photoURL,
+          authorAvatar: profileImageUrl,
           createdAt: DateTime.now(),
         );
 
@@ -192,50 +196,68 @@ class _CommentsSheetState extends State<CommentsSheet> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(
                 children: [
-                  FutureBuilder<String>(
+                  FutureBuilder<Map<String, dynamic>>(
                     future: () async {
                       final userId = FirebaseAuth.instance.currentUser?.uid;
-                      if (userId == null) return 'A';
-                      
+                      if (userId == null) return {'initial': 'A', 'profileImageUrl': null};
+
                       // Check Firestore first for admin
                       final adminDoc = await FirebaseFirestore.instance
                           .collection('users')
                           .doc(userId)
                           .get();
-                      
+
                       if (adminDoc.exists) {
                         final adminData = adminDoc.data() as Map<String, dynamic>;
-                        return (adminData['fullName'] as String)[0];
+                        return {
+                          'initial': (adminData['fullName'] as String)[0],
+                          'profileImageUrl': adminData['profileImageUrl'] as String?,
+                          'isAdmin': true
+                        };
                       }
-                      
+
                       // If not in Firestore, check RTDB for regular users
                       final userSnapshot = await FirebaseDatabase.instance
                           .ref()
                           .child('users')
                           .child(userId)
                           .get();
-                      
+
                       if (userSnapshot.exists) {
                         final userData = userSnapshot.value as Map<dynamic, dynamic>;
-                        return (userData['fullName'] as String)[0];
+                        return {
+                          'initial': (userData['fullName'] as String)[0],
+                          'profileImageUrl': userData['profileImageUrl'] as String?,
+                          'isAdmin': false
+                        };
                       }
-                      
-                      return 'A';
+
+                      return {'initial': 'A', 'profileImageUrl': null, 'isAdmin': false};
                     }(),
                     builder: (context, snapshot) {
-                      final initial = snapshot.data ?? 'A';
+                      final data = snapshot.data ?? {'initial': 'A', 'profileImageUrl': null, 'isAdmin': false};
+                      final initial = data['initial'] as String;
+                      final profileImageUrl = data['profileImageUrl'] as String?;
+                      final isAdmin = data['isAdmin'] as bool;
+
                       return CircleAvatar(
                         radius: 16,
-                        backgroundColor:
-                            const Color(0xFF00C49A).withOpacity(0.1),
-                        child: Text(
-                          initial.toUpperCase(),
-                          style: const TextStyle(
-                            color: Color(0xFF00C49A),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        backgroundColor: isAdmin
+                            ? const Color(0xFF00C49A).withOpacity(0.1)
+                            : Colors.blue[50],
+                        backgroundImage: profileImageUrl != null
+                            ? NetworkImage(profileImageUrl)
+                            : null,
+                        child: profileImageUrl == null
+                            ? Text(
+                                initial.toUpperCase(),
+                                style: TextStyle(
+                                  color: isAdmin ? const Color(0xFF00C49A) : Colors.blue[700],
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              )
+                            : null,
                       );
                     },
                   ),
@@ -311,14 +333,19 @@ class _CommentItem extends StatelessWidget {
             backgroundColor: isAdmin
                 ? const Color(0xFF00C49A).withOpacity(0.1)
                 : Colors.blue[50],
-            child: Text(
-              comment.authorName[0].toUpperCase(),
-              style: TextStyle(
-                color: isAdmin ? const Color(0xFF00C49A) : Colors.blue[700],
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            backgroundImage: comment.authorAvatar != null
+                ? NetworkImage(comment.authorAvatar!)
+                : null,
+            child: comment.authorAvatar == null
+                ? Text(
+                    comment.authorName[0].toUpperCase(),
+                    style: TextStyle(
+                      color: isAdmin ? const Color(0xFF00C49A) : Colors.blue[700],
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(width: 12),
           Expanded(
