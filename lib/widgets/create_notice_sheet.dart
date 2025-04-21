@@ -1504,58 +1504,99 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                             children: [
                               TextField(
                                 controller: _titleController,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   hintText: 'Title (optional)',
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 12),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 16),
+                                  filled: true,
+                                  fillColor: Colors.grey.shade50,
+                                  prefixIcon: const Icon(Icons.title,
+                                      color: Color(0xFF00C49A)),
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: _contentController,
-                                decoration: InputDecoration(
-                                  hintText:
-                                      'What\'s happening in your community?',
-                                  border: const OutlineInputBorder(),
-                                  errorBorder: const OutlineInputBorder(
-                                    borderSide: BorderSide(color: Colors.red),
+                              const SizedBox(height: 16),
+                              Stack(
+                                children: [
+                                  TextField(
+                                    controller: _contentController,
+                                    decoration: InputDecoration(
+                                      hintText: 'What\'s happening in your community?',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.grey.shade300),
+                                      ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Colors.red),
+                                      ),
+                                      focusedErrorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Colors.red),
+                                      ),
+                                      errorText: _contentError
+                                          ? 'Please enter some content'
+                                          : null,
+                                      helperText: 'Content is required',
+                                      helperStyle: const TextStyle(
+                                          fontStyle: FontStyle.italic),
+                                      contentPadding: const EdgeInsets.only(
+                                          left: 46, right: 16, top: 16, bottom: 16),
+                                      filled: true,
+                                      fillColor: Colors.grey.shade50,
+                                    ),
+                                    maxLines: 3,
+                                    onChanged: (value) {
+                                      if (_contentError && value.isNotEmpty) {
+                                        setState(() {
+                                          _contentError = false;
+                                        });
+                                      }
+                                    },
                                   ),
-                                  focusedErrorBorder: const OutlineInputBorder(
-                                    borderSide: BorderSide(color: Colors.red),
+                                  const Positioned(
+                                    left: 16,
+                                    top: 16,
+                                    child: Icon(
+                                      Icons.edit_note,
+                                      color: Color(0xFF00C49A),
+                                      size: 20,
+                                    ),
                                   ),
-                                  errorText: _contentError
-                                      ? 'Please enter some content'
-                                      : null,
-                                  helperText: 'Content is required',
-                                  helperStyle: const TextStyle(
-                                      fontStyle: FontStyle.italic),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 12),
-                                ),
-                                maxLines: 3,
-                                onChanged: (value) {
-                                  if (_contentError && value.isNotEmpty) {
-                                    setState(() {
-                                      _contentError = false;
-                                    });
-                                  }
-                                },
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Media (optional)',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: Color(0xFF00C49A)),
                               ),
                               const SizedBox(height: 8),
                               Row(
                                 children: [
                                   Expanded(
                                     child: OutlinedButton.icon(
-                                      onPressed:
-                                          _isLoading ? null : _pickImages,
+                                      onPressed: _isLoading ? null : _pickImages,
                                       icon: const Icon(Icons.photo_library,
-                                          size: 18),
+                                          size: 18, color: Color(0xFF00C49A)),
                                       label: const Text('Photos',
-                                          style: TextStyle(fontSize: 13)),
+                                          style: TextStyle(fontSize: 14, color: Color(0xFF00C49A))),
                                       style: OutlinedButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(
-                                            vertical: 8),
+                                            vertical: 12, horizontal: 16),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        side: const BorderSide(
+                                          color: Color(0xFF00C49A),
+                                          width: 1.0,
+                                        ),
+                                        backgroundColor: const Color(0xFF00C49A).withOpacity(0.05),
                                       ),
                                     ),
                                   ),
@@ -1567,36 +1608,45 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                               _existingVideoUrl != null
                                           ? null
                                           : _pickVideo,
-                                      icon:
-                                          const Icon(Icons.videocam, size: 18),
+                                      icon: const Icon(Icons.videocam,
+                                          size: 18, color: Color(0xFF00C49A)),
                                       label: const Text('Video',
-                                          style: TextStyle(fontSize: 13)),
+                                          style: TextStyle(fontSize: 14, color: Color(0xFF00C49A))),
                                       style: OutlinedButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(
-                                            vertical: 8),
+                                            vertical: 12, horizontal: 16),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        side: const BorderSide(
+                                          color: Color(0xFF00C49A),
+                                          width: 1.0,
+                                        ),
+                                        backgroundColor: const Color(0xFF00C49A).withOpacity(0.05),
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed:
-                                          _isLoading ? null : _pickAttachments,
-                                      icon: const Icon(Icons.attach_file,
-                                          size: 18),
-                                      label: const Text('Attachment',
-                                          style: TextStyle(fontSize: 13)),
-                                      style: OutlinedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 8),
-                                      ),
-                                    ),
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                onPressed: _isLoading ? null : _pickAttachments,
+                                icon: const Icon(Icons.attach_file,
+                                    size: 18, color: Color(0xFF00C49A)),
+                                label: const Text('Attachment',
+                                    style: TextStyle(fontSize: 14, color: Color(0xFF00C49A))),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12, horizontal: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
-                                ],
+                                  side: const BorderSide(
+                                    color: Color(0xFF00C49A),
+                                    width: 1.0,
+                                  ),
+                                  backgroundColor: const Color(0xFF00C49A).withOpacity(0.05),
+                                ),
                               ),
                             ],
                           )
@@ -1930,25 +1980,35 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                     color: Color(0xFF00C49A)),
                               ),
                               const SizedBox(height: 8),
-                              TextField(
-                                controller: _contentController,
-                                decoration: InputDecoration(
-                                  hintText:
-                                      'Add more details about your poll...',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide:
-                                        BorderSide(color: Colors.grey.shade300),
+                              Stack(
+                                children: [
+                                  TextField(
+                                    controller: _contentController,
+                                    decoration: InputDecoration(
+                                      hintText:
+                                          'Add more details about your poll...',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide:
+                                            BorderSide(color: Colors.grey.shade300),
+                                      ),
+                                      contentPadding: const EdgeInsets.only(
+                                          left: 46, right: 16, top: 16, bottom: 16),
+                                      filled: true,
+                                      fillColor: Colors.grey.shade50,
+                                    ),
+                                    maxLines: 3,
                                   ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 16),
-                                  filled: true,
-                                  fillColor: Colors.grey.shade50,
-                                  prefixIcon: const Icon(
+                                  const Positioned(
+                                    left: 16,
+                                    top: 16,
+                                    child: Icon(
                                       Icons.description_outlined,
-                                      color: Color(0xFF00C49A)),
-                                ),
-                                maxLines: 3,
+                                      color: Color(0xFF00C49A),
+                                      size: 20,
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 16),
                               const Text(
@@ -1973,11 +2033,13 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                             color: Color(0xFF00C49A))),
                                     style: OutlinedButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(
-                                          vertical: 12),
+                                          vertical: 12, horizontal: 16),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        side: const BorderSide(
-                                            color: Color(0xFF00C49A)),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      side: const BorderSide(
+                                        color: Color(0xFF00C49A),
+                                        width: 1.0,
                                       ),
                                       backgroundColor: const Color(0xFF00C49A)
                                           .withOpacity(0.05),
@@ -2104,11 +2166,11 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
 
                   // Existing Images preview - NOW ONLY FOR COMMUNITY NOTICE TAB
                   if (_currentTabIndex == 0 && _existingImageUrls.isNotEmpty) ...[
-                    const Align( // Changed Text widget to const
+                    const Align(
                       alignment: Alignment.centerLeft,
-                      child: Text( // Keep Text widget non-const if needed elsewhere, but seems fine here
-                        'Existing Images', // No longer conditional
-                        style: const TextStyle(
+                      child: Text(
+                        'Existing Images',
+                        style: TextStyle(
                             fontWeight: FontWeight.w500, fontSize: 14),
                       ),
                     ),
