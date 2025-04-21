@@ -7,6 +7,7 @@ import 'package:video_compress/video_compress.dart';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 import '../services/cloudinary_service.dart';
+import 'package:file_picker/file_picker.dart';
 
 class CreateNoticeSheet extends StatefulWidget {
   final CommunityNotice? notice;
@@ -166,16 +167,9 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
         }
 
         // Load poll attachments if available
-        if (widget.notice!.poll!.attachments != null &&
-            widget.notice!.poll!.attachments!.isNotEmpty) {
-          _existingPollAttachments = widget.notice!.poll!.attachments!
-              .map((attachment) => attachment.toMap())
-              .toList();
-
-          // Also store in _existingAttachments for display purposes
-          _existingAttachments.clear();
-          _existingAttachments.addAll(_existingPollAttachments);
-        }
+        // _existingPollAttachments = widget.notice!.poll!.attachments!
+        //     .map((attachment) => attachment.toMap())
+        //     .toList();
 
         // Always set tab to Poll when editing a poll
         if (_tabController.length == 1) {
@@ -290,15 +284,35 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
   // Pick file attachments
   Future<void> _pickAttachments() async {
     try {
-      // Use a file picker package to pick files
-      // For now, we'll use image picker as a placeholder
-      final attachment = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
+      // Use file_picker to pick documents and other files
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: [
+          'pdf',
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'ppt',
+          'pptx',
+          'txt',
+          'jpg',
+          'jpeg',
+          'png',
+          'gif'
+        ],
+        allowMultiple: true,
       );
-      if (attachment != null) {
-        setState(() {
-          _selectedAttachments.add(attachment);
-        });
+
+      if (result != null && result.files.isNotEmpty) {
+        for (var file in result.files) {
+          if (file.path != null) {
+            final xFile = XFile(file.path!);
+            setState(() {
+              _selectedAttachments.add(xFile);
+            });
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -390,28 +404,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error picking poll video: $e')),
-        );
-      }
-    }
-  }
-
-  // Pick file attachments for Poll
-  Future<void> _pickPollAttachments() async {
-    try {
-      // Use a file picker package to pick files
-      // For now, we'll use image picker as a placeholder
-      final attachment = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-      );
-      if (attachment != null) {
-        setState(() {
-          _pollSelectedAttachments.add(attachment);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking poll attachment: $e')),
         );
       }
     }
@@ -567,47 +559,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
         );
       }
       return null;
-    } finally {
-      if (mounted) {
-        setState(() => _isUploadingMedia = false);
-      }
-    }
-  }
-
-  // Upload poll attachments
-  Future<List<Map<String, dynamic>>> _uploadPollAttachments() async {
-    if (_pollSelectedAttachments.isEmpty) return [];
-
-    setState(() => _isUploadingMedia = true);
-    try {
-      final List<Map<String, dynamic>> attachmentData = [];
-
-      for (var attachment in _pollSelectedAttachments) {
-        final File file = File(attachment.path);
-        final String fileName = attachment.name;
-        final int fileSize = await file.length();
-        final String fileType = fileName.split('.').last.toLowerCase();
-
-        final String url =
-            await _cloudinaryService.uploadNoticeAttachment(file);
-
-        attachmentData.add({
-          'id': DateTime.now().millisecondsSinceEpoch.toString(),
-          'name': fileName,
-          'url': url,
-          'type': fileType,
-          'size': fileSize,
-        });
-      }
-
-      return attachmentData;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error uploading poll attachments: $e')),
-        );
-      }
-      return [];
     } finally {
       if (mounted) {
         setState(() => _isUploadingMedia = false);
@@ -833,29 +784,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
           }
         }
 
-        // Upload poll attachments if any
-        if (_pollSelectedAttachments.isNotEmpty) {
-          setState(() => _isUploadingMedia = true);
-          for (var attachment in _pollSelectedAttachments) {
-            final File file = File(attachment.path);
-            final String fileName = attachment.name;
-            final int fileSize = await file.length();
-            final String fileType = fileName.split('.').last.toLowerCase();
-
-            final String url =
-                await _cloudinaryService.uploadNoticeAttachment(file);
-
-            pollAttachmentsData.add({
-              'id': DateTime.now().millisecondsSinceEpoch.toString(),
-              'name': fileName,
-              'url': url,
-              'type': fileType,
-              'size': fileSize,
-            });
-          }
-          setState(() => _isUploadingMedia = false);
-        }
-
         // Handle poll images with separate tracking
         List<String> finalPollImageUrls = [];
 
@@ -898,10 +826,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
               finalPollImageUrls.isNotEmpty ? finalPollImageUrls : null,
           // Always include videoUrl (null if removed)
           'videoUrl': finalPollVideoUrl,
-          // Only include attachments if we have any
-          'attachments': finalPollAttachmentsData.isNotEmpty
-              ? finalPollAttachmentsData
-              : null,
         };
 
         // No debug logs in production code
@@ -1245,6 +1169,15 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
     } else if (['ppt', 'pptx'].contains(extension)) {
       iconData = Icons.slideshow;
       iconColor = Colors.orange;
+    } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].contains(extension)) {
+      iconData = Icons.image;
+      iconColor = Colors.purple;
+    } else if (['txt', 'rtf'].contains(extension)) {
+      iconData = Icons.text_snippet;
+      iconColor = Colors.teal;
+    } else if (['zip', 'rar', '7z'].contains(extension)) {
+      iconData = Icons.folder_zip;
+      iconColor = Colors.amber;
     } else {
       iconData = Icons.insert_drive_file;
       iconColor = Colors.grey;
@@ -1262,7 +1195,22 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
           ),
           child: Row(
             children: [
-              Icon(iconData, color: iconColor, size: 20),
+              if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].contains(extension))
+                // For images, show a thumbnail preview
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.file(
+                    File(file.path),
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(iconData, color: iconColor, size: 40);
+                    },
+                  ),
+                )
+              else
+                Icon(iconData, color: iconColor, size: 28),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -1284,7 +1232,7 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                             ? '${(size / 1024).toStringAsFixed(1)} KB'
                             : '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
                         return Text(
-                          sizeText,
+                          '$extension · $sizeText',
                           style:
                               TextStyle(fontSize: 11, color: Colors.grey[600]),
                         );
@@ -1508,7 +1456,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                   hintText: 'Title (optional)',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                    borderSide:
+                                        BorderSide(color: Colors.grey.shade300),
                                   ),
                                   contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 16, vertical: 16),
@@ -1524,18 +1473,22 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                   TextField(
                                     controller: _contentController,
                                     decoration: InputDecoration(
-                                      hintText: 'What\'s happening in your community?',
+                                      hintText:
+                                          'What\'s happening in your community?',
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.grey.shade300),
+                                        borderSide: BorderSide(
+                                            color: Colors.grey.shade300),
                                       ),
                                       errorBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Colors.red),
+                                        borderSide:
+                                            const BorderSide(color: Colors.red),
                                       ),
                                       focusedErrorBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Colors.red),
+                                        borderSide:
+                                            const BorderSide(color: Colors.red),
                                       ),
                                       errorText: _contentError
                                           ? 'Please enter some content'
@@ -1544,7 +1497,10 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                       helperStyle: const TextStyle(
                                           fontStyle: FontStyle.italic),
                                       contentPadding: const EdgeInsets.only(
-                                          left: 46, right: 16, top: 16, bottom: 16),
+                                          left: 46,
+                                          right: 16,
+                                          top: 16,
+                                          bottom: 16),
                                       filled: true,
                                       fillColor: Colors.grey.shade50,
                                     ),
@@ -1581,22 +1537,27 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                 children: [
                                   Expanded(
                                     child: OutlinedButton.icon(
-                                      onPressed: _isLoading ? null : _pickImages,
+                                      onPressed:
+                                          _isLoading ? null : _pickImages,
                                       icon: const Icon(Icons.photo_library,
                                           size: 18, color: Color(0xFF00C49A)),
                                       label: const Text('Photos',
-                                          style: TextStyle(fontSize: 14, color: Color(0xFF00C49A))),
+                                          style: TextStyle(
+                                              fontSize: 14,
+                                              color: Color(0xFF00C49A))),
                                       style: OutlinedButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(
                                             vertical: 12, horizontal: 16),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                         side: const BorderSide(
                                           color: Color(0xFF00C49A),
                                           width: 1.0,
                                         ),
-                                        backgroundColor: const Color(0xFF00C49A).withOpacity(0.05),
+                                        backgroundColor: const Color(0xFF00C49A)
+                                            .withOpacity(0.05),
                                       ),
                                     ),
                                   ),
@@ -1611,18 +1572,22 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                       icon: const Icon(Icons.videocam,
                                           size: 18, color: Color(0xFF00C49A)),
                                       label: const Text('Video',
-                                          style: TextStyle(fontSize: 14, color: Color(0xFF00C49A))),
+                                          style: TextStyle(
+                                              fontSize: 14,
+                                              color: Color(0xFF00C49A))),
                                       style: OutlinedButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(
                                             vertical: 12, horizontal: 16),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                         side: const BorderSide(
                                           color: Color(0xFF00C49A),
                                           width: 1.0,
                                         ),
-                                        backgroundColor: const Color(0xFF00C49A).withOpacity(0.05),
+                                        backgroundColor: const Color(0xFF00C49A)
+                                            .withOpacity(0.05),
                                       ),
                                     ),
                                   ),
@@ -1633,8 +1598,10 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                 onPressed: _isLoading ? null : _pickAttachments,
                                 icon: const Icon(Icons.attach_file,
                                     size: 18, color: Color(0xFF00C49A)),
-                                label: const Text('Attachment',
-                                    style: TextStyle(fontSize: 14, color: Color(0xFF00C49A))),
+                                label: const Text('Documents & Files',
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF00C49A))),
                                 style: OutlinedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
                                       vertical: 12, horizontal: 16),
@@ -1645,7 +1612,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                     color: Color(0xFF00C49A),
                                     width: 1.0,
                                   ),
-                                  backgroundColor: const Color(0xFF00C49A).withOpacity(0.05),
+                                  backgroundColor:
+                                      const Color(0xFF00C49A).withOpacity(0.05),
                                 ),
                               ),
                             ],
@@ -1989,11 +1957,14 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                           'Add more details about your poll...',
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
-                                        borderSide:
-                                            BorderSide(color: Colors.grey.shade300),
+                                        borderSide: BorderSide(
+                                            color: Colors.grey.shade300),
                                       ),
                                       contentPadding: const EdgeInsets.only(
-                                          left: 46, right: 16, top: 16, bottom: 16),
+                                          left: 46,
+                                          right: 16,
+                                          top: 16,
+                                          bottom: 16),
                                       filled: true,
                                       fillColor: Colors.grey.shade50,
                                     ),
@@ -2135,7 +2106,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                 const Text(
                                   'Existing Poll Images',
                                   style: TextStyle(
-                                      fontWeight: FontWeight.w500, fontSize: 14),
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 14),
                                 ),
                                 const SizedBox(height: 8),
                                 SizedBox(
@@ -2146,12 +2118,14 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                     separatorBuilder: (context, index) =>
                                         const SizedBox(width: 8),
                                     itemBuilder: (context, index) {
-                                      final imageUrl = _existingPollImageUrls[index];
+                                      final imageUrl =
+                                          _existingPollImageUrls[index];
                                       return _buildExistingImagePreview(
                                         imageUrl,
                                         () => setState(() {
                                           // Remove directly from the poll list
-                                          _existingPollImageUrls.removeAt(index);
+                                          _existingPollImageUrls
+                                              .removeAt(index);
                                         }),
                                       );
                                     },
@@ -2165,7 +2139,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                   const SizedBox(height: 16),
 
                   // Existing Images preview - NOW ONLY FOR COMMUNITY NOTICE TAB
-                  if (_currentTabIndex == 0 && _existingImageUrls.isNotEmpty) ...[
+                  if (_currentTabIndex == 0 &&
+                      _existingImageUrls.isNotEmpty) ...[
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
@@ -2179,11 +2154,13 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                       height: 120,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
-                        itemCount: _existingImageUrls.length, // Only notice images here
+                        itemCount: _existingImageUrls
+                            .length, // Only notice images here
                         separatorBuilder: (context, index) =>
                             const SizedBox(width: 8),
                         itemBuilder: (context, index) {
-                          final imageUrl = _existingImageUrls[index]; // Only notice images here
+                          final imageUrl = _existingImageUrls[
+                              index]; // Only notice images here
                           return _buildExistingImagePreview(
                             imageUrl,
                             () => setState(() {
