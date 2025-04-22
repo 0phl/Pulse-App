@@ -48,34 +48,25 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   const SizedBox(height: 40),
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
                           color: const Color(0xFF00C49A).withOpacity(0.2),
-                          blurRadius: 20,
-                          spreadRadius: 1,
+                          blurRadius: 25,
+                          spreadRadius: 2,
                         ),
                       ],
                     ),
                     child: Image.asset(
                       'assets/icon/pulse_logo.png',
-                      width: 80,
-                      height: 80,
+                      width: 140,
+                      height: 140,
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'PULSE',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF00C49A),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
                   const Text(
                     'Sign in to continue',
                     style: TextStyle(

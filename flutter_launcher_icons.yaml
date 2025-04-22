@@ -5,4 +5,4 @@ flutter_launcher_icons:
   min_sdk_android: 21
   remove_alpha_ios: true
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icon/pulse_logo.png"
+  adaptive_icon_foreground: "assets/icon/pulse_logo_foreground.png"
