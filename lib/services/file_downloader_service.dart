@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:open_file/open_file.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as path;
@@ -123,7 +123,7 @@ class FileDownloaderService {
   /// Opens a file using the device's default app
   Future<bool> _openFile(String filePath, BuildContext context) async {
     try {
-      final result = await OpenFile.open(filePath);
+      final result = await OpenFilex.open(filePath);
 
       if (result.type != ResultType.done) {
         if (context.mounted) {
@@ -315,6 +315,7 @@ class FileDownloaderService {
         final isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].contains(fileExtension);
         final isVideo = ['.mp4', '.mov', '.avi', '.mkv', '.webm'].contains(fileExtension);
         final isPdf = ['.pdf'].contains(fileExtension);
+        final isDocx = ['.doc', '.docx'].contains(fileExtension);
         final isDocument = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'].contains(fileExtension);
 
         if (isImage) {
@@ -329,8 +330,8 @@ class FileDownloaderService {
             context: context,
             album: 'PULSE',
           );
-        } else if (isPdf || isDocument) {
-          // For PDFs and other document types, save to Downloads/PULSE folder
+        } else if (isPdf || isDocx || isDocument) {
+          // For PDFs, DOCX, and other document types, save to Downloads/PULSE folder
           await _mediaSaverService.saveDocumentToDownloads(
             filePath: filePath,
             context: context,

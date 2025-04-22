@@ -4,6 +4,7 @@ import 'image_viewer_page.dart';
 import 'file_download_progress.dart';
 import 'pdf_viewer_page.dart';
 import 'video_player_page.dart';
+import 'docx_viewer_page.dart';
 
 class DocumentViewerDialog extends StatefulWidget {
   final List<String> documents;
@@ -42,6 +43,13 @@ class _DocumentViewerDialogState extends State<DocumentViewerDialog> {
            lowercaseUrl.contains('/admin_docs/pdfs/');
   }
 
+  bool _isDocxUrl(String url) {
+    final lowercaseUrl = url.toLowerCase();
+    return lowercaseUrl.endsWith('.docx') ||
+           lowercaseUrl.endsWith('.doc') ||
+           lowercaseUrl.contains('/admin_docs/docx/');
+  }
+
   String _getFileNameFromUrl(String url) {
     // Try to extract filename from URL
     final uri = Uri.parse(url);
@@ -56,6 +64,8 @@ class _DocumentViewerDialogState extends State<DocumentViewerDialog> {
     // If we can't extract a filename, generate one based on file type
     if (_isPdfUrl(url)) {
       return 'document_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    } else if (_isDocxUrl(url)) {
+      return 'document_${DateTime.now().millisecondsSinceEpoch}.docx';
     } else if (_isImageUrl(url)) {
       return 'image_${DateTime.now().millisecondsSinceEpoch}.jpg';
     } else {
@@ -98,6 +108,24 @@ class _DocumentViewerDialogState extends State<DocumentViewerDialog> {
         MaterialPageRoute(
           builder: (context) => PdfViewerPage(
             pdfUrl: fileUrl,
+            fileName: fileName,
+          ),
+        ),
+      );
+      return;
+    } else if (_isDocxUrl(url)) {
+      // For DOCX files, ensure we have the download parameter
+      String fileUrl = url;
+      if (!url.contains('dl=1')) {
+        fileUrl = '$url${url.contains('?') ? '&' : '?'}dl=1';
+      }
+
+      // Open DOCX in the DOCX viewer
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DocxViewerPage(
+            docxUrl: fileUrl,
             fileName: fileName,
           ),
         ),
@@ -228,6 +256,9 @@ class _DocumentViewerDialogState extends State<DocumentViewerDialog> {
                         } else if (isPdf) {
                           fileIcon = Icons.picture_as_pdf;
                           fileTypeText = 'PDF File';
+                        } else if (_isDocxUrl(url)) {
+                          fileIcon = Icons.description;
+                          fileTypeText = 'DOCX File';
                         } else if (isVideo) {
                           fileIcon = Icons.videocam;
                           fileTypeText = 'Video File';

@@ -15,6 +15,7 @@ import 'poll_all_voters_dialog.dart';
 import 'file_download_progress.dart';
 import 'image_viewer_page.dart';
 import 'pdf_viewer_page.dart';
+import 'docx_viewer_page.dart';
 
 class NoticeCard extends StatelessWidget {
   final CommunityNotice notice;
@@ -1189,6 +1190,17 @@ class _AttachmentItemState extends State<_AttachmentItem> {
         MaterialPageRoute(
           builder: (context) => PdfViewerPage(
             pdfUrl: url,
+            fileName: fileName,
+          ),
+        ),
+      );
+    } else if (fileType == 'doc' || fileType == 'docx' || url.toLowerCase().contains('.doc') || url.toLowerCase().contains('.docx')) {
+      // Open DOCX in the DOCX viewer
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DocxViewerPage(
+            docxUrl: url,
             fileName: fileName,
           ),
         ),

@@ -14,6 +14,7 @@ import 'file_download_progress.dart';
 import 'image_viewer_page.dart';
 import 'pdf_viewer_page.dart';
 import 'video_player_page.dart';
+import 'docx_viewer_page.dart';
 
 class CommentsPage extends StatefulWidget {
   final CommunityNotice notice;
@@ -1215,6 +1216,17 @@ class _AttachmentWidgetState extends State<AttachmentWidget> {
         MaterialPageRoute(
           builder: (context) => PdfViewerPage(
             pdfUrl: url,
+            fileName: fileName,
+          ),
+        ),
+      );
+    } else if (fileType == 'doc' || fileType == 'docx' || url.toLowerCase().contains('.doc') || url.toLowerCase().contains('.docx')) {
+      // Open DOCX in the DOCX viewer
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DocxViewerPage(
+            docxUrl: url,
             fileName: fileName,
           ),
         ),
