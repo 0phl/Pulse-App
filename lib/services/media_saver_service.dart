@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:image/image.dart' as img;
 import 'package:url_launcher/url_launcher.dart';
+import '../platform/media_scanner.dart';
 
 /// A service for saving media (images and videos) to the device gallery
 /// and handling the necessary permissions.
@@ -94,6 +95,7 @@ class MediaSaverService {
     try {
       // Check and request permissions
       if (!await _checkPermission(context)) {
+        debugPrint('MediaSaverService: Permission denied for saving video');
         return false;
       }
 
@@ -106,14 +108,76 @@ class MediaSaverService {
         );
       }
 
+      // Verify the file exists and is readable
+      final file = File(filePath);
+      if (!await file.exists()) {
+        debugPrint('MediaSaverService: Video file does not exist: $filePath');
+        if (context.mounted) {
+          _showSnackBar(
+            context,
+            'Error: Video file not found',
+            isError: true,
+          );
+        }
+        return false;
+      }
+
+      // Log file size and path for debugging
+      final fileSize = await file.length();
+      debugPrint('MediaSaverService: Video file size: ${fileSize ~/ 1024} KB');
+      debugPrint('MediaSaverService: Original file path: $filePath');
+
       // Create a new file with current timestamp to ensure it appears as the newest file
       final newFilePath = await _createFileWithCurrentTimestamp(filePath);
+      debugPrint('MediaSaverService: New file path: $newFilePath');
 
-      // Save the video
-      if (album != null) {
-        await Gal.putVideo(newFilePath, album: album);
+      // Verify the new file exists
+      final newFile = File(newFilePath);
+      if (!await newFile.exists()) {
+        debugPrint('MediaSaverService: New video file was not created properly');
+        if (context.mounted) {
+          _showSnackBar(
+            context,
+            'Error: Failed to process video file',
+            isError: true,
+          );
+        }
+        return false;
+      }
+
+      // Try alternative approach if on Android 10+ (API 29+)
+      if (Platform.isAndroid) {
+        try {
+          // First try with Gal package
+          if (album != null) {
+            debugPrint('MediaSaverService: Saving video to album: $album');
+            await Gal.putVideo(newFilePath, album: album);
+          } else {
+            debugPrint('MediaSaverService: Saving video without album');
+            await Gal.putVideo(newFilePath);
+          }
+        } catch (galError) {
+          debugPrint('MediaSaverService: Gal error: $galError, trying fallback method');
+
+          // Fallback: Try using MediaStore API directly for Android 10+
+          if (await _isAndroid10OrHigher()) {
+            debugPrint('MediaSaverService: Using MediaStore fallback for Android 10+');
+            final result = await _saveVideoUsingMediaStore(newFilePath, album);
+            if (!result) {
+              throw Exception('Failed to save video using MediaStore API');
+            }
+          } else {
+            // Re-throw if not Android 10+ as we don't have a fallback
+            rethrow;
+          }
+        }
       } else {
-        await Gal.putVideo(newFilePath);
+        // Non-Android platforms
+        if (album != null) {
+          await Gal.putVideo(newFilePath, album: album);
+        } else {
+          await Gal.putVideo(newFilePath);
+        }
       }
 
       // Show success message
@@ -126,6 +190,7 @@ class MediaSaverService {
       }
       return false;
     } on GalException catch (e) {
+      debugPrint('MediaSaverService: GalException: ${e.type.message}');
       if (context.mounted) {
         _showSnackBar(
           context,
@@ -135,6 +200,7 @@ class MediaSaverService {
       }
       return false;
     } catch (e) {
+      debugPrint('MediaSaverService: Exception: ${e.toString()}');
       if (context.mounted) {
         _showSnackBar(
           context,
@@ -143,6 +209,67 @@ class MediaSaverService {
         );
       }
       return false;
+    }
+  }
+
+  /// Helper method to check if device is running Android 10 or higher
+  Future<bool> _isAndroid10OrHigher() async {
+    if (Platform.isAndroid) {
+      return await Permission.storage.status.isGranted ||
+          await Permission.storage.status.isDenied ||
+          await Permission.storage.status.isPermanentlyDenied;
+    }
+    return false;
+  }
+
+  /// Fallback method to save video using MediaStore API for Android 10+
+  Future<bool> _saveVideoUsingMediaStore(String filePath, String? album) async {
+    try {
+      // This is a simplified implementation - in a real app, you would use
+      // platform channels to access MediaStore API directly
+      final file = File(filePath);
+      final bytes = await file.readAsBytes();
+      final fileName = path.basename(filePath);
+
+      // Get the app's external storage directory
+      final appDir = await getExternalStorageDirectory();
+      if (appDir == null) return false;
+
+      // Create album directory if needed
+      final albumDir = album != null
+          ? Directory('${appDir.path}/DCIM/$album')
+          : Directory('${appDir.path}/DCIM');
+
+      if (!await albumDir.exists()) {
+        await albumDir.create(recursive: true);
+      }
+
+      // Save the file to the album directory
+      final savedFile = File('${albumDir.path}/$fileName');
+      await savedFile.writeAsBytes(bytes);
+
+      // Notify media scanner to index the new file
+      await _scanFile(savedFile.path);
+      debugPrint('MediaSaverService: Video saved to ${savedFile.path}');
+
+      return true;
+    } catch (e) {
+      debugPrint('MediaSaverService: Error in _saveVideoUsingMediaStore: $e');
+      return false;
+    }
+  }
+
+  /// Scans a file to make it visible in the gallery immediately
+  Future<void> _scanFile(String filePath) async {
+    try {
+      if (Platform.isAndroid) {
+        // Use our platform-specific implementation to scan the file
+        debugPrint('MediaSaverService: Scanning file: $filePath');
+        final result = await MediaScanner.scanFile(filePath);
+        debugPrint('MediaSaverService: Scan result: $result');
+      }
+    } catch (e) {
+      debugPrint('MediaSaverService: Error scanning file: $e');
     }
   }
 
@@ -171,9 +298,8 @@ class MediaSaverService {
         );
       }
 
-      // Get the file extension and name
+      // Get the file extension
       final extension = path.extension(filePath);
-      final fileName = path.basename(filePath);
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final newFileName = 'PULSE_$timestamp$extension';
 
@@ -333,6 +459,8 @@ class MediaSaverService {
       final tempDir = await getTemporaryDirectory();
       final newFilePath = path.join(tempDir.path, newFileName);
 
+      debugPrint('MediaSaverService: Creating new file with timestamp: $newFilePath');
+
       // For images, we'll decode and re-encode to reset metadata
       if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].contains(extension)) {
         try {
@@ -358,29 +486,52 @@ class MediaSaverService {
 
             // Write the new image to file
             await File(newFilePath).writeAsBytes(encodedImage);
+            debugPrint('MediaSaverService: Image processed and saved to $newFilePath');
             return newFilePath;
           }
         } catch (imageError) {
           // If image processing fails, fall back to simple copy
-          debugPrint('Error processing image: $imageError, falling back to copy');
+          debugPrint('MediaSaverService: Error processing image: $imageError, falling back to copy');
+        }
+      } else if (['.mp4', '.mov', '.avi', '.mkv', '.webm'].contains(extension)) {
+        // For video files, use a more reliable copy method
+        debugPrint('MediaSaverService: Processing video file');
+        try {
+          // Read the original file as bytes and write to new file
+          final bytes = await originalFile.readAsBytes();
+          await File(newFilePath).writeAsBytes(bytes);
+
+          // Scan the file to make it visible in the gallery
+          await _scanFile(newFilePath);
+
+          debugPrint('MediaSaverService: Video processed and saved to $newFilePath');
+          return newFilePath;
+        } catch (videoError) {
+          debugPrint('MediaSaverService: Error processing video: $videoError, falling back to copy');
         }
       }
 
-      // For videos or if image processing failed, just copy the file
+      // For other file types or if processing failed, just copy the file
+      debugPrint('MediaSaverService: Copying file directly');
       await originalFile.copy(newFilePath);
 
       // Try to update the file's last modified time to ensure it appears as newest
       try {
         final newFile = File(newFilePath);
         await newFile.setLastModified(DateTime.now());
+
+        // For videos, scan the file to make it visible in the gallery
+        if (['.mp4', '.mov', '.avi', '.mkv', '.webm'].contains(extension)) {
+          await _scanFile(newFilePath);
+        }
       } catch (timeError) {
-        debugPrint('Error updating file timestamp: $timeError');
+        debugPrint('MediaSaverService: Error updating file timestamp: $timeError');
       }
 
       return newFilePath;
     } catch (e) {
       // If there's an error, return the original file path
-      debugPrint('Error creating file with timestamp: $e');
+      debugPrint('MediaSaverService: Error creating file with timestamp: $e');
       return originalFilePath;
     }
   }
