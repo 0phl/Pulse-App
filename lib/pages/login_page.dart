@@ -8,7 +8,6 @@ import '../models/admin_application.dart';
 import 'community_registration_page.dart';
 import 'admin/change_password_page.dart';
 import 'admin/dashboard_page.dart';
-import '../widgets/auth_wrapper.dart';
 import '../widgets/delayed_auth_wrapper.dart';
 
 class LoginPage extends StatefulWidget {

@@ -14,6 +14,7 @@ import '../pages/rejected_verification_page.dart';
 import '../services/user_session_service.dart';
 import '../widgets/loading_screen.dart';
 
+
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
@@ -33,7 +34,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Widget build(BuildContext context) {
     if (kIsWeb) return Container();
 
-    // Check for existing session with timeout
     return FutureBuilder<bool>(
       future: _getSessionWithTimeout(),
       builder: (context, sessionSnapshot) {

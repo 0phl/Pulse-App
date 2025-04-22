@@ -78,8 +78,16 @@ class MyApp extends StatelessWidget {
         primaryColor: const Color(0xFF00C49A),
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00C49A)),
         useMaterial3: true,
+        // Use page transitions for smoother navigation
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: ZoomPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          },
+        ),
       ),
       home: kIsWeb ? const SuperAdminLoginPage() : const DelayedAuthWrapper(),
+
       routes: kIsWeb
           ? {
               '/super-admin': (context) => const SuperAdminDashboardPage(),

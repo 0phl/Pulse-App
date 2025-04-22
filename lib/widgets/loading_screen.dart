@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
 
 enum LoadingScreenType {
   login,
@@ -10,16 +9,12 @@ class LoadingScreen extends StatefulWidget {
   final String message;
   final bool showLogo;
   final LoadingScreenType type;
-  final Duration delay;
-  final VoidCallback? onDelayComplete;
 
   const LoadingScreen({
     super.key,
     this.message = 'Loading...',
     this.showLogo = true,
     this.type = LoadingScreenType.login,
-    this.delay = const Duration(seconds: 7),
-    this.onDelayComplete,
   });
 
   @override
@@ -32,7 +27,7 @@ class _LoadingScreenState extends State<LoadingScreen>
   late Animation<double> _animation;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
-  Timer? _delayTimer;
+
 
   @override
   void initState() {
@@ -60,26 +55,31 @@ class _LoadingScreenState extends State<LoadingScreen>
       curve: Curves.easeIn,
     );
 
-
-
     // Start the fade-in animation
     _fadeController.forward();
 
-    // Apply delay if specified
-    if (widget.delay > Duration.zero) {
-      _delayTimer = Timer(widget.delay, () {
-        if (mounted && widget.onDelayComplete != null) {
-          widget.onDelayComplete!();
-        }
-      });
+
+  }
+
+  // Ensure animations are at their final state
+  void _ensureAnimationsComplete() {
+    if (_controller.status != AnimationStatus.completed) {
+      _controller.animateTo(1.0, duration: const Duration(milliseconds: 300));
+    }
+    if (_fadeController.status != AnimationStatus.completed) {
+      _fadeController.animateTo(1.0,
+          duration: const Duration(milliseconds: 300));
     }
   }
 
   @override
   void dispose() {
+    // Complete animations before disposing to avoid visual glitches
+    _ensureAnimationsComplete();
+
     _controller.dispose();
     _fadeController.dispose();
-    _delayTimer?.cancel();
+
     super.dispose();
   }
 
@@ -106,7 +106,8 @@ class _LoadingScreenState extends State<LoadingScreen>
             animation: Listenable.merge([_animation, _fadeAnimation]),
             builder: (context, child) {
               // Calculate a scale that goes from small to big
-              final scale = 0.85 + (_animation.value * 0.3); // Scale from 0.85 to 1.15
+              final scale =
+                  0.85 + (_animation.value * 0.3); // Scale from 0.85 to 1.15
 
               // Apply fade-in effect
               final opacity = _fadeAnimation.value;
@@ -135,7 +136,8 @@ class _LoadingScreenState extends State<LoadingScreen>
           animation: _animation,
           builder: (context, child) {
             // Create a pulsing effect for the loading indicator
-            final pulseValue = 0.8 + (_animation.value * 0.4); // Pulse between 0.8 and 1.2
+            final pulseValue =
+                0.8 + (_animation.value * 0.4); // Pulse between 0.8 and 1.2
 
             return Opacity(
               opacity: _fadeAnimation.value,
@@ -183,7 +185,9 @@ class _LoadingScreenState extends State<LoadingScreen>
           AnimatedBuilder(
             animation: Listenable.merge([_animation, _fadeAnimation]),
             builder: (context, child) {
-              final scale = 0.9 + (_animation.value * 0.2); // Smaller scale range for returning screen
+              final scale = 0.9 +
+                  (_animation.value *
+                      0.2); // Smaller scale range for returning screen
               final opacity = _fadeAnimation.value;
 
               return Opacity(
@@ -207,7 +211,8 @@ class _LoadingScreenState extends State<LoadingScreen>
           animation: _animation,
           builder: (context, child) {
             // Create a pulsing effect for the loading indicator
-            final pulseValue = 0.85 + (_animation.value * 0.3); // Pulse between 0.85 and 1.15
+            final pulseValue =
+                0.85 + (_animation.value * 0.3); // Pulse between 0.85 and 1.15
 
             return Opacity(
               opacity: _fadeAnimation.value,
