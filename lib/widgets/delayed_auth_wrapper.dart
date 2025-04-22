@@ -24,7 +24,7 @@ class DelayedAuthWrapper extends StatefulWidget {
 class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
   // Constants
   static const Duration _timeoutDuration = Duration(seconds: 15);
-  static const Duration _loadingDelay = Duration(seconds: 7);
+  static const Duration _loadingDelay = Duration(seconds: 3);
 
   // Services
   final _sessionService = UserSessionService();
