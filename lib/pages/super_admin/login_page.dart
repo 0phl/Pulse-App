@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/super_admin_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/user_session_service.dart';
 
 class SuperAdminLoginPage extends StatefulWidget {
   const SuperAdminLoginPage({super.key});
@@ -14,6 +15,7 @@ class _SuperAdminLoginPageState extends State<SuperAdminLoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _superAdminService = SuperAdminService();
+  final _sessionService = UserSessionService();
   bool _isLoading = false;
 
   Future<void> _login() async {
@@ -32,6 +34,16 @@ class _SuperAdminLoginPageState extends State<SuperAdminLoginPage> {
       final isSuperAdmin = await _superAdminService.isSuperAdmin();
       if (!isSuperAdmin) {
         throw 'This account does not have super admin privileges';
+      }
+
+      // Save super admin session data
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await _sessionService.saveUserSession(
+          userId: user.uid,
+          email: user.email!,
+          userType: 'super_admin',
+        );
       }
 
       if (mounted) {
@@ -169,4 +181,4 @@ class _SuperAdminLoginPageState extends State<SuperAdminLoginPage> {
     _passwordController.dispose();
     super.dispose();
   }
-} 
+}

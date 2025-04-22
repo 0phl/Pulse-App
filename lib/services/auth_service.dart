@@ -4,11 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../models/admin_user.dart';
 import '../models/firestore_user.dart';
+import 'user_session_service.dart';
 
 class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
+  final UserSessionService _sessionService = UserSessionService();
   final _maxRetries = 3;
   final _retryDelay = Duration(milliseconds: 500);
 
@@ -89,6 +91,14 @@ class AuthService {
         final userData = userDoc.data()!;
         if (userData['role'] == 'admin' || userData['role'] == 'super_admin') {
           final isFirstLogin = userData['isFirstLogin'] ?? false;
+
+          // Save admin session data
+          await _sessionService.saveUserSession(
+            userId: userCredential.user!.uid,
+            email: userCredential.user!.email!,
+            userType: 'admin',
+          );
+
           return {
             'userCredential': userCredential,
             'userType': 'admin',
@@ -98,6 +108,13 @@ class AuthService {
       } else {}
 
       // Regular user login
+      // Save user session data
+      await _sessionService.saveUserSession(
+        userId: userCredential.user!.uid,
+        email: userCredential.user!.email!,
+        userType: 'user',
+      );
+
       return {
         'userCredential': userCredential,
         'userType': 'user',
@@ -205,6 +222,7 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     await _auth.signOut();
+    await _sessionService.clearUserSession();
   }
 
   // Handle Firebase Auth Exceptions

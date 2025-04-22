@@ -24,6 +24,7 @@ import 'pages/add_item_page.dart';
 import 'pages/seller_dashboard_page.dart';
 import 'pages/admin/add_volunteer_post_page.dart';
 import 'pages/admin/show_create_notice_sheet.dart';
+import 'services/user_session_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,8 +34,8 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      // Set persistence to NONE to prevent auto sign-in for web
-      await FirebaseAuth.instance.setPersistence(Persistence.NONE);
+      // Set persistence to SESSION for web
+      await FirebaseAuth.instance.setPersistence(Persistence.SESSION);
     } catch (e) {
       print('Firebase initialization error: $e');
     }
@@ -43,8 +44,8 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      // Set persistence to NONE to prevent auto sign-in for mobile
-      await FirebaseAuth.instance.setPersistence(Persistence.NONE);
+      // Set persistence to LOCAL for mobile
+      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
     } catch (e) {
       print('Firebase initialization error: $e');
     }
@@ -53,8 +54,14 @@ void main() async {
   FirebaseDatabase.instance.databaseURL =
       'https://pulse-app-ea5be-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-  // Clear any existing auth state after Firebase initialization
-  await FirebaseAuth.instance.signOut();
+  // Check if there's a saved session
+  final sessionService = UserSessionService();
+  final isLoggedIn = await sessionService.isLoggedIn();
+
+  // Only sign out if there's no saved session
+  if (!isLoggedIn) {
+    await FirebaseAuth.instance.signOut();
+  }
 
   runApp(const MyApp());
 }

@@ -10,6 +10,7 @@ import '../pages/admin/change_password_page.dart';
 import '../models/admin_user.dart';
 import '../pages/pending_verification_page.dart';
 import '../pages/rejected_verification_page.dart';
+import '../services/user_session_service.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -22,130 +23,145 @@ class _AuthWrapperState extends State<AuthWrapper> {
   final _adminService = AdminService();
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
+  final _sessionService = UserSessionService();
 
   @override
   Widget build(BuildContext context) {
     if (kIsWeb) return Container();
 
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    // Check for existing session
+    return FutureBuilder<bool>(
+      future: _sessionService.isLoggedIn(),
+      builder: (context, sessionSnapshot) {
+        if (sessionSnapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final user = snapshot.data;
-        if (user == null) {
-          print('AuthWrapper: No user logged in, returning to LoginPage');
-          return const LoginPage();
+        // If we have a saved session but no current user, try to restore it
+        if (sessionSnapshot.data == true && _auth.currentUser == null) {
+          // We'll let the auth state stream handle this case
         }
 
-        print('AuthWrapper: User logged in: ${user.email}');
-
-        // Check if user is admin
-        return FutureBuilder<bool>(
-          future: _checkUserRole(),
-          builder: (context, roleSnapshot) {
-            if (roleSnapshot.connectionState == ConnectionState.waiting) {
-              print('AuthWrapper: Checking user role...');
+        return StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            if (roleSnapshot.hasError) {
-              print('AuthWrapper: Error checking role: ${roleSnapshot.error}');
+            final user = snapshot.data;
+            if (user == null) {
+              print('AuthWrapper: No user logged in, returning to LoginPage');
               return const LoginPage();
             }
 
-            print('AuthWrapper: Is admin? ${roleSnapshot.data}');
+            print('AuthWrapper: User logged in: ${user.email}');
 
-            if (roleSnapshot.data == true) {
-              // Check if it's admin's first login
-              return StreamBuilder<AdminUser?>(
-                stream: _adminService.getAdminUser(_auth.currentUser!.uid),
-                builder: (context, adminSnapshot) {
-                  if (adminSnapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    print('AuthWrapper: Loading admin user data...');
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (adminSnapshot.hasError) {
-                    print(
-                        'AuthWrapper: Error loading admin data: ${adminSnapshot.error}');
-                    return const LoginPage();
-                  }
-
-                  final adminUser = adminSnapshot.data;
-                  if (adminUser == null) {
-                    print('AuthWrapper: Admin user data is null');
-                    return const LoginPage();
-                  }
-
-                  print('AuthWrapper: Admin User: ${adminUser.toMap()}');
-                  print(
-                      'AuthWrapper: Is first login? ${adminUser.isFirstLogin}');
-
-                  // Redirect to change password page if it's first login
-                  if (adminUser.isFirstLogin) {
-                    print('AuthWrapper: Redirecting to ChangePasswordPage');
-                    return const ChangePasswordPage();
-                  } else {
-                    print('AuthWrapper: Redirecting to AdminDashboardPage');
-                    return const AdminDashboardPage();
-                  }
-                },
-              );
-            }
-
-            // For regular users, check verification status
-            return FutureBuilder<DocumentSnapshot>(
-              future: _firestore.collection('users').doc(user.uid).get(),
-              builder: (context, userSnapshot) {
-                if (userSnapshot.connectionState == ConnectionState.waiting) {
+            // Check if user is admin
+            return FutureBuilder<bool>(
+              future: _checkUserRole(),
+              builder: (context, roleSnapshot) {
+                if (roleSnapshot.connectionState == ConnectionState.waiting) {
+                  print('AuthWrapper: Checking user role...');
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (userSnapshot.hasError ||
-                    !userSnapshot.hasData ||
-                    !userSnapshot.data!.exists) {
-                  print(
-                      'AuthWrapper: Error fetching user data: ${userSnapshot.error}');
-                  // Sign out if we can't verify the user status
-                  _auth.signOut();
+                if (roleSnapshot.hasError) {
+                  print('AuthWrapper: Error checking role: ${roleSnapshot.error}');
                   return const LoginPage();
                 }
 
-                final userData =
-                    userSnapshot.data!.data() as Map<String, dynamic>;
-                final verificationStatus =
-                    userData['verificationStatus'] as String?;
+                print('AuthWrapper: Is admin? ${roleSnapshot.data}');
 
-                print(
-                    'AuthWrapper: User verification status: $verificationStatus');
+                if (roleSnapshot.data == true) {
+                  // Check if it's admin's first login
+                  return StreamBuilder<AdminUser?>(
+                    stream: _adminService.getAdminUser(_auth.currentUser!.uid),
+                    builder: (context, adminSnapshot) {
+                      if (adminSnapshot.connectionState == ConnectionState.waiting) {
+                        print('AuthWrapper: Loading admin user data...');
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                // Check verification status
-                if (verificationStatus == 'pending') {
-                  print('AuthWrapper: User account is pending verification');
-                  return PendingVerificationPage(
-                    registrationId: userData['registrationId'] as String? ?? '',
-                  );
-                } else if (verificationStatus == 'rejected') {
-                  print('AuthWrapper: User account has been rejected');
-                  // Import the rejected verification page at the top of the file
-                  return RejectedVerificationPage(
-                    registrationId: userData['registrationId'] as String? ?? '',
-                    rejectionReason: userData['rejectionReason'] as String?,
-                  );
-                } else if (verificationStatus == 'verified') {
-                  print('AuthWrapper: User is verified, showing regular UI');
-                  // User is verified, show regular user interface
-                  return const MainScreen();
-                } else {
-                  print('AuthWrapper: Unknown verification status: $verificationStatus');
-                  // Sign out if verification status is unknown
-                  _auth.signOut();
-                  return const LoginPage();
+                      if (adminSnapshot.hasError) {
+                        print(
+                            'AuthWrapper: Error loading admin data: ${adminSnapshot.error}');
+                        return const LoginPage();
+                      }
+
+                      final adminUser = adminSnapshot.data;
+                      if (adminUser == null) {
+                        print('AuthWrapper: Admin user data is null');
+                        return const LoginPage();
+                      }
+
+                      print('AuthWrapper: Admin User: ${adminUser.toMap()}');
+                      print(
+                          'AuthWrapper: Is first login? ${adminUser.isFirstLogin}');
+
+                      // Redirect to change password page if it's first login
+                      if (adminUser.isFirstLogin) {
+                        print('AuthWrapper: Redirecting to ChangePasswordPage');
+                        return const ChangePasswordPage();
+                      } else {
+                        print('AuthWrapper: Redirecting to AdminDashboardPage');
+                        return const AdminDashboardPage();
+                      }
+                },
+              );
                 }
+
+                // For regular users, check verification status
+                return FutureBuilder<DocumentSnapshot>(
+                  future: _firestore.collection('users').doc(user.uid).get(),
+                  builder: (context, userSnapshot) {
+                    if (userSnapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (userSnapshot.hasError ||
+                        !userSnapshot.hasData ||
+                        !userSnapshot.data!.exists) {
+                      print(
+                          'AuthWrapper: Error fetching user data: ${userSnapshot.error}');
+                      // Sign out if we can't verify the user status
+                      _auth.signOut();
+                      return const LoginPage();
+                    }
+
+                    final userData =
+                        userSnapshot.data!.data() as Map<String, dynamic>;
+                    final verificationStatus =
+                        userData['verificationStatus'] as String?;
+
+                    print(
+                        'AuthWrapper: User verification status: $verificationStatus');
+
+                    // Check verification status
+                    if (verificationStatus == 'pending') {
+                      print('AuthWrapper: User account is pending verification');
+                      return PendingVerificationPage(
+                        registrationId: userData['registrationId'] as String? ?? '',
+                      );
+                    } else if (verificationStatus == 'rejected') {
+                      print('AuthWrapper: User account has been rejected');
+                      // Import the rejected verification page at the top of the file
+                      return RejectedVerificationPage(
+                        registrationId: userData['registrationId'] as String? ?? '',
+                        rejectionReason: userData['rejectionReason'] as String?,
+                      );
+                    } else if (verificationStatus == 'verified') {
+                      print('AuthWrapper: User is verified, showing regular UI');
+                      // User is verified, show regular user interface
+                      return const MainScreen();
+                    } else {
+                      print('AuthWrapper: Unknown verification status: $verificationStatus');
+                      // Sign out if verification status is unknown
+                      _auth.signOut();
+                      return const LoginPage();
+                    }
+                  },
+                );
               },
             );
           },

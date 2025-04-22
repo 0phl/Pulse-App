@@ -5,12 +5,14 @@ import '../models/community.dart';
 import 'email_service.dart';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'user_session_service.dart';
 
 class SuperAdminService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
   final EmailService _emailService = EmailService();
+  final UserSessionService _sessionService = UserSessionService();
 
   // Check if current user is super admin
   Future<bool> isSuperAdmin() async {
@@ -101,13 +103,13 @@ class SuperAdminService {
           : application.communityId;
 
       print('Updating community with ID: $communityId');
-      
+
       // First fix: Direct reference to the community node
       final communityRef = _database.child('communities').child(communityId);
-      
+
       try {
         print('Updating community status...');
-        
+
         // Second fix: Use a single update operation with all fields at once
         Map<String, dynamic> updates = {
           'status': 'active',
@@ -115,11 +117,11 @@ class SuperAdminService {
           // Use a timestamp from Dart instead of ServerValue
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
         };
-        
+
         // Get community data for creating locationStatusId
         final communitySnapshot = await communityRef.get();
         if (!communitySnapshot.exists) throw Exception('Community not found');
-        
+
         final communityData = communitySnapshot.value as Map<dynamic, dynamic>;
         final locationStatusId = Community.createLocationStatusId(
           communityData['regionCode'] as String,
@@ -128,32 +130,32 @@ class SuperAdminService {
           communityData['barangayCode'] as String,
           'active'
         );
-        
+
         updates['locationStatusId'] = locationStatusId;
-        
+
         // Third fix: Await the update operation and add error handling
         await communityRef.update(updates).timeout(
           const Duration(seconds: 10),
           onTimeout: () => throw TimeoutException('Community update timed out'),
         );
-        
+
         // Add a small delay to ensure Firebase has processed the update
         await Future.delayed(const Duration(milliseconds: 500));
-        
+
         // Verify the update
         final verifySnapshot = await communityRef.get();
         if (!verifySnapshot.exists) {
           throw Exception('Community no longer exists after update');
         }
-        
+
         final verifiedData = Map<String, dynamic>.from(verifySnapshot.value as Map);
         print('New community status: ${verifiedData['status']}');
-        
+
         if (verifiedData['status'] != 'active') {
           print('Status verification failed. Current status: ${verifiedData['status']}');
           throw Exception('Community status was not updated correctly');
         }
-        
+
         print('Community status updated successfully to active');
       } catch (e) {
         print('Error updating community: $e');
@@ -176,7 +178,7 @@ class SuperAdminService {
             await communityRef.child('updatedAt').set(DateTime.now().millisecondsSinceEpoch);
             await communityRef.child('locationStatusId').set(locationStatusId);
           }
-          
+
           print('Alternative update method completed');
         } catch (retryError) {
           print('Alternative update method also failed: $retryError');
@@ -282,7 +284,7 @@ class SuperAdminService {
       // Get the application details first to get communityId
       final applicationSnapshot = await _database.child('admin_applications').child(applicationId).get();
       if (!applicationSnapshot.exists) throw 'Application not found';
-      
+
       final applicationData = Map<String, dynamic>.from(applicationSnapshot.value as Map);
       final communityId = applicationData['communityId'] as String?;
 
@@ -304,7 +306,7 @@ class SuperAdminService {
       // If there's an associated community, update its status too
       if (communityId != null && communityId.isNotEmpty) {
         print('Updating community status...');
-        
+
         // Get community data for creating locationStatusId
         final communityRef = _database.child('communities').child(communityId);
         final communitySnapshot = await communityRef.get();
@@ -337,6 +339,12 @@ class SuperAdminService {
     }
   }
 
+  // Sign out
+  Future<void> signOut() async {
+    await _auth.signOut();
+    await _sessionService.clearUserSession();
+  }
+
   // Get all communities with their status
   Stream<List<Map<String, dynamic>>> getCommunities() {
     return _database
@@ -362,7 +370,7 @@ class SuperAdminService {
 class TimeoutException implements Exception {
   final String message;
   TimeoutException(this.message);
-  
+
   @override
   String toString() => 'TimeoutException: $message';
 }

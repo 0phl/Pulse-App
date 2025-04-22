@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/auth_service.dart';
 import '../../services/super_admin_service.dart';
-import '../../models/admin_application.dart';
-import '../../models/community.dart';
 import 'widgets/admin_applications_list.dart';
 import 'widgets/communities_list.dart';
 
@@ -28,7 +25,6 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
             icon: const Icon(Icons.logout),
             onPressed: () async {
               try {
-                final authService = AuthService();
                 // First navigate, then sign out to prevent permission errors
                 if (context.mounted) {
                   Navigator.of(context).pushNamedAndRemoveUntil(
@@ -37,7 +33,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                   );
                 }
                 // Sign out after navigation
-                await authService.signOut();
+                await _superAdminService.signOut();
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(

@@ -76,9 +76,6 @@ flutter_launcher_icons:
     generate: true
     image_path: "assets/icon/icon.png"
 
-dependency_overrides:
-  video_player_android: ^2.8.2
-
 flutter:
   assets:
     - assets/icon/
