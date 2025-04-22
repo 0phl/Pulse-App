@@ -4,7 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'firebase_options.dart';
-import 'widgets/auth_wrapper.dart';
+import 'widgets/delayed_auth_wrapper.dart';
 import 'pages/admin/change_password_page.dart';
 import 'pages/admin/community_notices_page.dart';
 import 'pages/admin/dashboard_page.dart';
@@ -79,7 +79,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00C49A)),
         useMaterial3: true,
       ),
-      home: kIsWeb ? const SuperAdminLoginPage() : const AuthWrapper(),
+      home: kIsWeb ? const SuperAdminLoginPage() : const DelayedAuthWrapper(),
       routes: kIsWeb
           ? {
               '/super-admin': (context) => const SuperAdminDashboardPage(),

@@ -38,7 +38,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       future: _getSessionWithTimeout(),
       builder: (context, sessionSnapshot) {
         if (sessionSnapshot.connectionState == ConnectionState.waiting) {
-          return const LoadingScreen(message: 'Checking login status...');
+          return const LoadingScreen(message: '');
         }
 
         // If we have a saved session but no current user, try to restore it
@@ -51,7 +51,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           future: _getCurrentUserWithTimeout(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const LoadingScreen(message: 'Authenticating...');
+              return const LoadingScreen(message: '');
             }
 
             final user = snapshot.data;
@@ -68,7 +68,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
               builder: (context, roleSnapshot) {
                 if (roleSnapshot.connectionState == ConnectionState.waiting) {
                   print('AuthWrapper: Checking user role...');
-                  return const LoadingScreen(message: 'Checking user role...');
+                  return const LoadingScreen(message: '');
                 }
 
                 if (roleSnapshot.hasError) {
@@ -85,7 +85,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                     builder: (context, adminSnapshot) {
                       if (adminSnapshot.connectionState == ConnectionState.waiting) {
                         print('AuthWrapper: Loading admin user data...');
-                        return const LoadingScreen(message: 'Loading admin profile...');
+                        return const LoadingScreen(message: '');
                       }
 
                       if (adminSnapshot.hasError) {
@@ -121,7 +121,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                   future: _getUserDocWithTimeout(user.uid),
                   builder: (context, userSnapshot) {
                     if (userSnapshot.connectionState == ConnectionState.waiting) {
-                      return const LoadingScreen(message: 'Loading your profile...');
+                      return const LoadingScreen(message: '');
                     }
 
                     if (userSnapshot.hasError ||

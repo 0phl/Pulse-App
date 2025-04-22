@@ -9,6 +9,7 @@ import 'community_registration_page.dart';
 import 'admin/change_password_page.dart';
 import 'admin/dashboard_page.dart';
 import '../widgets/auth_wrapper.dart';
+import '../widgets/delayed_auth_wrapper.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -179,13 +180,13 @@ class _LoginPageState extends State<LoginPage> {
 
                                   if (!mounted) return;
 
-                                  // Let AuthWrapper handle all navigation
-                                  print('LoginPage: Navigating to AuthWrapper');
+                                  // Use DelayedAuthWrapper to ensure loading screen is shown for at least 7 seconds
+                                  print('LoginPage: Navigating to DelayedAuthWrapper');
                                   if (mounted) {
                                     Navigator.pushAndRemoveUntil(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => const AuthWrapper(),
+                                        builder: (context) => const DelayedAuthWrapper(),
                                       ),
                                       (route) => false,
                                     );
