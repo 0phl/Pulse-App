@@ -66,15 +66,17 @@ flutter_launcher_icons:
   android: true
   ios: true
   macos: true
-  image_path: "assets/icon/icon.png"
+  image_path: "assets/icon/pulse_logo.png"
   min_sdk_android: 21
   remove_alpha_ios: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/pulse_logo.png"
   web:
     generate: true
-    image_path: "assets/icon/icon.png"
+    image_path: "assets/icon/pulse_logo.png"
   windows:
     generate: true
-    image_path: "assets/icon/icon.png"
+    image_path: "assets/icon/pulse_logo.png"
 
 flutter:
   assets:

@@ -110,6 +110,28 @@ class _SuperAdminLoginPageState extends State<SuperAdminLoginPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00C49A).withOpacity(0.2),
+                              blurRadius: 20,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Image.asset(
+                          'assets/icon/pulse_logo.png',
+                          width: 80,
+                          height: 80,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     const Text(
                       'Super Admin Login',
                       style: TextStyle(

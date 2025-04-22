@@ -48,15 +48,22 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   const SizedBox(height: 40),
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00C49A),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.lock_open_rounded,
                       color: Colors.white,
-                      size: 32,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00C49A).withOpacity(0.2),
+                          blurRadius: 20,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Image.asset(
+                      'assets/icon/pulse_logo.png',
+                      width: 80,
+                      height: 80,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -168,6 +175,7 @@ class _LoginPageState extends State<LoginPage> {
                                 });
                                 try {
                                   print('LoginPage: Starting login process');
+
                                   // Just perform login, AuthWrapper will handle the routing
                                   final result = await _authService
                                       .signInWithEmailOrUsername(
@@ -182,15 +190,18 @@ class _LoginPageState extends State<LoginPage> {
 
                                   // Let AuthWrapper handle all navigation
                                   print('LoginPage: Navigating to AuthWrapper');
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const AuthWrapper(),
-                                    ),
-                                    (route) => false,
-                                  );
+                                  if (mounted) {
+                                    Navigator.pushAndRemoveUntil(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const AuthWrapper(),
+                                      ),
+                                      (route) => false,
+                                    );
+                                  }
                                 } catch (e) {
                                   print('LoginPage: Login error: $e');
+
                                   if (mounted) {
                                     String errorMessage = 'Invalid email or password. Please check your credentials and try again.';
                                     if (e.toString().contains('user-not-found')) {
@@ -200,8 +211,10 @@ class _LoginPageState extends State<LoginPage> {
                                     } else if (e.toString().contains('too-many-requests')) {
                                       errorMessage = 'Too many login attempts. Please try again later.';
                                     }
-                                    
-                                    ScaffoldMessenger.of(context).showSnackBar(
+
+                                    // Show error message
+                                    final messenger = ScaffoldMessenger.of(context);
+                                    messenger.showSnackBar(
                                       SnackBar(
                                         content: Text(errorMessage),
                                         backgroundColor: Colors.red,
@@ -210,7 +223,7 @@ class _LoginPageState extends State<LoginPage> {
                                           label: 'Dismiss',
                                           textColor: Colors.white,
                                           onPressed: () {
-                                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                            messenger.hideCurrentSnackBar();
                                           },
                                         ),
                                       ),

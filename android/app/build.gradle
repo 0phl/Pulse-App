@@ -11,7 +11,7 @@ def flutterVersionName = "1.0.5" // Matches the 1.0.5 in pubspec.yaml
 
 android {
     namespace = "com.example.pulse_app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = Math.max(flutter.compileSdkVersion, 35)
     ndkVersion = "25.1.8937393"
 
     compileOptions {

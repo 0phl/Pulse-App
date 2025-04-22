@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/admin_service.dart';
@@ -11,6 +12,7 @@ import '../models/admin_user.dart';
 import '../pages/pending_verification_page.dart';
 import '../pages/rejected_verification_page.dart';
 import '../services/user_session_service.dart';
+import '../widgets/loading_screen.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -20,6 +22,8 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  // Add timeout duration
+  static const Duration _timeoutDuration = Duration(seconds: 15);
   final _adminService = AdminService();
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
@@ -29,12 +33,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Widget build(BuildContext context) {
     if (kIsWeb) return Container();
 
-    // Check for existing session
+    // Check for existing session with timeout
     return FutureBuilder<bool>(
-      future: _sessionService.isLoggedIn(),
+      future: _getSessionWithTimeout(),
       builder: (context, sessionSnapshot) {
         if (sessionSnapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const LoadingScreen(message: 'Checking login status...');
         }
 
         // If we have a saved session but no current user, try to restore it
@@ -42,11 +46,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
           // We'll let the auth state stream handle this case
         }
 
-        return StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.authStateChanges(),
+        // Use a FutureBuilder with timeout instead of StreamBuilder for auth state
+        return FutureBuilder<User?>(
+          future: _getCurrentUserWithTimeout(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const LoadingScreen(message: 'Authenticating...');
             }
 
             final user = snapshot.data;
@@ -57,13 +62,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
             print('AuthWrapper: User logged in: ${user.email}');
 
-            // Check if user is admin
+            // Check if user is admin with timeout
             return FutureBuilder<bool>(
-              future: _checkUserRole(),
+              future: _checkUserRoleWithTimeout(),
               builder: (context, roleSnapshot) {
                 if (roleSnapshot.connectionState == ConnectionState.waiting) {
                   print('AuthWrapper: Checking user role...');
-                  return const Center(child: CircularProgressIndicator());
+                  return const LoadingScreen(message: 'Checking user role...');
                 }
 
                 if (roleSnapshot.hasError) {
@@ -75,12 +80,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
                 if (roleSnapshot.data == true) {
                   // Check if it's admin's first login
-                  return StreamBuilder<AdminUser?>(
-                    stream: _adminService.getAdminUser(_auth.currentUser!.uid),
+                  return FutureBuilder<AdminUser?>(
+                    future: _getAdminUserWithTimeout(_auth.currentUser!.uid),
                     builder: (context, adminSnapshot) {
                       if (adminSnapshot.connectionState == ConnectionState.waiting) {
                         print('AuthWrapper: Loading admin user data...');
-                        return const Center(child: CircularProgressIndicator());
+                        return const LoadingScreen(message: 'Loading admin profile...');
                       }
 
                       if (adminSnapshot.hasError) {
@@ -111,12 +116,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
               );
                 }
 
-                // For regular users, check verification status
-                return FutureBuilder<DocumentSnapshot>(
-                  future: _firestore.collection('users').doc(user.uid).get(),
+                // For regular users, check verification status with timeout
+                return FutureBuilder<DocumentSnapshot?>(
+                  future: _getUserDocWithTimeout(user.uid),
                   builder: (context, userSnapshot) {
                     if (userSnapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const LoadingScreen(message: 'Loading your profile...');
                     }
 
                     if (userSnapshot.hasError ||
@@ -170,9 +175,77 @@ class _AuthWrapperState extends State<AuthWrapper> {
     );
   }
 
-  Future<bool> _checkUserRole() async {
-    final isAdmin = await _adminService.isCurrentUserAdmin();
-    print('_checkUserRole: isAdmin = $isAdmin');
-    return isAdmin;
+  // Helper methods with timeout handling
+  Future<bool> _getSessionWithTimeout() async {
+    try {
+      return await _sessionService.isLoggedIn()
+          .timeout(_timeoutDuration, onTimeout: () {
+        print('Session check timed out');
+        return false;
+      });
+    } catch (e) {
+      print('Error checking session: $e');
+      return false;
+    }
   }
+
+  Future<User?> _getCurrentUserWithTimeout() async {
+    try {
+      // Get current user with timeout
+      return await Future.delayed(const Duration(milliseconds: 500), () {
+        return _auth.currentUser;
+      }).timeout(_timeoutDuration, onTimeout: () {
+        print('Auth state check timed out');
+        return null;
+      });
+    } catch (e) {
+      print('Error getting current user: $e');
+      return null;
+    }
+  }
+
+  Future<bool> _checkUserRoleWithTimeout() async {
+    try {
+      return await _adminService.isCurrentUserAdmin()
+          .timeout(_timeoutDuration, onTimeout: () {
+        print('User role check timed out');
+        return false;
+      });
+    } catch (e) {
+      print('Error checking user role: $e');
+      return false;
+    }
+  }
+
+  Future<AdminUser?> _getAdminUserWithTimeout(String uid) async {
+    try {
+      // Convert stream to future with timeout
+      return await _adminService.getAdminUser(uid).first
+          .timeout(_timeoutDuration, onTimeout: () {
+        print('Admin user fetch timed out');
+        return null;
+      });
+    } catch (e) {
+      print('Error getting admin user: $e');
+      return null;
+    }
+  }
+
+  Future<DocumentSnapshot?> _getUserDocWithTimeout(String uid) async {
+    try {
+      // We need to handle the timeout differently since DocumentSnapshot can't be null
+      final result = await _firestore.collection('users').doc(uid).get()
+          .timeout(_timeoutDuration, onTimeout: () {
+        print('User document fetch timed out');
+        throw TimeoutException('User document fetch timed out');
+      });
+      return result;
+    } catch (e) {
+      print('Error getting user document: $e');
+      // Return a dummy snapshot that doesn't exist
+      return null;
+    }
+  }
+
+  // Removed unused method
 }
