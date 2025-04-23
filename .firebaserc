@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "pulse-app-ea5be"
-  }
+  },
+  "targets": {
+    "pulse-app-ea5be": {
+      "hosting": {
+        "superadmin": [
+          "pulse-app-ea5be"
+        ],
+        "password-reset": [
+          "pulse-app-password-reset"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
