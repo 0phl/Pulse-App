@@ -150,9 +150,15 @@ class CloudinaryService {
 
   Future<String> uploadNoticeAttachment(File file) async {
     try {
-      final String fileName = file.path.split('/').last;
+      final String fileName = file.path.split(Platform.isWindows ? '\\' : '/').last;
       final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
       const String folder = 'notices/attachments';
+
+      // Check if file is a supported format (PDF, DOCX, or image)
+      final List<String> supportedFormats = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'gif'];
+      if (!supportedFormats.contains(fileExtension)) {
+        throw Exception('Unsupported file format: $fileExtension. Supported formats are: ${supportedFormats.join(', ')}');
+      }
 
       final cloudinaryFile = CloudinaryFile.fromFile(
         file.path,
@@ -163,8 +169,8 @@ class CloudinaryService {
       CloudinaryResponse response =
           await noticeCloudinary.uploadFile(cloudinaryFile);
 
-      // For PDFs and other documents, add dl=1 to force download
-      if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'].contains(fileExtension)) {
+      // For PDFs and documents, add dl=1 to force download
+      if (['pdf', 'doc', 'docx'].contains(fileExtension)) {
         return '${response.secureUrl}?dl=1';
       }
 
@@ -175,11 +181,16 @@ class CloudinaryService {
   }
 
   CloudinaryResourceType _getResourceType(String fileExtension) {
-    if (['mp4', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm'].contains(fileExtension)) {
-      return CloudinaryResourceType.Video;
-    } else if (['mp3', 'wav', 'ogg', 'aac', 'm4a'].contains(fileExtension)) {
+    // For PDF and DOCX files, use Auto resource type
+    if (['pdf', 'doc', 'docx'].contains(fileExtension)) {
       return CloudinaryResourceType.Auto;
-    } else {
+    }
+    // For image files, use Image resource type
+    else if (['jpg', 'jpeg', 'png', 'gif'].contains(fileExtension)) {
+      return CloudinaryResourceType.Image;
+    }
+    // For any other file types (which should be filtered out by validation)
+    else {
       return CloudinaryResourceType.Auto;
     }
   }
