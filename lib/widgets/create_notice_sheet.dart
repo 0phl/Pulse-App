@@ -285,17 +285,13 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
   Future<void> _pickAttachments() async {
     try {
       // Use file_picker to pick documents and other files
+      // Only allow PDF, DOCX, and image files
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: [
           'pdf',
           'doc',
           'docx',
-          'xls',
-          'xlsx',
-          'ppt',
-          'pptx',
-          'txt',
           'jpg',
           'jpeg',
           'png',
@@ -699,8 +695,20 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
         for (var attachment in _selectedAttachments) {
           final File file = File(attachment.path);
           final String fileName = attachment.name;
-          final int fileSize = await file.length();
           final String fileType = fileName.split('.').last.toLowerCase();
+
+          // Verify file type is allowed (PDF, DOCX, or image)
+          final List<String> supportedFormats = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'gif'];
+          if (!supportedFormats.contains(fileType)) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Unsupported file format: $fileType. Supported formats are: ${supportedFormats.join(', ')}')),
+              );
+            }
+            continue; // Skip this file
+          }
+
+          final int fileSize = await file.length();
 
           final String url =
               await _cloudinaryService.uploadNoticeAttachment(file);
@@ -1698,7 +1706,7 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                 onPressed: _isLoading ? null : _pickAttachments,
                                 icon: const Icon(Icons.attach_file,
                                     size: 18, color: Color(0xFF00C49A)),
-                                label: const Text('Documents & Files',
+                                label: const Text('Attachments',
                                     style: TextStyle(
                                         fontSize: 14,
                                         color: Color(0xFF00C49A))),
@@ -2385,7 +2393,7 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Attachments',
+                        'Attachments (PDF, DOCX & Images only)',
                         style: TextStyle(
                             fontWeight: FontWeight.w500, fontSize: 13),
                       ),
