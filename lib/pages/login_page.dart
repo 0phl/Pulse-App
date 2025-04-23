@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'register_page.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
@@ -41,9 +42,10 @@ class _LoginPageState extends State<LoginPage> {
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
+            child: AutofillGroup(
+              child: Form(
+                key: _formKey,
+                child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const SizedBox(height: 40),
@@ -77,6 +79,10 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 32),
                   TextFormField(
                     controller: _emailOrUsernameController,
+                    autofillHints: const [
+                      AutofillHints.username,
+                      AutofillHints.email
+                    ],
                     decoration: InputDecoration(
                       labelText: 'Email or Username',
                       border: OutlineInputBorder(
@@ -93,7 +99,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       prefixIcon: const Icon(Icons.mail_outline),
                     ),
-                      validator: (value) {
+                    validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Email or username is required to sign in';
                       }
@@ -103,6 +109,9 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _passwordController,
+                    autofillHints: const [
+                      AutofillHints.password
+                    ],
                     decoration: InputDecoration(
                       labelText: 'Password',
                       border: OutlineInputBorder(
@@ -137,6 +146,10 @@ class _LoginPageState extends State<LoginPage> {
                         return 'Password is required to sign in';
                       }
                       return null;
+                    },
+                    onEditingComplete: () {
+                      // This helps trigger autofill save
+                      TextInput.finishAutofillContext();
                     },
                   ),
                   Align(
@@ -354,6 +367,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ],
+              ),
               ),
             ),
           ),
