@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async'; // Add Timer import
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 import '../services/community_notice_service.dart';
+import 'comment_text.dart';
 
 class CommentsSheet extends StatefulWidget {
   final CommunityNotice notice;
@@ -24,7 +26,14 @@ class _CommentsSheetState extends State<CommentsSheet> {
   final _adminService = AdminService();
   final _noticeService = CommunityNoticeService();
   bool _isSubmitting = false;
+  bool _isRefreshing = false;
   List<Comment> _comments = [];
+
+  // Map to store user profile data
+  final Map<String, Map<String, dynamic>> _userProfileCache = {};
+
+  // Timer for auto-refresh
+  Timer? _refreshTimer;
 
   // Track which comment we're replying to (null if not replying)
   Comment? _replyingTo;
@@ -35,13 +44,173 @@ class _CommentsSheetState extends State<CommentsSheet> {
   @override
   void initState() {
     super.initState();
-    _comments = List.from(widget.notice.comments);
-    _comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // Add safety check for null or empty comments
+    if (widget.notice.comments.isNotEmpty) {
+      _comments = List.from(widget.notice.comments);
+      _comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    } else {
+      _comments = []; // Ensure _comments is initialized as an empty list if no comments
+    }
+
+    // Fetch latest user profiles when page opens
+    _refreshUserProfiles();
+
+    // Set up periodic refresh timer (every 30 seconds)
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && !_isRefreshing) {
+        _refreshUserProfiles();
+      }
+    });
+  }
+
+  // Method to refresh user profiles and comments
+  Future<void> _refreshUserProfiles() async {
+    if (_isRefreshing) return; // Prevent multiple simultaneous refreshes
+
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      // Refresh the comments directly from Firebase
+      final commentsSnapshot = await FirebaseDatabase.instance
+          .ref()
+          .child('community_notices')
+          .child(widget.notice.id)
+          .child('comments')
+          .get();
+
+      if (commentsSnapshot.exists && mounted) {
+        final commentsData = commentsSnapshot.value as Map<dynamic, dynamic>;
+        final List<Comment> updatedComments = [];
+
+        // Convert Firebase data to Comment objects
+        commentsData.forEach((key, value) {
+          try {
+            final commentData = value as Map<dynamic, dynamic>;
+            // Add the ID to the map since Comment.fromMap expects it in the map
+            commentData['id'] = key.toString();
+            final comment = Comment.fromMap(commentData);
+            updatedComments.add(comment);
+          } catch (e) {
+            // Skip invalid comments
+          }
+        });
+
+        setState(() {
+          _comments = updatedComments;
+          _comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        });
+      }
+
+      // Fetch user profiles for all comments and replies
+      for (final comment in _comments) {
+        try {
+          // Check if user is admin (in Firestore)
+          final adminDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(comment.authorId)
+              .get();
+
+          if (adminDoc.exists) {
+            // Admin user
+            final adminData = adminDoc.data() as Map<String, dynamic>;
+            if (mounted) {
+              setState(() {
+                _userProfileCache[comment.authorId] = {
+                  'profileImageUrl': adminData['profileImageUrl'],
+                  'fullName': adminData['fullName'],
+                  'isAdmin': true,
+                };
+              });
+            }
+          } else {
+            // Regular user in RTDB
+            final userSnapshot = await FirebaseDatabase.instance
+                .ref()
+                .child('users')
+                .child(comment.authorId)
+                .get();
+
+            if (userSnapshot.exists) {
+              final userData = userSnapshot.value as Map<dynamic, dynamic>;
+              if (mounted) {
+                setState(() {
+                  _userProfileCache[comment.authorId] = {
+                    'profileImageUrl': userData['profileImageUrl'],
+                    'fullName': userData['fullName'],
+                    'isAdmin': false,
+                  };
+                });
+              }
+            }
+          }
+        } catch (e) {
+          // Handle errors silently
+        }
+
+        // Also refresh profiles for replies
+        for (final reply in comment.replies) {
+          try {
+            // Check if user is admin (in Firestore)
+            final adminDoc = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(reply.authorId)
+                .get();
+
+            if (adminDoc.exists) {
+              // Admin user
+              final adminData = adminDoc.data() as Map<String, dynamic>;
+              if (mounted) {
+                setState(() {
+                  _userProfileCache[reply.authorId] = {
+                    'profileImageUrl': adminData['profileImageUrl'],
+                    'fullName': adminData['fullName'],
+                    'isAdmin': true,
+                  };
+                });
+              }
+            } else {
+              // Regular user in RTDB
+              final userSnapshot = await FirebaseDatabase.instance
+                  .ref()
+                  .child('users')
+                  .child(reply.authorId)
+                  .get();
+
+              if (userSnapshot.exists) {
+                final userData = userSnapshot.value as Map<dynamic, dynamic>;
+                if (mounted) {
+                  setState(() {
+                    _userProfileCache[reply.authorId] = {
+                      'profileImageUrl': userData['profileImageUrl'],
+                      'fullName': userData['fullName'],
+                      'isAdmin': false,
+                    };
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            // Handle errors silently
+          }
+        }
+      }
+    } catch (e) {
+      // Handle any errors silently
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
     _commentController.dispose();
+    _refreshTimer?.cancel(); // Cancel the timer when the widget is disposed
     super.dispose();
   }
 
@@ -58,11 +227,24 @@ class _CommentsSheetState extends State<CommentsSheet> {
 
   // Set replying to a comment
   void _setReplyingTo(Comment? comment) {
+    // Add safety check for invalid comment
+    if (comment != null && (comment.id.isEmpty || comment.authorName.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot reply to this comment. Please try again.')),
+      );
+      return;
+    }
+
     setState(() {
       _replyingTo = comment;
       if (comment != null) {
-        // Ensure the comment is expanded when replying
-        _expandedComments.add(comment.id);
+        // If this is a reply to a reply, we need to expand the parent comment
+        if (comment.parentId != null && comment.parentId!.isNotEmpty) {
+          _expandedComments.add(comment.parentId!);
+        } else {
+          // Ensure the comment is expanded when replying to a top-level comment
+          _expandedComments.add(comment.id);
+        }
       }
     });
   }
@@ -70,6 +252,11 @@ class _CommentsSheetState extends State<CommentsSheet> {
   // Like a comment
   Future<void> _likeComment(Comment comment, {String? parentId}) async {
     try {
+      // Add safety check for invalid comment
+      if (comment.id.isEmpty || comment.authorName.isEmpty) {
+        return; // Skip liking if comment is invalid
+      }
+
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
@@ -155,6 +342,15 @@ class _CommentsSheetState extends State<CommentsSheet> {
   Future<void> _addComment() async {
     if (!_formKey.currentState!.validate() || _isSubmitting) return;
 
+    // Add safety check for replying to an invalid comment
+    if (_replyingTo != null && (_replyingTo!.id.isEmpty || _replyingTo!.authorName.isEmpty)) {
+      setState(() => _replyingTo = null); // Reset invalid reply target
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot reply to this comment. Please try again.')),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -191,17 +387,33 @@ class _CommentsSheetState extends State<CommentsSheet> {
           }
         }
 
+        // Modify content to include @mention if replying to someone
+        String commentContent = _commentController.text.trim();
+        if (_replyingTo != null) {
+
+
+          // If the user is replying but didn't type anything, just use the mention
+          if (commentContent.isEmpty) {
+            commentContent = '@${_replyingTo!.authorName}';
+          } else {
+            // Add a special delimiter to help identify where the mention ends and the comment begins
+            // We'll use a double space as a delimiter
+            commentContent = '@${_replyingTo!.authorName}  $commentContent';
+
+          }
+        }
+
         String commentId;
         if (isAdmin) {
           commentId = await _adminService.addComment(
             widget.notice.id,
-            _commentController.text,
+            commentContent,
             parentCommentId: _replyingTo?.id,
           );
         } else {
           commentId = await _noticeService.addComment(
             widget.notice.id,
-            _commentController.text,
+            commentContent,
             user.uid,
             fullName,
             profileImageUrl,
@@ -212,23 +424,40 @@ class _CommentsSheetState extends State<CommentsSheet> {
         // Create a temporary comment to show immediately
         final newComment = Comment(
           id: commentId,
-          content: _commentController.text,
+          content: commentContent,
           authorId: user.uid,
           authorName: fullName,
           authorAvatar: profileImageUrl,
           createdAt: DateTime.now(),
-          parentId: _replyingTo?.id,
+          parentId: _replyingTo?.parentId ?? _replyingTo?.id,
+          replyToId: _replyingTo?.id,
         );
 
         setState(() {
           if (_replyingTo != null) {
-            // Add as a reply to an existing comment
-            final parentIndex = _comments.indexWhere((c) => c.id == _replyingTo!.id);
-            if (parentIndex >= 0) {
-              final updatedReplies = [..._comments[parentIndex].replies, newComment];
-              _comments[parentIndex] = _comments[parentIndex].copyWith(
-                replies: updatedReplies,
-              );
+            // Check if we're replying to a reply (has parentId) or a top-level comment
+            if (_replyingTo!.parentId != null) {
+              // We're replying to a reply, so we need to find the parent comment
+              final parentIndex = _comments.indexWhere((c) => c.id == _replyingTo!.parentId);
+
+
+              if (parentIndex >= 0) {
+                final updatedReplies = [..._comments[parentIndex].replies, newComment];
+                _comments[parentIndex] = _comments[parentIndex].copyWith(
+                  replies: updatedReplies,
+                );
+              }
+            } else {
+              // Add as a reply to an existing top-level comment
+              final parentIndex = _comments.indexWhere((c) => c.id == _replyingTo!.id);
+
+
+              if (parentIndex >= 0) {
+                final updatedReplies = [..._comments[parentIndex].replies, newComment];
+                _comments[parentIndex] = _comments[parentIndex].copyWith(
+                  replies: updatedReplies,
+                );
+              }
             }
             // Clear replying state
             _replyingTo = null;
@@ -301,54 +530,105 @@ class _CommentsSheetState extends State<CommentsSheet> {
             ),
           ),
 
-          // Comments list
+          // Comments list with pull-to-refresh
           Flexible(
-            child: _comments.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+            child: RefreshIndicator(
+              onRefresh: _refreshUserProfiles,
+              child: _comments.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          size: 48,
-                          color: Colors.grey.shade300,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No comments yet',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w500,
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.3,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 48,
+                                  color: Colors.grey.shade300,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No comments yet',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Pull down to refresh',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
+                    )
+                  : Stack(
+                      children: [
+                        ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.only(
+                            top: 8,
+                            bottom: MediaQuery.of(context).padding.bottom + 80,
+                          ),
+                          itemCount: _comments.length,
+                          separatorBuilder: (context, index) => Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: Colors.grey[100],
+                          ),
+                          itemBuilder: (context, index) {
+                            // Add safety check to prevent index out of range errors
+                            if (index < 0 || index >= _comments.length) {
+                              return const SizedBox.shrink(); // Return empty widget if index is invalid
+                            }
+
+                            final comment = _comments[index];
+
+                            // Add safety check for empty author name
+                            if (comment.authorName.isEmpty) {
+                              return const SizedBox.shrink(); // Skip this comment if author name is empty
+                            }
+
+                            return _CommentItem(
+                              comment: comment,
+                              userProfile: _userProfileCache[comment.authorId],
+                              isExpanded: _expandedComments.contains(comment.id),
+                              onToggleExpanded: () => _toggleExpanded(comment.id),
+                              onReply: () => _setReplyingTo(comment),
+                              onLike: () => _likeComment(comment),
+                              onLikeReply: (reply) => _likeComment(reply, parentId: comment.id),
+                              onReplyToReply: (reply) => _setReplyingTo(reply), // Reply to the actual reply, not parent
+                              replyUserProfiles: _userProfileCache,
+                            );
+                          },
+                        ),
+                        // Show loading indicator when refreshing
+                        if (_isRefreshing)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: SizedBox(
+                              height: 2,
+                              child: const LinearProgressIndicator(
+                                backgroundColor: Colors.transparent,
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  )
-                : ListView.separated(
-                    padding: EdgeInsets.only(
-                      top: 8,
-                      bottom: MediaQuery.of(context).padding.bottom + 80,
-                    ),
-                    itemCount: _comments.length,
-                    separatorBuilder: (context, index) => Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: Colors.grey[100],
-                    ),
-                    itemBuilder: (context, index) {
-                      final comment = _comments[index];
-                      return _CommentItem(
-                        comment: comment,
-                        isExpanded: _expandedComments.contains(comment.id),
-                        onToggleExpanded: () => _toggleExpanded(comment.id),
-                        onReply: () => _setReplyingTo(comment),
-                        onLike: () => _likeComment(comment),
-                        onLikeReply: (reply) => _likeComment(reply, parentId: comment.id),
-                        onReplyToReply: (reply) => _setReplyingTo(comment), // Reply to parent, not to reply
-                      );
-                    },
-                  ),
+            ),
           ),
 
           // Comment input
@@ -364,35 +644,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Show who we're replying to
-                  if (_replyingTo != null)
-                    Container(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      width: double.infinity,
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.reply,
-                            size: 16,
-                            color: Colors.grey[600],
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              'Replying to ${_replyingTo!.authorName}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
                   // Input row
                   Row(
                     children: [
@@ -481,9 +732,57 @@ class _CommentsSheetState extends State<CommentsSheet> {
                                     border: InputBorder.none,
                                     isDense: true,
                                     contentPadding: EdgeInsets.zero,
+                                    prefixIcon: _replyingTo != null
+                                        ? Padding(
+                                            padding: const EdgeInsets.only(right: 8.0),
+                                            child: Container(
+                                              margin: const EdgeInsets.only(left: 8.0),
+                                              child: IntrinsicWidth(
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: _replyingTo!.authorName.startsWith('Admin')
+                                                        ? const Color(0xFF00C49A).withOpacity(0.1)
+                                                        : Colors.blue[50],
+                                                    borderRadius: BorderRadius.circular(12),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        '@${_replyingTo!.authorName}',
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: _replyingTo!.authorName.startsWith('Admin')
+                                                              ? const Color(0xFF00C49A)
+                                                              : Colors.blue[700],
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      GestureDetector(
+                                                        onTap: () => setState(() => _replyingTo = null),
+                                                        child: Icon(
+                                                          Icons.close,
+                                                          size: 12,
+                                                          color: Colors.grey[600],
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        : null,
+                                    prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                                   ),
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {
+                                      if (_replyingTo != null) {
+                                        // Allow empty text when replying (will just show the mention)
+                                        return null;
+                                      }
                                       return 'Please enter a comment';
                                     }
                                     return null;
@@ -494,12 +793,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
                             ValueListenableBuilder<TextEditingValue>(
                               valueListenable: _commentController,
                               builder: (context, value, child) {
-                                final hasText = value.text.isNotEmpty;
+                                final hasText = value.text.isNotEmpty || _replyingTo != null;
                                 return IconButton(
-                                  onPressed: _isSubmitting || !hasText ? null : _addComment,
+                                  onPressed: _isSubmitting ? null : (_replyingTo != null || hasText ? _addComment : null),
                                   icon: Icon(
                                     Icons.send_rounded,
-                                    color: hasText
+                                    color: (_replyingTo != null || hasText)
                                         ? const Color(0xFF00C49A)
                                         : Colors.grey[400],
                                     size: 20,
@@ -526,26 +825,35 @@ class _CommentsSheetState extends State<CommentsSheet> {
 
 class _CommentItem extends StatelessWidget {
   final Comment comment;
+  final Map<String, dynamic>? userProfile;
   final bool isExpanded;
   final VoidCallback onToggleExpanded;
   final VoidCallback onReply;
   final VoidCallback onLike;
   final Function(Comment) onLikeReply;
   final Function(Comment) onReplyToReply;
+  final Map<String, Map<String, dynamic>> replyUserProfiles;
 
   const _CommentItem({
     required this.comment,
+    this.userProfile,
     required this.isExpanded,
     required this.onToggleExpanded,
     required this.onReply,
     required this.onLike,
     required this.onLikeReply,
     required this.onReplyToReply,
+    required this.replyUserProfiles,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bool isAdmin = comment.authorName.startsWith('Admin ');
+    // Add safety check for empty author name
+    if (comment.authorName.isEmpty) {
+      return const SizedBox.shrink(); // Return empty widget if author name is empty
+    }
+
+    final bool isAdmin = comment.authorName.startsWith('Admin');
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final bool isLiked = currentUserId != null && comment.isLikedBy(currentUserId);
     final hasReplies = comment.replies.isNotEmpty;
@@ -564,10 +872,12 @@ class _CommentItem extends StatelessWidget {
                 backgroundColor: isAdmin
                     ? const Color(0xFF00C49A).withOpacity(0.1)
                     : Colors.blue[50],
-                backgroundImage: comment.authorAvatar != null
-                    ? NetworkImage(comment.authorAvatar!)
-                    : null,
-                child: comment.authorAvatar == null
+                backgroundImage: userProfile?['profileImageUrl'] != null
+                    ? NetworkImage(userProfile!['profileImageUrl'] as String)
+                    : (comment.authorAvatar != null
+                        ? NetworkImage(comment.authorAvatar!)
+                        : null),
+                child: (userProfile?['profileImageUrl'] == null && comment.authorAvatar == null && comment.authorName.isNotEmpty)
                     ? Text(
                         comment.authorName[0].toUpperCase(),
                         style: TextStyle(
@@ -605,11 +915,12 @@ class _CommentItem extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      comment.content,
+                    CommentText(
+                      text: comment.content,
                       style: const TextStyle(
                         fontSize: 14,
                       ),
+                      mentionColor: isAdmin ? const Color(0xFF00C49A) : Colors.blue[700]!,
                     ),
                     const SizedBox(height: 8),
                     // Like and reply buttons
@@ -700,7 +1011,12 @@ class _CommentItem extends StatelessWidget {
               margin: const EdgeInsets.only(left: 40),
               child: Column(
                 children: comment.replies.map((reply) {
-                  final bool isReplyAdmin = reply.authorName.startsWith('Admin ');
+                  // Add safety check for empty author name in replies
+                  if (reply.authorName.isEmpty) {
+                    return const SizedBox.shrink(); // Skip this reply if author name is empty
+                  }
+
+                  final bool isReplyAdmin = reply.authorName.startsWith('Admin');
                   final bool isReplyLiked = currentUserId != null && reply.isLikedBy(currentUserId);
 
                   return Padding(
@@ -713,10 +1029,14 @@ class _CommentItem extends StatelessWidget {
                           backgroundColor: isReplyAdmin
                               ? const Color(0xFF00C49A).withOpacity(0.1)
                               : Colors.blue[50],
-                          backgroundImage: reply.authorAvatar != null
-                              ? NetworkImage(reply.authorAvatar!)
-                              : null,
-                          child: reply.authorAvatar == null
+                          backgroundImage: replyUserProfiles[reply.authorId]?['profileImageUrl'] != null
+                              ? NetworkImage(replyUserProfiles[reply.authorId]!['profileImageUrl'] as String)
+                              : (reply.authorAvatar != null
+                                  ? NetworkImage(reply.authorAvatar!)
+                                  : null),
+                          child: (replyUserProfiles[reply.authorId]?['profileImageUrl'] == null &&
+                                 reply.authorAvatar == null &&
+                                 reply.authorName.isNotEmpty)
                               ? Text(
                                   reply.authorName[0].toUpperCase(),
                                   style: TextStyle(
@@ -753,11 +1073,12 @@ class _CommentItem extends StatelessWidget {
                                 ],
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                reply.content,
+                              CommentText(
+                                text: reply.content,
                                 style: const TextStyle(
                                   fontSize: 13,
                                 ),
+                                mentionColor: isReplyAdmin ? const Color(0xFF00C49A) : Colors.blue[700]!,
                               ),
                               const SizedBox(height: 4),
                               // Like and reply buttons for replies

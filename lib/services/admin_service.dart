@@ -1267,33 +1267,54 @@ class AdminService {
 
     if (!snapshot.exists) return [];
 
-    final data = snapshot.value as Map<dynamic, dynamic>;
-    final notices = data.entries.map((entry) {
-      // Convert Map<dynamic, dynamic> to Map<String, dynamic>
-      final originalData = entry.value as Map<dynamic, dynamic>;
-      final noticeData = {
-        'id': entry.key.toString(),
-        'title': originalData['title']?.toString() ?? '',
-        'content': originalData['content']?.toString() ?? '',
-        'authorId': originalData['authorId']?.toString() ?? '',
-        'authorName': originalData['authorName']?.toString() ?? '',
-        'authorAvatar': originalData['authorAvatar']?.toString(),
-        'imageUrl': originalData['imageUrl']?.toString(),
-        'imageUrls': originalData['imageUrls'] is List ? originalData['imageUrls'] : null,
-        'communityId': originalData['communityId']?.toString() ?? '',
-        'createdAt': originalData['createdAt'] ?? 0,
-        'updatedAt': originalData['updatedAt'] ?? 0,
-        'likes': originalData['likes'] is Map ? originalData['likes'] : null,
-        'comments': originalData['comments'] is Map ? originalData['comments'] : null,
-        'poll': originalData['poll'] is Map ? originalData['poll'] : null,
-        'videoUrl': originalData['videoUrl']?.toString(),
-        'attachments': originalData['attachments'] is List ? originalData['attachments'] : null,
-      };
-      return CommunityNotice.fromMap({
-        ...noticeData,
-        'id': entry.key.toString(),
-      });
-    }).toList();
+    final data = snapshot.value;
+    // Handle case when data is not a Map
+    if (data is! Map<dynamic, dynamic>) return [];
+
+    final notices = <CommunityNotice>[];
+
+    try {
+      final dataMap = data as Map<dynamic, dynamic>;
+
+      for (var entry in dataMap.entries) {
+        try {
+          if (entry.value is! Map<dynamic, dynamic>) continue;
+
+          final originalData = entry.value as Map<dynamic, dynamic>;
+          final noticeData = {
+            'id': entry.key.toString(),
+            'title': originalData['title']?.toString() ?? '',
+            'content': originalData['content']?.toString() ?? '',
+            'authorId': originalData['authorId']?.toString() ?? '',
+            'authorName': originalData['authorName']?.toString() ?? '',
+            'authorAvatar': originalData['authorAvatar']?.toString(),
+            'imageUrl': originalData['imageUrl']?.toString(),
+            'imageUrls': originalData['imageUrls'] is List ? originalData['imageUrls'] : null,
+            'communityId': originalData['communityId']?.toString() ?? '',
+            'createdAt': originalData['createdAt'] ?? 0,
+            'updatedAt': originalData['updatedAt'] ?? 0,
+            'likes': originalData['likes'] is Map ? originalData['likes'] : null,
+            'comments': originalData['comments'] is Map ? originalData['comments'] : null,
+            'poll': originalData['poll'] is Map ? originalData['poll'] : null,
+            'videoUrl': originalData['videoUrl']?.toString(),
+            'attachments': originalData['attachments'] is List ? originalData['attachments'] : null,
+          };
+
+          final notice = CommunityNotice.fromMap({
+            ...noticeData,
+            'id': entry.key.toString(),
+          });
+          notices.add(notice);
+        } catch (e) {
+          debugPrint('Error parsing notice: ${e.toString()}');
+          // Skip this notice and continue with the next one
+          continue;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error parsing notices: ${e.toString()}');
+      return [];
+    }
 
     // Sort by createdAt in descending order
     notices.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -1463,21 +1484,97 @@ class AdminService {
 
     // If parentCommentId is provided, add as a reply to that comment
     if (parentCommentId != null) {
-      final newReplyRef = _database
+      // First, check if the parent comment is itself a reply by looking it up
+      final parentCommentSnapshot = await _database
           .child('community_notices')
           .child(noticeId)
           .child('comments')
           .child(parentCommentId)
+          .get();
+
+      String actualParentId = parentCommentId;
+
+      // Debug print the parent comment data if it exists
+      if (parentCommentSnapshot.exists) {
+        final parentData = parentCommentSnapshot.value as Map<dynamic, dynamic>?;
+        debugPrint('ADMIN: Parent comment found as top-level comment: $parentCommentId');
+        debugPrint('ADMIN: Parent comment data: ${parentData.toString()}');
+
+        // Check if the parent is an admin comment
+        final authorName = parentData?['authorName'] as String?;
+        if (authorName != null && authorName.startsWith('Admin')) {
+          debugPrint('ADMIN IMPORTANT: Parent comment is an admin comment: $authorName');
+        }
+      }
+      // If the parent comment doesn't exist as a top-level comment, it might be a reply
+      else {
+        debugPrint('ADMIN: Parent comment $parentCommentId not found as top-level comment, searching in replies...');
+
+        // Search for the comment in all replies
+        final allCommentsSnapshot = await _database
+            .child('community_notices')
+            .child(noticeId)
+            .child('comments')
+            .get();
+
+        if (allCommentsSnapshot.exists) {
+          final allComments = allCommentsSnapshot.value as Map<dynamic, dynamic>;
+          debugPrint('ADMIN: Found ${allComments.length} top-level comments to search through');
+
+          // Iterate through all top-level comments
+          for (var commentEntry in allComments.entries) {
+            final comment = commentEntry.value as Map<dynamic, dynamic>;
+            final commentAuthorName = comment['authorName'] as String?;
+
+            debugPrint('ADMIN: Checking comment by: $commentAuthorName');
+
+            // Check if this comment has replies
+            if (comment['replies'] is Map) {
+              final replies = comment['replies'] as Map<dynamic, dynamic>;
+              debugPrint('ADMIN: Comment has ${replies.length} replies');
+
+              // Check if our target reply is in this comment's replies
+              if (replies.containsKey(parentCommentId)) {
+                // Found the actual parent comment
+                actualParentId = commentEntry.key.toString();
+                debugPrint('ADMIN: Found actual parent comment: $actualParentId for reply: $parentCommentId');
+
+                // Check if this is an admin comment
+                if (commentAuthorName != null && commentAuthorName.startsWith('Admin')) {
+                  debugPrint('ADMIN IMPORTANT: Actual parent comment is an admin comment: $commentAuthorName');
+                }
+
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // Debug print to help diagnose issues
+      debugPrint('Adding reply to comment: $actualParentId, Content: "$content"');
+
+      final newReplyRef = _database
+          .child('community_notices')
+          .child(noticeId)
+          .child('comments')
+          .child(actualParentId)
           .child('replies')
           .push();
 
+      // Debug print to help diagnose issues
+      debugPrint('ADMIN: Setting reply data - parentId: $actualParentId, replyToId: $parentCommentId');
+
+      // Always store the replyToId, even if it's the same as the parentId
+      // This is important for replies to admin comments
       await newReplyRef.set({
         'content': content,
         'createdAt': ServerValue.timestamp,
         'authorId': currentUserId,
         'authorName': adminName,
         'authorAvatar': profileImageUrl,
-        'parentId': parentCommentId,
+        'parentId': actualParentId,
+        'replyToId': parentCommentId, // Always store who we're replying to
       });
 
       return newReplyRef.key!;

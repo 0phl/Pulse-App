@@ -50,16 +50,35 @@ class Poll {
       // Parse attachments if available
       List<FileAttachment>? attachments;
       if (map['attachments'] is List) {
-        attachments = (map['attachments'] as List)
-            .map((attachment) => FileAttachment.fromMap(attachment as Map<dynamic, dynamic>))
-            .toList();
+        try {
+          attachments = (map['attachments'] as List)
+              .whereType<Map>()
+              .map((attachment) => FileAttachment.fromMap(attachment as Map<dynamic, dynamic>))
+              .toList();
+        } catch (e) {
+          debugPrint('Error parsing poll attachments: $e');
+          attachments = null;
+        }
+      }
+
+      // Parse options safely
+      final List<PollOption> options = [];
+      for (var option in optionsList) {
+        try {
+          if (option is Map) {
+            options.add(PollOption.fromMap(option));
+          } else {
+            options.add(PollOption(id: '0', text: 'Option'));
+          }
+        } catch (e) {
+          debugPrint('Error parsing poll option: $e');
+          options.add(PollOption(id: '0', text: 'Option'));
+        }
       }
 
       return Poll(
         question: question,
-        options: optionsList
-            .map((option) => PollOption.fromMap(option is Map ? option : {'id': '0', 'text': 'Option'}))
-            .toList(),
+        options: options,
         expiresAt: expiresAt,
         allowMultipleChoices: allowMultiple,
         imageUrls: imageUrls,
@@ -68,7 +87,12 @@ class Poll {
       );
     } catch (e) {
       debugPrint('Error parsing poll data: $e');
-      rethrow;
+      // Return a default poll instead of rethrowing to prevent app crashes
+      return Poll(
+        question: 'Error loading poll',
+        options: [PollOption(id: '0', text: 'Option')],
+        expiresAt: DateTime.now().add(const Duration(days: 7)),
+      );
     }
   }
 
@@ -105,12 +129,18 @@ class PollOption {
       final String text = map['text']?.toString() ?? 'Option';
 
       // Ensure votedBy is a list
-      final List<String> votedBy = map['votedBy'] is Map
-          ? (map['votedBy'] as Map<dynamic, dynamic>)
+      List<String> votedBy = [];
+      if (map['votedBy'] is Map) {
+        try {
+          votedBy = (map['votedBy'] as Map<dynamic, dynamic>)
               .keys
               .map((k) => k.toString())
-              .toList()
-          : [];
+              .toList();
+        } catch (e) {
+          debugPrint('Error parsing votedBy: $e');
+          votedBy = [];
+        }
+      }
 
       return PollOption(
         id: id,
@@ -119,7 +149,12 @@ class PollOption {
       );
     } catch (e) {
       debugPrint('Error parsing poll option data: $e');
-      rethrow;
+      // Return a default option instead of rethrowing to prevent app crashes
+      return PollOption(
+        id: '0',
+        text: 'Option',
+        votedBy: [],
+      );
     }
   }
 
@@ -150,13 +185,25 @@ class FileAttachment {
   });
 
   factory FileAttachment.fromMap(Map<dynamic, dynamic> map) {
-    return FileAttachment(
-      id: map['id'] as String,
-      name: map['name'] as String,
-      url: map['url'] as String,
-      type: map['type'] as String,
-      size: map['size'] as int,
-    );
+    try {
+      return FileAttachment(
+        id: map['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        name: map['name']?.toString() ?? 'File',
+        url: map['url']?.toString() ?? '',
+        type: map['type']?.toString() ?? 'unknown',
+        size: map['size'] is int ? map['size'] as int : 0,
+      );
+    } catch (e) {
+      debugPrint('Error parsing file attachment: $e');
+      // Return a default attachment instead of throwing to prevent app crashes
+      return FileAttachment(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: 'Error loading file',
+        url: '',
+        type: 'unknown',
+        size: 0,
+      );
+    }
   }
 
   Map<String, dynamic> toMap() {
@@ -205,92 +252,128 @@ class CommunityNotice {
 
   factory CommunityNotice.fromMap(dynamic source,
       [Map<dynamic, dynamic>? data]) {
-    if (data != null) {
-      // Handle case where id and data are passed separately
-      return CommunityNotice(
-        id: source as String,
-        title: data['title'] as String? ?? '',
-        content: data['content'] as String? ?? '',
-        authorId: data['authorId'] as String? ?? '',
-        authorName: data['authorName'] as String? ?? '',
-        authorAvatar: data['authorAvatar'] as String?,
-        imageUrls: data['imageUrls'] != null
-            ? (data['imageUrls'] as List).map((url) => url.toString()).toList()
-            : data['imageUrl'] != null
-                ? [data['imageUrl'] as String]
-                : null,
-        videoUrl: data['videoUrl'] as String?,
-        poll: data['poll'] != null ? Poll.fromMap(data['poll'] as Map<dynamic, dynamic>) : null,
-        attachments: data['attachments'] != null
-            ? (data['attachments'] as List)
-                .map((attachment) => FileAttachment.fromMap(attachment as Map<dynamic, dynamic>))
-                .toList()
-            : null,
-        createdAt:
-            DateTime.fromMillisecondsSinceEpoch(data['createdAt'] as int? ?? 0),
-        updatedAt:
-            DateTime.fromMillisecondsSinceEpoch(data['updatedAt'] as int? ?? 0),
-        likedBy:
-            (data['likedBy'] as List?)?.map((e) => e.toString()).toList() ?? [],
-        comments: (data['comments'] as List?)
-                ?.map((comment) =>
-                    Comment.fromMap(comment as Map<dynamic, dynamic>))
-                .toList() ??
-            [],
-      );
-    }
+    try {
+      if (data != null) {
+        // Handle case where id and data are passed separately
+        String id = '';
+        try {
+          id = source.toString();
+        } catch (e) {
+          debugPrint('Error parsing id: $e');
+          id = DateTime.now().millisecondsSinceEpoch.toString();
+        }
 
-    // Handle case where everything is in a single map
-    final map = source as Map<String, dynamic>;
-    return CommunityNotice(
-      id: map['id'] as String,
-      title: map['title'] as String? ?? '',
-      content: map['content'] as String,
-      authorId: map['authorId'] as String,
-      authorName: map['authorName'] as String,
-      authorAvatar: map['authorAvatar'] as String?,
-      imageUrls: map['imageUrls'] != null
-          ? (map['imageUrls'] as List).map((url) => url.toString()).toList()
-          : map['imageUrl'] != null
-              ? [map['imageUrl'] as String]
+        return CommunityNotice(
+          id: id,
+          title: data['title']?.toString() ?? '',
+          content: data['content']?.toString() ?? '',
+          authorId: data['authorId']?.toString() ?? '',
+          authorName: data['authorName']?.toString() ?? '',
+          authorAvatar: data['authorAvatar']?.toString(),
+          imageUrls: data['imageUrls'] != null && data['imageUrls'] is List
+              ? (data['imageUrls'] as List).map((url) => url.toString()).toList()
+              : data['imageUrl'] != null
+                  ? [data['imageUrl'].toString()]
+                  : null,
+          videoUrl: data['videoUrl']?.toString(),
+          poll: data['poll'] != null && data['poll'] is Map
+              ? Poll.fromMap(data['poll'] as Map<dynamic, dynamic>)
               : null,
-      videoUrl: map['videoUrl'] as String?,
-      poll: map['poll'] != null ? (() {
-          try {
-            if (map['poll'] is Map) {
-              return Poll.fromMap(map['poll'] as Map<dynamic, dynamic>);
-            } else {
+          attachments: data['attachments'] != null && data['attachments'] is List
+              ? (data['attachments'] as List)
+                  .whereType<Map>()
+                  .map((attachment) => FileAttachment.fromMap(attachment))
+                  .toList()
+              : null,
+          createdAt:
+              DateTime.fromMillisecondsSinceEpoch(data['createdAt'] is int ? data['createdAt'] : 0),
+          updatedAt:
+              DateTime.fromMillisecondsSinceEpoch(data['updatedAt'] is int ? data['updatedAt'] : 0),
+          likedBy:
+              data['likedBy'] is List
+                  ? (data['likedBy'] as List).map((e) => e.toString()).toList()
+                  : [],
+          comments: data['comments'] is List
+                  ? (data['comments'] as List)
+                      .whereType<Map>()
+                      .map((comment) => Comment.fromMap(comment))
+                      .toList()
+                  : [],
+        );
+      }
+
+      // Handle case where everything is in a single map
+      if (source is! Map) {
+        throw FormatException('Source is not a Map: $source');
+      }
+
+      final map = source;
+
+      return CommunityNotice(
+        id: map['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        title: map['title']?.toString() ?? '',
+        content: map['content']?.toString() ?? '',
+        authorId: map['authorId']?.toString() ?? '',
+        authorName: map['authorName']?.toString() ?? '',
+        authorAvatar: map['authorAvatar']?.toString(),
+        imageUrls: map['imageUrls'] != null && map['imageUrls'] is List
+            ? (map['imageUrls'] as List).map((url) => url.toString()).toList()
+            : map['imageUrl'] != null
+                ? [map['imageUrl'].toString()]
+                : null,
+        videoUrl: map['videoUrl']?.toString(),
+        poll: map['poll'] != null ? (() {
+            try {
+              if (map['poll'] is Map) {
+                return Poll.fromMap(map['poll'] as Map<dynamic, dynamic>);
+              } else {
+                return null;
+              }
+            } catch (e) {
+              debugPrint('Error parsing poll data: $e');
               return null;
             }
-          } catch (e) {
-            debugPrint('Error parsing poll data: $e');
-            return null;
-          }
-        })() : null,
-      attachments: map['attachments'] != null
-          ? (map['attachments'] as List)
-              .map((attachment) => FileAttachment.fromMap(attachment as Map<dynamic, dynamic>))
-              .toList()
-          : null,
-      createdAt: map['createdAt'] is Timestamp
-          ? (map['createdAt'] as Timestamp).toDate()
-          : DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int? ?? 0),
-      updatedAt: map['updatedAt'] is Timestamp
-          ? (map['updatedAt'] as Timestamp).toDate()
-          : DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] as int? ?? 0),
-      likedBy: map['likes'] is Map
-              ? (map['likes'] as Map<dynamic, dynamic>).keys.map((k) => k.toString()).toList()
-              : [],
-      comments: map['comments'] is Map
-              ? (map['comments'] as Map<dynamic, dynamic>).entries.map((entry) {
-                  if (entry.value is! Map) return null;
-                  return Comment.fromMap({
-                    ...entry.value as Map<dynamic, dynamic>,
-                    'id': entry.key.toString(),
-                  });
-                }).whereType<Comment>().toList()
-              : [],
-    );
+          })() : null,
+        attachments: map['attachments'] != null && map['attachments'] is List
+            ? (map['attachments'] as List)
+                .whereType<Map>()
+                .map((attachment) => FileAttachment.fromMap(attachment))
+                .toList()
+            : null,
+        createdAt: map['createdAt'] is Timestamp
+            ? (map['createdAt'] as Timestamp).toDate()
+            : DateTime.fromMillisecondsSinceEpoch(map['createdAt'] is int ? map['createdAt'] : 0),
+        updatedAt: map['updatedAt'] is Timestamp
+            ? (map['updatedAt'] as Timestamp).toDate()
+            : DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] is int ? map['updatedAt'] : 0),
+        likedBy: map['likes'] is Map
+                ? (map['likes'] as Map<dynamic, dynamic>).keys.map((k) => k.toString()).toList()
+                : [],
+        comments: map['comments'] is Map
+                ? (map['comments'] as Map<dynamic, dynamic>).entries.map((entry) {
+                    if (entry.value is! Map) return null;
+                    return Comment.fromMap({
+                      ...entry.value as Map<dynamic, dynamic>,
+                      'id': entry.key.toString(),
+                    });
+                  }).whereType<Comment>().toList()
+                : [],
+      );
+    } catch (e) {
+      debugPrint('Error in CommunityNotice.fromMap: $e');
+      // Return a fallback notice to prevent app crashes
+      return CommunityNotice(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: 'Error loading notice',
+        content: 'There was an error loading this notice. Please try again later.',
+        authorId: '',
+        authorName: 'System',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        likedBy: [],
+        comments: [],
+      );
+    }
   }
 
   Map<String, dynamic> toMap() {
@@ -370,6 +453,7 @@ class Comment {
   final List<String> likedBy;
   final List<Comment> replies;
   final String? parentId;
+  final String? replyToId; // ID of the specific comment being replied to (might be a reply itself)
 
   Comment({
     required this.id,
@@ -381,44 +465,74 @@ class Comment {
     this.likedBy = const [],
     this.replies = const [],
     this.parentId,
-  });
+    this.replyToId,
+  }) {
+    // Constructor
+  }
 
   factory Comment.fromMap(Map<dynamic, dynamic> map) {
-    // Parse likes
-    List<String> likedBy = [];
-    if (map['likes'] is Map) {
-      likedBy = (map['likes'] as Map<dynamic, dynamic>)
-          .keys
-          .map((k) => k.toString())
-          .toList();
-    }
+    try {
+      // Parse likes
+      List<String> likedBy = [];
+      if (map['likes'] is Map) {
+        likedBy = (map['likes'] as Map<dynamic, dynamic>)
+            .keys
+            .map((k) => k.toString())
+            .toList();
+      }
 
-    // Parse replies
-    List<Comment> replies = [];
-    if (map['replies'] is Map) {
-      replies = (map['replies'] as Map<dynamic, dynamic>).entries.map((entry) {
-        if (entry.value is! Map) return null;
-        return Comment.fromMap({
-          ...entry.value as Map<dynamic, dynamic>,
-          'id': entry.key.toString(),
-          'parentId': map['id'] as String,
-        });
-      }).whereType<Comment>().toList();
-    }
+      // Parse replies
+      List<Comment> replies = [];
+      if (map['replies'] is Map) {
 
-    return Comment(
-      id: map['id'] as String,
-      content: map['content'] as String,
-      authorId: map['authorId'] as String,
-      authorName: map['authorName'] as String,
-      authorAvatar: map['authorAvatar'] as String?,
-      createdAt: map['createdAt'] is Timestamp
-          ? (map['createdAt'] as Timestamp).toDate()
-          : DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int? ?? 0),
-      likedBy: likedBy,
-      replies: replies,
-      parentId: map['parentId'] as String?,
-    );
+        replies = (map['replies'] as Map<dynamic, dynamic>).entries.map((entry) {
+          if (entry.value is! Map) return null;
+          try {
+            // Get the original data
+            final replyData = entry.value as Map<dynamic, dynamic>;
+
+            // Check if this is a reply to another reply (has replyToId)
+            final String? replyToId = replyData['replyToId']?.toString();
+
+            return Comment.fromMap({
+              ...replyData,
+              'id': entry.key.toString(),
+              'parentId': map['id']?.toString() ?? '',
+              'replyToId': replyToId,
+            });
+          } catch (e) {
+            // Return null on error to filter out invalid replies
+            return null;
+          }
+        }).whereType<Comment>().toList();
+      }
+
+      return Comment(
+        id: map['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        content: map['content']?.toString() ?? '',
+        authorId: map['authorId']?.toString() ?? '',
+        authorName: map['authorName']?.toString() ?? '',
+        authorAvatar: map['authorAvatar']?.toString(),
+        createdAt: map['createdAt'] is Timestamp
+            ? (map['createdAt'] as Timestamp).toDate()
+            : DateTime.fromMillisecondsSinceEpoch(map['createdAt'] is int ? map['createdAt'] : 0),
+        likedBy: likedBy,
+        replies: replies,
+        parentId: map['parentId']?.toString(),
+        replyToId: map['replyToId']?.toString(),
+      );
+    } catch (e) {
+      // Return a fallback comment to prevent app crashes
+      return Comment(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        content: 'Error loading comment',
+        authorId: '',
+        authorName: 'System',
+        createdAt: DateTime.now(),
+        likedBy: [],
+        replies: [],
+      );
+    }
   }
 
   Map<String, dynamic> toMap() {
@@ -430,6 +544,7 @@ class Comment {
       'authorAvatar': authorAvatar,
       'createdAt': createdAt,
       'parentId': parentId,
+      'replyToId': replyToId,
       // Convert likes to map format for Firebase
       'likes': likedBy.isEmpty ? null : {for (var userId in likedBy) userId: true},
       // Convert replies to map format for Firebase
@@ -452,6 +567,7 @@ class Comment {
     List<String>? likedBy,
     List<Comment>? replies,
     String? parentId,
+    String? replyToId,
   }) {
     return Comment(
       id: id ?? this.id,
@@ -463,6 +579,7 @@ class Comment {
       likedBy: likedBy ?? this.likedBy,
       replies: replies ?? this.replies,
       parentId: parentId ?? this.parentId,
+      replyToId: replyToId ?? this.replyToId,
     );
   }
 }
