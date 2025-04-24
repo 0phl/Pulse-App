@@ -109,8 +109,7 @@ class MyApp extends StatelessWidget {
                   Navigator.pushReplacementNamed(context, '/admin/marketplace');
                 },
               ),
-              '/admin/volunteer-posts': (context) =>
-                  const AdminVolunteerPostsPage(),
+              '/admin/volunteer-posts': (context) => const AdminVolunteerPostsPage(),
               '/admin/volunteer-posts/add': (context) => const AddVolunteerPostPage(),
               '/admin/reports': (context) => const AdminReportsPage(),
               '/admin/profile': (context) => const AdminProfilePage(),
@@ -154,6 +153,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ignore: deprecated_member_use
     return WillPopScope(
       onWillPop: () async {
         if (_selectedIndex != 0) {

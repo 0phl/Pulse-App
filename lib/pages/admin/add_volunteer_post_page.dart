@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../models/volunteer_post.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/admin_scaffold.dart';
 
 class AddVolunteerPostPage extends StatefulWidget {
   const AddVolunteerPostPage({super.key});
@@ -210,7 +211,8 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AdminScaffold(
+      title: 'Add Volunteer Post',
       appBar: AppBar(
         title: const Text('Add Volunteer Post'),
         backgroundColor: const Color(0xFF00C49A),

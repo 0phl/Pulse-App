@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../models/report.dart';
 import '../../services/admin_service.dart';
 // Auth service import removed as it's not used
-import './admin_drawer.dart';
 import '../../widgets/report_card.dart';
 import '../../widgets/pie_chart_painter.dart';
 import '../../widgets/report_detail_dialog.dart';
@@ -10,6 +9,7 @@ import '../../widgets/report_action_dialogs.dart';
 import '../../widgets/reports_analytics.dart';
 import '../../widgets/report_filter_chip.dart';
 import '../../constants/report_styles.dart';
+import '../../widgets/admin_scaffold.dart';
 
 class ActiveReportsTab extends StatefulWidget {
   final AdminService adminService;
@@ -935,7 +935,8 @@ class _AdminReportsPageState extends State<AdminReportsPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AdminScaffold(
+      title: 'Reports - $_communityName',
       appBar: AppBar(
         backgroundColor: Theme.of(context).primaryColor,
         elevation: 0,
@@ -959,7 +960,6 @@ class _AdminReportsPageState extends State<AdminReportsPage>
           ),
         ],
       ),
-      drawer: const AdminDrawer(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(

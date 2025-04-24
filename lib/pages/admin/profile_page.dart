@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/cloudinary_service.dart';
-import 'admin_drawer.dart';
+import '../../widgets/admin_scaffold.dart';
 
 class AdminProfilePage extends StatefulWidget {
   const AdminProfilePage({super.key});
@@ -283,13 +283,13 @@ class _AdminProfilePageState extends State<AdminProfilePage> with WidgetsBinding
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AdminScaffold(
+      title: 'Admin Profile',
       appBar: AppBar(
         title: const Text('Admin Profile'),
         backgroundColor: const Color(0xFF00C49A),
         foregroundColor: Colors.white,
       ),
-      drawer: const AdminDrawer(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(

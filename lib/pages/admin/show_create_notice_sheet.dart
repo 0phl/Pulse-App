@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/create_notice_sheet.dart';
+import '../../widgets/admin_scaffold.dart';
 
 class ShowCreateNoticeSheet extends StatefulWidget {
   const ShowCreateNoticeSheet({super.key});
@@ -33,7 +34,8 @@ class _ShowCreateNoticeSheetState extends State<ShowCreateNoticeSheet> {
   @override
   Widget build(BuildContext context) {
     // This is just a placeholder while the modal is being shown
-    return Scaffold(
+    return AdminScaffold(
+      title: 'Create Notice',
       appBar: AppBar(
         title: const Text('Create Notice'),
         leading: IconButton(

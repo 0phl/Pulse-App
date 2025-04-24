@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../services/admin_service.dart';
-import './admin_drawer.dart';
 import 'dart:async';
 import '../scan_qr_page.dart';
 import '../../models/firestore_user.dart';
+import '../../widgets/admin_scaffold.dart';
 
 class UsersPage extends StatefulWidget {
   const UsersPage({super.key});
@@ -776,8 +776,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      drawer: const AdminDrawer(),
+    return AdminScaffold(
+      title: 'Manage Users',
       appBar: AppBar(
         title: const Text(
           'Manage Users',

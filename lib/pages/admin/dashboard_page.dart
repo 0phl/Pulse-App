@@ -9,6 +9,7 @@ import '../../models/report.dart';
 import './admin_drawer.dart';
 import './marketplace_page.dart';
 import 'package:PULSE/widgets/engagement_report_card.dart';
+import '../../widgets/admin_scaffold.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -665,17 +666,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _signOut,
-          ),
-        ],
-      ),
-      drawer: const AdminDrawer(),
+    return AdminScaffold(
+      title: 'Admin Dashboard',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.logout),
+          onPressed: _signOut,
+        ),
+      ],
       body: _isLoading
           ? _buildLoadingSkeleton()
           : RefreshIndicator(

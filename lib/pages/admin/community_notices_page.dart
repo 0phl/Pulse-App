@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../services/admin_service.dart';
-
 import '../../models/community_notice.dart';
 import '../../widgets/create_notice_sheet.dart';
 import '../../widgets/notice_card.dart';
-import './admin_drawer.dart';
+import '../../widgets/admin_scaffold.dart';
 
 
 class AdminCommunityNoticesPage extends StatefulWidget {
@@ -179,11 +178,8 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Community Notices'),
-      ),
-      drawer: const AdminDrawer(),
+    return AdminScaffold(
+      title: 'Community Notices',
       body: Column(
         children: [
           _buildHeader(),

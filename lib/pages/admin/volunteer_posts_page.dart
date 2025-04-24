@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../models/volunteer_post.dart';
 import '../../services/auth_service.dart';
-import '../admin/admin_drawer.dart';
+import '../../widgets/admin_scaffold.dart';
 
 class AdminVolunteerPostsPage extends StatefulWidget {
   const AdminVolunteerPostsPage({super.key});
@@ -513,8 +513,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      drawer: const AdminDrawer(),
+    return AdminScaffold(
+      title: 'Manage Volunteer Posts',
       appBar: AppBar(
         title: const Text(
           'Manage Volunteer Posts',

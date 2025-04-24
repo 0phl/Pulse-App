@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/admin_service.dart';
+import '../../widgets/admin_scaffold.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
@@ -139,7 +140,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async => false, // Prevent back button
-      child: Scaffold(
+      child: AdminScaffold(
+        title: 'Change Password',
         backgroundColor: const Color(0xFFF5FBF9),
         appBar: AppBar(
           title: const Text(

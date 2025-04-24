@@ -3,9 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
 // auth_service import removed as it's no longer needed
 // market_item import removed as it's no longer needed
-import './admin_drawer.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/image_viewer_page.dart';
+import '../../widgets/admin_scaffold.dart';
 
 class AdminMarketplacePage extends StatefulWidget {
   final int initialTabIndex;
@@ -849,7 +849,8 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AdminScaffold(
+      title: 'Marketplace - $_communityName',
       appBar: AppBar(
         backgroundColor: const Color(0xFF00C49A),
         elevation: 0,
@@ -877,7 +878,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
           ],
         ),
       ),
-      drawer: const AdminDrawer(),
       body: Container(
         color: const Color(0xFFF5F5F5),
         child: TabBarView(
