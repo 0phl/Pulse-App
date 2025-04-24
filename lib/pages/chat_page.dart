@@ -62,6 +62,12 @@ class _ChatPageState extends State<ChatPage> {
     _initializeChat();
     _loadMarketItem();
     _setupMarketItemListener();
+
+    // Mark messages as read immediately when the page is opened
+    // This will be called again after chat initialization
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markMessagesAsRead();
+    });
   }
 
   Future<void> _loadMarketItem() async {
@@ -331,7 +337,25 @@ class _ChatPageState extends State<ChatPage> {
     _scrollController.dispose();
     _messageController.dispose();
     _marketItemSubscription?.cancel();
+
+    // Notify the MarketPage that we're leaving the chat page
+    // This will trigger a refresh of the unread count
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // This will run after the widget is disposed
+      _refreshUnreadCountInMarketPage();
+    });
+
     super.dispose();
+  }
+
+  // Method to refresh the unread count in the MarketPage
+  void _refreshUnreadCountInMarketPage() {
+    // This is a workaround to force the MarketPage to refresh its unread count
+    // We're using the Firebase database to trigger a refresh
+    final currentUser = _auth.currentUser;
+    if (currentUser != null) {
+      FirebaseDatabase.instance.ref('users/${currentUser.uid}/lastChatListVisit').set(ServerValue.timestamp);
+    }
   }
 
   Future<void> _markMessagesAsRead() async {

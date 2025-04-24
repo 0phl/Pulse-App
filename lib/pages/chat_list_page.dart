@@ -12,6 +12,97 @@ class ChatListPage extends StatefulWidget {
   State<ChatListPage> createState() => _ChatListPageState();
 }
 
+class _NotificationBadge extends StatefulWidget {
+  final int count;
+  final Color color;
+
+  const _NotificationBadge({
+    required this.count,
+    required this.color,
+  });
+
+  @override
+  State<_NotificationBadge> createState() => _NotificationBadgeState();
+}
+
+class _NotificationBadgeState extends State<_NotificationBadge>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+
+    // Create a curved animation
+    _animation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.5, end: 1.2)
+            .chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 60,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.2, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 40,
+      ),
+    ]).animate(_controller);
+
+    // Start the animation
+    _controller.forward();
+  }
+
+  @override
+  void didUpdateWidget(_NotificationBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.count != oldWidget.count) {
+      // Reset and restart animation when count changes
+      _controller.reset();
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _animation.value,
+          child: Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: widget.color,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                widget.count.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _ChatListPageState extends State<ChatListPage> {
   final _auth = FirebaseAuth.instance;
   final _database = FirebaseDatabase.instance;
@@ -28,6 +119,27 @@ class _ChatListPageState extends State<ChatListPage> {
   void initState() {
     super.initState();
     _loadUserCommunityAndChats();
+  }
+
+  @override
+  void dispose() {
+    // Notify the MarketPage that we're leaving the chat list
+    // This will trigger a refresh of the unread count
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // This will run after the widget is disposed
+      _refreshUnreadCountInMarketPage();
+    });
+    super.dispose();
+  }
+
+  // Method to refresh the unread count in the MarketPage
+  void _refreshUnreadCountInMarketPage() {
+    // This is a workaround to force the MarketPage to refresh its unread count
+    // We're using the Firebase database to trigger a refresh
+    final currentUser = _auth.currentUser;
+    if (currentUser != null) {
+      _database.ref('users/${currentUser.uid}/lastChatListVisit').set(ServerValue.timestamp);
+    }
   }
 
   void _loadUserCommunityAndChats() async {
@@ -378,9 +490,14 @@ class _ChatListPageState extends State<ChatListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Chats'),
+        title: const Text('My Chats',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF00C49A),
         foregroundColor: Colors.white,
+        // Add padding to the actions
+        actionsIconTheme: const IconThemeData(size: 26),
+        // Add some right padding to the title
+        titleSpacing: 16,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -514,25 +631,11 @@ class _ChatListPageState extends State<ChatListPage> {
               ),
               if (hasUnread)
                 Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF00C49A),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        chat.unreadCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                  right: 2, // Adjust position to be more inward
+                  top: 2,
+                  child: _NotificationBadge(
+                    count: chat.unreadCount,
+                    color: const Color(0xFF00C49A),
                   ),
                 ),
             ],

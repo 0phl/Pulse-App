@@ -5,6 +5,7 @@ import '../models/market_item.dart';
 import 'chat_page.dart';
 import 'add_item_page.dart';
 import 'dart:io';
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -13,37 +14,173 @@ import 'edit_item_page.dart';
 import 'chat_list_page.dart';
 import '../services/community_service.dart';
 import '../services/cloudinary_service.dart';
+import '../services/global_state.dart';
 import 'seller_profile_page.dart';
 
 class MarketPage extends StatefulWidget {
-  const MarketPage({super.key});
+  final Function(int)? onUnreadChatsChanged;
+
+  const MarketPage({super.key, this.onUnreadChatsChanged});
 
   @override
   State<MarketPage> createState() => _MarketPageState();
 }
 
-class _MarketPageState extends State<MarketPage>
+class _NotificationBadge extends StatefulWidget {
+  final int count;
+  final Color color;
+
+  const _NotificationBadge({
+    required this.count,
+    required this.color,
+  });
+
+  @override
+  State<_NotificationBadge> createState() => _NotificationBadgeState();
+}
+
+class _NotificationBadgeState extends State<_NotificationBadge>
     with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+
+    // Create a curved animation
+    _animation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.5, end: 1.2)
+            .chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 60,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.2, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 40,
+      ),
+    ]).animate(_controller);
+
+    // Start the animation
+    _controller.forward();
+  }
+
+  @override
+  void didUpdateWidget(_NotificationBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.count != oldWidget.count) {
+      // Reset and restart animation when count changes
+      _controller.reset();
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _animation.value,
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: widget.color,
+              shape: BoxShape.circle,
+            ),
+            constraints: const BoxConstraints(
+              minWidth: 18,
+              minHeight: 18,
+            ),
+            child: Text(
+              widget.count.toString(),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MarketPageState extends State<MarketPage>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _database = FirebaseDatabase.instance;
+  final GlobalState _globalState = GlobalState();
   Stream<List<MarketItem>>? _allItemsStream;
   Stream<List<MarketItem>>? _userItemsStream;
   bool _isAddingItem = false;
   int _unreadChats = 0;
   final CommunityService _communityService = CommunityService();
   String? _currentUserCommunityId;
+  late StreamSubscription<int> _unreadCountSubscription;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 2, vsync: this)
       ..addListener(() {
         setState(() {});
       });
+
+    // Initialize unread count from the global state
+    _unreadChats = _globalState.unreadChatCount;
+
+    // Set up subscription to unread count changes
+    _unreadCountSubscription = _globalState.unreadChatCountStream.listen((count) {
+      if (mounted && _unreadChats != count) {
+        setState(() {
+          _unreadChats = count;
+        });
+        widget.onUnreadChatsChanged?.call(count);
+      }
+    });
+
     _loadUserCommunity();
     _setupChatListener();
+
+    // Force refresh the unread count
+    _globalState.refreshUnreadCount();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh unread count when dependencies change (e.g., when returning to this screen)
+    _globalState.refreshUnreadCount();
+
+    // Also update the local state with the current count
+    setState(() {
+      _unreadChats = _globalState.unreadChatCount;
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Refresh unread count when app comes to foreground
+    if (state == AppLifecycleState.resumed) {
+      _globalState.refreshUnreadCount();
+    }
   }
 
   Future<void> _loadUserCommunity() async {
@@ -64,54 +201,100 @@ class _MarketPageState extends State<MarketPage>
     final currentUser = _auth.currentUser;
     if (currentUser == null) return;
 
+    // Listen for changes to the user's lastChatListVisit timestamp
+    _database.ref('users/${currentUser.uid}/lastChatListVisit').onValue.listen((event) {
+      // When this changes, refresh the unread count
+      _updateUnreadCount();
+    });
+
+    // Listen for changes to chats
     _database.ref('chats').onValue.listen((event) {
       if (!mounted) return;
-
-      try {
-        int unreadCount = 0;
-        final chatData = event.snapshot.value as Map<dynamic, dynamic>?;
-
-        if (chatData != null) {
-          chatData.forEach((chatId, chatValue) {
-            if (chatValue is Map && chatValue.containsKey('messages')) {
-              // Parse chat ID parts (communityId_itemId_buyerId_sellerId)
-              final parts = chatId.toString().split('_');
-              if (parts.length == 4) {
-                final communityId = parts[0];
-                final buyerId = parts[2];
-                final sellerId = parts[3];
-
-                // Only count messages from the same community
-                if (communityId == _currentUserCommunityId &&
-                    (buyerId == currentUser.uid ||
-                        sellerId == currentUser.uid)) {
-                  final messages =
-                      (chatValue['messages'] as Map<dynamic, dynamic>)
-                          .values
-                          .toList();
-                  final readStatus = (chatValue['readStatus']
-                          as Map<dynamic, dynamic>?)?[currentUser.uid] ??
-                      0;
-
-                  // Count messages newer than last read timestamp
-                  final unreadMessages = messages.where((msg) {
-                    return msg['timestamp'] > readStatus &&
-                        msg['senderId'] != currentUser.uid;
-                  }).length;
-                  unreadCount += unreadMessages;
-                }
-              }
-            }
-          });
-        }
-
-        setState(() {
-          _unreadChats = unreadCount;
-        });
-      } catch (e) {
-        print('Error processing chat notifications: $e');
-      }
+      _updateUnreadCount(event.snapshot);
     });
+  }
+
+  void _updateUnreadCount([DataSnapshot? chatSnapshot]) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null || !mounted) return;
+
+    try {
+      int unreadCount = 0;
+      int totalChats = 0;
+
+      // If no snapshot was provided, get one
+      DataSnapshot snapshot = chatSnapshot ?? await _database.ref('chats').get();
+      final chatData = snapshot.value as Map<dynamic, dynamic>?;
+
+      if (chatData != null) {
+        totalChats = chatData.length;
+        print('DEBUG: Found $totalChats total chats in database');
+
+        // Get all chats from the database
+        for (var entry in chatData.entries) {
+          final chatId = entry.key as String;
+          final chatInfo = entry.value as Map<dynamic, dynamic>?;
+
+          if (chatInfo == null) {
+            print('DEBUG: Chat $chatId has null info');
+            continue;
+          }
+
+          // Extract chat details
+          final buyerId = chatInfo['buyerId'] as String?;
+          final sellerId = chatInfo['sellerId'] as String?;
+          final communityId = chatInfo['communityId'] as String?;
+
+          print('DEBUG: Checking chat $chatId - buyerId: $buyerId, sellerId: $sellerId, communityId: $communityId');
+
+          // Skip if not in user's community
+          if (communityId != _currentUserCommunityId) {
+            print('DEBUG: Skipping chat $chatId - not in user community');
+            continue;
+          }
+
+          // Skip if user is not part of this chat
+          if (currentUser.uid != sellerId && currentUser.uid != buyerId) {
+            print('DEBUG: Skipping chat $chatId - user not part of chat');
+            continue;
+          }
+
+          print('DEBUG: User is part of chat $chatId');
+
+          // Get unread count directly from the unreadCount field
+          if (chatInfo.containsKey('unreadCount')) {
+            final unreadCountMap = chatInfo['unreadCount'] as Map<dynamic, dynamic>?;
+            if (unreadCountMap != null && unreadCountMap.containsKey(currentUser.uid)) {
+              final count = unreadCountMap[currentUser.uid] as int? ?? 0;
+              print('DEBUG: Chat $chatId has $count unread messages for user ${currentUser.uid}');
+              unreadCount += count;
+            } else {
+              print('DEBUG: Chat $chatId has no unread count for user ${currentUser.uid}');
+            }
+          } else {
+            print('DEBUG: Chat $chatId has no unreadCount field');
+          }
+        }
+      }
+
+      print('DEBUG: Total unread count: $unreadCount');
+
+      if (mounted) {
+        // Only update state if the count has changed
+        if (_unreadChats != unreadCount) {
+          setState(() {
+            _unreadChats = unreadCount;
+          });
+
+          // Notify parent widget about unread count change
+          widget.onUnreadChatsChanged?.call(unreadCount);
+
+          print('DEBUG: Updated _unreadChats to $unreadCount');
+        }
+      }
+    } catch (e) {
+      print('Error processing chat notifications: $e');
+    }
   }
 
   void _initializeStreams() {
@@ -226,6 +409,8 @@ class _MarketPageState extends State<MarketPage>
         backgroundColor: const Color(0xFF00C49A),
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
+        // Add padding to the actions
+        actionsIconTheme: const IconThemeData(size: 26),
         actions: [
           // Fix button removed as it's no longer needed
           // Seller Dashboard Button
@@ -237,45 +422,40 @@ class _MarketPageState extends State<MarketPage>
             tooltip: 'Seller Dashboard',
           ),
           // Chat Button with Notification Badge
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chat),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ChatListPage(),
-                    ),
-                  );
-                },
-                tooltip: 'My Chats',
-              ),
-              if (_unreadChats > 0)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      _unreadChats.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0), // Add right padding
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chat),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ChatListPage(),
                       ),
-                      textAlign: TextAlign.center,
+                    );
+                  },
+                  tooltip: 'My Chats',
+                ),
+                // Always create the badge widget, but make it visible only when count > 0
+                Positioned(
+                  right: 8, // Adjust position to be more inward
+                  top: 8,
+                  child: Visibility(
+                    visible: _unreadChats > 0,
+                    maintainState: true,
+                    maintainAnimation: true,
+                    maintainSize: true,
+                    child: _NotificationBadge(
+                      count: _unreadChats,
+                      color: Colors.red,
                     ),
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
         ],
         bottom: TabBar(
@@ -592,7 +772,9 @@ class _MarketPageState extends State<MarketPage>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
+    _unreadCountSubscription.cancel();
     super.dispose();
   }
 }

@@ -26,6 +26,7 @@ import 'pages/admin/add_volunteer_post_page.dart';
 import 'pages/admin/show_create_notice_sheet.dart';
 import 'pages/admin/profile_page.dart';
 import 'services/user_session_service.dart';
+import 'services/global_state.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -137,18 +138,53 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   DateTime? _lastPressedAt;
+  final GlobalState _globalState = GlobalState();
 
-  static const List<Widget> _pages = <Widget>[
-    HomePage(),
-    MarketPage(),
-    VolunteerPage(),
-    ReportPage(),
+  // Pages with the MarketPage having the callback
+  late final List<Widget> _pages = <Widget>[
+    const HomePage(),
+    MarketPage(
+      key: UniqueKey(), // Add a unique key to force rebuild
+      onUnreadChatsChanged: _updateUnreadChats
+    ),
+    const VolunteerPage(),
+    const ReportPage(),
   ];
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    // If selecting the Market tab
+    if (index == 1) {
+      // Force refresh of the unread count
+      _globalState.refreshUnreadCount();
+
+      // Always force a complete rebuild of the MarketPage when selecting it
+      // This ensures the notification badge is always visible
+      setState(() {
+        // Replace the MarketPage with a new instance to force a rebuild
+        _pages[1] = MarketPage(
+          key: UniqueKey(),
+          onUnreadChatsChanged: _updateUnreadChats
+        );
+        _selectedIndex = index;
+      });
+
+      // Add a delayed refresh to ensure the badge appears
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          _globalState.refreshUnreadCount();
+        }
+      });
+    } else {
+      // For other tabs, just update the selected index
+      setState(() {
+        _selectedIndex = index;
+      });
+    }
+  }
+
+  // Method to update unread chats count - callback for the MarketPage
+  void _updateUnreadChats(int count) {
+    // No need to do anything here as the GlobalState handles persistence
   }
 
   @override
