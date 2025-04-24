@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/market_item.dart';
 import '../models/seller_rating.dart';
 import '../services/market_service.dart';
@@ -52,8 +53,12 @@ class _SellerProfilePageState extends State<SellerProfilePage>
         });
       }
 
+      // Check if current user is viewing their own profile
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final isCurrentUser = currentUser != null && currentUser.uid == widget.sellerId;
+
       // Set up streams for items and ratings
-      _marketService.getSellerItemsStream(widget.sellerId).listen((items) {
+      _marketService.getSellerItemsStream(widget.sellerId, isCurrentUser: isCurrentUser).listen((items) {
         if (mounted) {
           setState(() {
             _sellerItems = items;

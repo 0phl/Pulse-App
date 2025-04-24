@@ -289,17 +289,23 @@ class _CommentsSheetState extends State<CommentsSheet> {
                             ),
                           ),
                         ),
-                        IconButton(
-                          onPressed: _isSubmitting ? null : _addComment,
-                          icon: Icon(
-                            Icons.send_rounded,
-                            color: _commentController.text.isEmpty
-                                ? Colors.grey[400]
-                                : const Color(0xFF00C49A),
-                            size: 20,
-                          ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+                        ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: _commentController,
+                          builder: (context, value, child) {
+                            final hasText = value.text.isNotEmpty;
+                            return IconButton(
+                              onPressed: _isSubmitting || !hasText ? null : _addComment,
+                              icon: Icon(
+                                Icons.send_rounded,
+                                color: hasText
+                                    ? const Color(0xFF00C49A)
+                                    : Colors.grey[400],
+                                size: 20,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            );
+                          },
                         ),
                       ],
                     ),

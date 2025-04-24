@@ -6,6 +6,7 @@ import '../services/market_service.dart';
 import '../models/seller_rating.dart';
 import '../models/market_item.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 
 class ChatPage extends StatefulWidget {
   final String itemId;
@@ -51,6 +52,8 @@ class _ChatPageState extends State<ChatPage> {
   bool _isItemSold = false;
   bool _hasRatedSeller = false;
   MarketItem? _marketItem;
+  StreamSubscription<MarketItem?>? _marketItemSubscription;
+  String? _otherUserProfileUrl;
 
   @override
   void initState() {
@@ -58,6 +61,7 @@ class _ChatPageState extends State<ChatPage> {
     _displayName = widget.isSeller ? widget.sellerName : widget.sellerName;
     _initializeChat();
     _loadMarketItem();
+    _setupMarketItemListener();
   }
 
   Future<void> _loadMarketItem() async {
@@ -142,6 +146,18 @@ class _ChatPageState extends State<ChatPage> {
         }
         final buyerName = await _getUserName(widget.buyerId!);
         _userNames[widget.buyerId!] = buyerName;
+
+        // Get buyer's profile image
+        try {
+          final userSnapshot = await _userRef.child(widget.buyerId!).get();
+          if (userSnapshot.exists) {
+            final userData = userSnapshot.value as Map<dynamic, dynamic>;
+            _otherUserProfileUrl = userData['profileImageUrl'] as String?;
+          }
+        } catch (e) {
+          print('Error getting buyer profile image: $e');
+        }
+
         setState(() {
           _displayName = buyerName;
         });
@@ -149,6 +165,18 @@ class _ChatPageState extends State<ChatPage> {
         // We are buyer chatting with seller
         final sellerName = await _getUserName(widget.sellerId);
         _userNames[widget.sellerId] = sellerName;
+
+        // Get seller's profile image
+        try {
+          final userSnapshot = await _userRef.child(widget.sellerId).get();
+          if (userSnapshot.exists) {
+            final userData = userSnapshot.value as Map<dynamic, dynamic>;
+            _otherUserProfileUrl = userData['profileImageUrl'] as String?;
+          }
+        } catch (e) {
+          print('Error getting seller profile image: $e');
+        }
+
         setState(() {
           _displayName = sellerName;
         });
@@ -271,10 +299,38 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  void _setupMarketItemListener() {
+    // Set up a real-time listener for the market item
+    _marketItemSubscription = _marketService.getMarketItemStream(widget.itemId).listen((item) async {
+      if (item != null && mounted) {
+        final currentUser = _auth.currentUser;
+        if (currentUser == null) return;
+
+        // Check if the item status has changed to sold
+        if (item.isSold && !_isItemSold) {
+          // Check if user has already rated this seller for this item
+          bool hasRated = false;
+          if (!widget.isSeller) {
+            hasRated = await _marketService.hasUserRatedTransaction(
+                widget.sellerId, currentUser.uid, widget.itemId);
+          }
+
+          // Update the UI to reflect the new status
+          setState(() {
+            _marketItem = item;
+            _isItemSold = true;
+            _hasRatedSeller = hasRated;
+          });
+        }
+      }
+    });
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
     _messageController.dispose();
+    _marketItemSubscription?.cancel();
     super.dispose();
   }
 
@@ -313,18 +369,15 @@ class _ChatPageState extends State<ChatPage> {
       // Only get profile image for non-system messages
       if (!isSystemMessage) {
         try {
-          final userSnapshot = await FirebaseDatabase.instance
-              .ref()
-              .child('users')
-              .child(currentUser.uid)
-              .get();
+          final userSnapshot = await _userRef.child(currentUser.uid).get();
 
           if (userSnapshot.exists) {
             final userData = userSnapshot.value as Map<dynamic, dynamic>;
             profileImageUrl = userData['profileImageUrl'] as String?;
           }
         } catch (e) {
-          // Silently handle error, profile image is optional
+          print('Error getting profile image for message: $e');
+          // Continue without profile image
         }
       }
 
@@ -381,48 +434,74 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(
-              _isLoading && _displayName.isEmpty ? 'Loading...' : _displayName,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-            Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    widget.itemTitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.normal,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-                if (_isItemSold) ...[
-                  // Show sold indicator if item is sold
-                  const SizedBox(width: 4),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      'SOLD',
-                      style: TextStyle(
-                        fontSize: 10,
+            // Profile picture
+            _otherUserProfileUrl != null
+                ? CircleAvatar(
+                    radius: 20,
+                    backgroundColor: Colors.grey[300],
+                    backgroundImage: NetworkImage(_otherUserProfileUrl!),
+                  )
+                : CircleAvatar(
+                    radius: 20,
+                    backgroundColor: Colors.grey[300],
+                    child: Text(
+                      _displayName.isNotEmpty ? _displayName[0].toUpperCase() : '?',
+                      style: const TextStyle(
+                        color: Color(0xFF00C49A),
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
                       ),
                     ),
                   ),
+            const SizedBox(width: 12),
+            // User name and item title
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _isLoading && _displayName.isEmpty ? 'Loading...' : _displayName,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.itemTitle,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.normal,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                      if (_isItemSold) ...[
+                        // Show sold indicator if item is sold
+                        const SizedBox(width: 4),
+                        Container(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'SOLD',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
-              ],
+              ),
             ),
           ],
         ),
@@ -485,10 +564,18 @@ class _ChatPageState extends State<ChatPage> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () => _sendMessage(),
-                    icon: const Icon(Icons.send),
-                    color: const Color(0xFF00C49A),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _messageController,
+                    builder: (context, value, child) {
+                      final hasText = value.text.isNotEmpty;
+                      return IconButton(
+                        onPressed: hasText ? () => _sendMessage() : null,
+                        icon: const Icon(Icons.send_rounded),
+                        color: hasText
+                            ? const Color(0xFF00C49A)
+                            : Colors.grey[400],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -648,23 +735,22 @@ class _ChatPageState extends State<ChatPage> {
     try {
       await _marketService.markItemAsSold(widget.itemId);
 
+      // Get the seller's name
+      String sellerName = _userNames[_currentUserId] ?? 'The seller';
+
       // Send a system message to the chat
       await _sendMessage(
-        message: '🎉 This item has been marked as sold!',
+        message: '🎉 $sellerName has marked this item as sold!',
         isSystemMessage: true,
       );
 
-      // Fetch the updated item to get the server timestamp
-      final updatedItem = await _marketService.getMarketItem(widget.itemId);
-
-      // Update local state
+      // The real-time listener will automatically update the UI
+      // but we'll also update the local state immediately for better UX
       if (mounted) {
         setState(() {
           _isItemSold = true;
-          if (updatedItem != null) {
-            _marketItem = updatedItem;
-          } else if (_marketItem != null) {
-            // Fallback if we couldn't fetch the updated item
+          if (_marketItem != null) {
+            // Update the existing market item
             _marketItem = MarketItem(
               id: _marketItem!.id,
               title: _marketItem!.title,
@@ -795,9 +881,17 @@ class _ChatPageState extends State<ChatPage> {
                           showFullName = !showFullName;
                         });
                       },
-                      child: const Text(
-                        'Show my full name in the review (if unchecked, your name will appear as "Jem*** Na***")',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      child: Builder(
+                        builder: (context) {
+                          final currentUser = _auth.currentUser;
+                          String userName = _userNames[currentUser?.uid ?? ''] ?? 'User';
+                          String discreetName = _createDiscreetName(userName);
+
+                          return Text(
+                            'Show my full name in the review (if unchecked, your name will appear as "$discreetName")',
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -846,11 +940,7 @@ class _ChatPageState extends State<ChatPage> {
 
       // Get the user's profile image URL
       try {
-        final userSnapshot = await FirebaseDatabase.instance
-            .ref()
-            .child('users')
-            .child(currentUser.uid)
-            .get();
+        final userSnapshot = await _userRef.child(currentUser.uid).get();
 
         if (userSnapshot.exists) {
           final userData = userSnapshot.value as Map<dynamic, dynamic>;
@@ -882,7 +972,7 @@ class _ChatPageState extends State<ChatPage> {
       // Send a system message to the chat
       await _sendMessage(
         message:
-            '⭐ The buyer has left a $rating-star rating for this transaction!',
+            '⭐ the buyer has left a $rating-star rating for this transaction!',
         isSystemMessage: true,
       );
 

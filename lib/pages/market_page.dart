@@ -515,6 +515,8 @@ class _MarketPageState extends State<MarketPage>
 
 
   void _navigateToSellerProfile(MarketItem item) {
+    // Navigate to seller profile page, passing the seller ID and name
+    // The seller profile page will filter out pending items since this is not the current user
     Navigator.push(
       context,
       MaterialPageRoute(

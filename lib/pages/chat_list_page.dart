@@ -299,6 +299,19 @@ class _ChatListPageState extends State<ChatListPage> {
               final otherUserName =
                   await _getUserName(otherUserId) ?? 'Unknown User';
 
+              // Get profile image URL for the other user
+              String? profileImageUrl;
+              try {
+                final userSnapshot = await _database.ref('users/$otherUserId').get();
+                if (userSnapshot.exists) {
+                  final userData = userSnapshot.value as Map<dynamic, dynamic>;
+                  profileImageUrl = userData['profileImageUrl'] as String?;
+                }
+              } catch (e) {
+                print('Error getting profile image for chat list: $e');
+                // Continue without profile image
+              }
+
               // Get unread count from chat level
               final unreadSnapshot = await _database
                   .ref('chats/$chatId/unreadCount')
@@ -323,6 +336,7 @@ class _ChatListPageState extends State<ChatListPage> {
                 communityId: communityId,
                 unreadCount: unreadCount,
                 deletedTimestamps: deletedTimestamps,
+                profileImageUrl: profileImageUrl,
               ));
             }
           }
@@ -483,15 +497,20 @@ class _ChatListPageState extends State<ChatListPage> {
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundColor: const Color(0xFF00C49A).withOpacity(0.1),
-                child: Text(
-                  chat.otherUserName[0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Color(0xFF00C49A),
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                backgroundColor: Colors.grey[300],
+                backgroundImage: chat.profileImageUrl != null
+                    ? NetworkImage(chat.profileImageUrl!)
+                    : null,
+                child: chat.profileImageUrl == null
+                    ? Text(
+                        chat.otherUserName[0].toUpperCase(),
+                        style: const TextStyle(
+                          color: Color(0xFF00C49A),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
               ),
               if (hasUnread)
                 Positioned(
@@ -653,6 +672,7 @@ class ChatInfo {
   final String communityId;
   final int unreadCount;
   final Map<String, int>? deletedTimestamps;
+  final String? profileImageUrl;
 
   ChatInfo({
     required this.chatId,
@@ -668,5 +688,6 @@ class ChatInfo {
     required this.communityId,
     required this.unreadCount,
     this.deletedTimestamps,
+    this.profileImageUrl,
   });
 }

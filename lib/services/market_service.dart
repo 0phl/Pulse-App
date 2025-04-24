@@ -27,9 +27,17 @@ class MarketService {
   }
 
   // Get market items for a specific seller
-  Stream<List<MarketItem>> getSellerItemsStream(String sellerId) {
-    return _marketItemsCollection
-        .where('sellerId', isEqualTo: sellerId)
+  Stream<List<MarketItem>> getSellerItemsStream(String sellerId, {bool isCurrentUser = false}) {
+    // If viewing own profile, show all items including pending
+    // If viewing another seller's profile, only show approved items
+    Query query = _marketItemsCollection.where('sellerId', isEqualTo: sellerId);
+
+    // Only filter by status if not viewing own profile
+    if (!isCurrentUser) {
+      query = query.where('status', isEqualTo: 'approved');
+    }
+
+    return query
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) =>
@@ -43,6 +51,14 @@ class MarketService {
       return MarketItem.fromFirestore(doc);
     }
     return null;
+  }
+
+  // Get a specific market item as a stream for real-time updates
+  Stream<MarketItem?> getMarketItemStream(String itemId) {
+    return _marketItemsCollection
+        .doc(itemId)
+        .snapshots()
+        .map((doc) => doc.exists ? MarketItem.fromFirestore(doc) : null);
   }
 
   // Add a new market item
