@@ -10,6 +10,7 @@ import '../models/firestore_user.dart';
 import '../models/report.dart';
 import '../services/community_service.dart';
 import 'engagement_service.dart';
+import 'community_notice_service.dart';
 
 class AdminService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -18,6 +19,7 @@ class AdminService {
   final _communityService = CommunityService();
   final _storage = FirebaseStorage.instance;
   final EngagementService _engagementService = EngagementService();
+  final CommunityNoticeService _noticeService = CommunityNoticeService();
 
   String? get currentUserId => _auth.currentUser?.uid;
 
@@ -967,6 +969,32 @@ class AdminService {
     });
   }
 
+  // Update admin profile information
+  Future<void> updateAdminProfile(String adminId, Map<String, dynamic> data) async {
+    try {
+      // Prepare data for Firestore
+      final firestoreData = Map<String, dynamic>.from(data);
+      firestoreData['updatedAt'] = FieldValue.serverTimestamp();
+
+      // Update in Firestore
+      await _usersCollection.doc(adminId).update(firestoreData);
+
+      // If name was updated, update all comments by this admin
+      if (data.containsKey('fullName')) {
+        final String fullName = data['fullName'] as String;
+        final String? profileImageUrl = data['profileImageUrl'] as String?;
+
+        // Get the admin name format used in comments (with 'Admin ' prefix)
+        final String adminCommentName = 'Admin $fullName';
+
+        // Update all comments by this admin
+        await _noticeService.updateUserCommentsInfo(adminId, adminCommentName, profileImageUrl);
+      }
+    } catch (e) {
+      throw Exception('Failed to update admin profile: $e');
+    }
+  }
+
   // Delete admin
   Future<void> deleteAdmin(String adminId) async {
     await _usersCollection.doc(adminId).delete();
@@ -1372,7 +1400,17 @@ class AdminService {
         }
         return 'Admin';
       }(),
-      'authorAvatar': _auth.currentUser?.photoURL,
+      'authorAvatar': await () async {
+        final user = _auth.currentUser;
+        if (user != null) {
+          final adminDoc = await _usersCollection.doc(user.uid).get();
+          if (adminDoc.exists) {
+            final adminData = adminDoc.data() as Map<String, dynamic>;
+            return adminData['profileImageUrl'] as String?;
+          }
+        }
+        return null;
+      }(),
       'likes': null,
       'comments': null,
     });
@@ -1468,19 +1506,19 @@ class AdminService {
       throw Exception('No user logged in');
     }
 
-    final String adminName = await () async {
-      final user = _auth.currentUser;
-      if (user != null) {
-        final adminDoc = await _usersCollection.doc(user.uid).get();
-        if (adminDoc.exists) {
-          final adminData = adminDoc.data() as Map<String, dynamic>;
-          return 'Admin ${adminData['fullName']}';
-        }
-      }
-      return 'Admin';
-    }();
+    // Get admin name and profile image from Firestore
+    String adminName = 'Admin';
+    String? profileImageUrl;
 
-    final String? profileImageUrl = _auth.currentUser?.photoURL;
+    final user = _auth.currentUser;
+    if (user != null) {
+      final adminDoc = await _usersCollection.doc(user.uid).get();
+      if (adminDoc.exists) {
+        final adminData = adminDoc.data() as Map<String, dynamic>;
+        adminName = 'Admin ${adminData['fullName']}';
+        profileImageUrl = adminData['profileImageUrl'] as String?;
+      }
+    }
 
     // If parentCommentId is provided, add as a reply to that comment
     if (parentCommentId != null) {

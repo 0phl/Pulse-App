@@ -358,4 +358,73 @@ class CommunityNoticeService {
   Future<void> deleteNotice(String noticeId) async {
     await _database.child('community_notices').child(noticeId).remove();
   }
+
+  // Update all comments by a user when their profile changes
+  Future<void> updateUserCommentsInfo(String userId, String newFullName, String? newProfileImageUrl) async {
+    try {
+      // Get all notices
+      final noticesSnapshot = await _database.child('community_notices').get();
+      if (!noticesSnapshot.exists) return;
+
+      final notices = noticesSnapshot.value as Map<dynamic, dynamic>;
+
+      // For each notice, check and update comments
+      for (var noticeEntry in notices.entries) {
+        final noticeId = noticeEntry.key.toString();
+        final noticeData = noticeEntry.value as Map<dynamic, dynamic>;
+
+        // Skip if no comments
+        if (noticeData['comments'] == null || noticeData['comments'] is! Map) continue;
+
+        final comments = noticeData['comments'] as Map<dynamic, dynamic>;
+
+        // Check each top-level comment
+        for (var commentEntry in comments.entries) {
+          final commentId = commentEntry.key.toString();
+          final commentData = commentEntry.value as Map<dynamic, dynamic>;
+
+          // Update top-level comment if it's by this user
+          if (commentData['authorId'] == userId) {
+            await _database
+                .child('community_notices')
+                .child(noticeId)
+                .child('comments')
+                .child(commentId)
+                .update({
+              'authorName': newFullName,
+              'authorAvatar': newProfileImageUrl,
+            });
+          }
+
+          // Check and update replies
+          if (commentData['replies'] != null && commentData['replies'] is Map) {
+            final replies = commentData['replies'] as Map<dynamic, dynamic>;
+
+            for (var replyEntry in replies.entries) {
+              final replyId = replyEntry.key.toString();
+              final replyData = replyEntry.value as Map<dynamic, dynamic>;
+
+              // Update reply if it's by this user
+              if (replyData['authorId'] == userId) {
+                await _database
+                    .child('community_notices')
+                    .child(noticeId)
+                    .child('comments')
+                    .child(commentId)
+                    .child('replies')
+                    .child(replyId)
+                    .update({
+                  'authorName': newFullName,
+                  'authorAvatar': newProfileImageUrl,
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error updating user comments: $e');
+      // Don't throw the error to prevent profile update from failing
+    }
+  }
 }

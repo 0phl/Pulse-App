@@ -265,17 +265,17 @@ class CommunityNotice {
 
         return CommunityNotice(
           id: id,
-          title: data['title']?.toString() ?? '',
-          content: data['content']?.toString() ?? '',
-          authorId: data['authorId']?.toString() ?? '',
-          authorName: data['authorName']?.toString() ?? '',
-          authorAvatar: data['authorAvatar']?.toString(),
+          title: data['title'] != null ? data['title'].toString() : '',
+          content: data['content'] != null ? data['content'].toString() : '',
+          authorId: data['authorId'] != null ? data['authorId'].toString() : '',
+          authorName: data['authorName'] != null ? data['authorName'].toString() : '',
+          authorAvatar: data['authorAvatar'] != null ? data['authorAvatar'].toString() : null,
           imageUrls: data['imageUrls'] != null && data['imageUrls'] is List
               ? (data['imageUrls'] as List).map((url) => url.toString()).toList()
               : data['imageUrl'] != null
                   ? [data['imageUrl'].toString()]
                   : null,
-          videoUrl: data['videoUrl']?.toString(),
+          videoUrl: data['videoUrl'] != null ? data['videoUrl'].toString() : null,
           poll: data['poll'] != null && data['poll'] is Map
               ? Poll.fromMap(data['poll'] as Map<dynamic, dynamic>)
               : null,
@@ -310,18 +310,18 @@ class CommunityNotice {
       final map = source;
 
       return CommunityNotice(
-        id: map['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        title: map['title']?.toString() ?? '',
-        content: map['content']?.toString() ?? '',
-        authorId: map['authorId']?.toString() ?? '',
-        authorName: map['authorName']?.toString() ?? '',
-        authorAvatar: map['authorAvatar']?.toString(),
+        id: map['id'] != null ? map['id'].toString() : DateTime.now().millisecondsSinceEpoch.toString(),
+        title: map['title'] != null ? map['title'].toString() : '',
+        content: map['content'] != null ? map['content'].toString() : '',
+        authorId: map['authorId'] != null ? map['authorId'].toString() : '',
+        authorName: map['authorName'] != null ? map['authorName'].toString() : '',
+        authorAvatar: map['authorAvatar'] != null ? map['authorAvatar'].toString() : null,
         imageUrls: map['imageUrls'] != null && map['imageUrls'] is List
             ? (map['imageUrls'] as List).map((url) => url.toString()).toList()
             : map['imageUrl'] != null
                 ? [map['imageUrl'].toString()]
                 : null,
-        videoUrl: map['videoUrl']?.toString(),
+        videoUrl: map['videoUrl'] != null ? map['videoUrl'].toString() : null,
         poll: map['poll'] != null ? (() {
             try {
               if (map['poll'] is Map) {
@@ -508,18 +508,18 @@ class Comment {
       }
 
       return Comment(
-        id: map['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        content: map['content']?.toString() ?? '',
-        authorId: map['authorId']?.toString() ?? '',
-        authorName: map['authorName']?.toString() ?? '',
-        authorAvatar: map['authorAvatar']?.toString(),
+        id: map['id'] != null ? map['id'].toString() : DateTime.now().millisecondsSinceEpoch.toString(),
+        content: map['content'] != null ? map['content'].toString() : '',
+        authorId: map['authorId'] != null ? map['authorId'].toString() : '',
+        authorName: map['authorName'] != null ? map['authorName'].toString() : '',
+        authorAvatar: map['authorAvatar'] != null ? map['authorAvatar'].toString() : null,
         createdAt: map['createdAt'] is Timestamp
             ? (map['createdAt'] as Timestamp).toDate()
             : DateTime.fromMillisecondsSinceEpoch(map['createdAt'] is int ? map['createdAt'] : 0),
         likedBy: likedBy,
         replies: replies,
-        parentId: map['parentId']?.toString(),
-        replyToId: map['replyToId']?.toString(),
+        parentId: map['parentId'] != null ? map['parentId'].toString() : null,
+        replyToId: map['replyToId'] != null ? map['replyToId'].toString() : null,
       );
     } catch (e) {
       // Return a fallback comment to prevent app crashes

@@ -15,7 +15,7 @@ class AdminCommunityNoticesPage extends StatefulWidget {
       _AdminCommunityNoticesPageState();
 }
 
-class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
+class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> with WidgetsBindingObserver {
   final _adminService = AdminService();
   final _scrollController = ScrollController();
 
@@ -26,6 +26,7 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadCommunity();
     _loadNotices();
     _scrollController.addListener(_onScroll);
@@ -33,8 +34,18 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Reload notices when app is resumed from background
+      debugPrint('App resumed - reloading notices');
+      _loadNotices();
+    }
   }
 
   void _onScroll() {
@@ -238,6 +249,10 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
     }
 
     try {
+      // Add a delay to ensure Firebase connection is stable
+      // This helps when the app is resumed from background
+      await Future.delayed(const Duration(milliseconds: 300));
+
       final notices = await _adminService.getNotices();
       if (mounted) {
         setState(() {
@@ -246,11 +261,26 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> {
         });
       }
     } catch (e) {
+      // Log the error for debugging
+      debugPrint('Error loading notices: $e');
+
       if (mounted) {
+        // Show a more user-friendly error message
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading notices: $e')),
+          SnackBar(
+            content: Text('Error loading notices. Please try again.'),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: _loadNotices,
+            ),
+          ),
         );
-        setState(() => _isLoading = false);
+
+        // Set empty notices list to avoid null errors
+        setState(() {
+          _notices = [];
+          _isLoading = false;
+        });
       }
     }
   }

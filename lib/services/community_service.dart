@@ -1,4 +1,5 @@
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart';
 import '../models/community.dart';
 
 class CommunityService {
@@ -70,13 +71,24 @@ class CommunityService {
 
   // Get a single community
   Future<Community?> getCommunity(String id) async {
-    final snapshot = await _database.child('communities').child(id).get();
-    if (!snapshot.exists) return null;
+    try {
+      final snapshot = await _database.child('communities').child(id).get();
+      if (!snapshot.exists) return null;
 
-    return Community.fromMap(
-      id,
-      snapshot.value as Map<dynamic, dynamic>,
-    );
+      final value = snapshot.value;
+      if (value == null || value is! Map<dynamic, dynamic>) {
+        debugPrint('Invalid community data format for id: $id');
+        return null;
+      }
+
+      return Community.fromMap(
+        id,
+        value,
+      );
+    } catch (e) {
+      debugPrint('Error in getCommunity: $e');
+      return null;
+    }
   }
 
   // Create a new community
@@ -143,13 +155,23 @@ class CommunityService {
 
   // Get user's current community
   Future<Community?> getUserCommunity(String userId) async {
-    final userSnapshot = await _database.child('users').child(userId).get();
-    if (!userSnapshot.exists) return null;
+    try {
+      final userSnapshot = await _database.child('users').child(userId).get();
+      if (!userSnapshot.exists) return null;
 
-    final userData = userSnapshot.value as Map<dynamic, dynamic>;
-    final communityId = userData['communityId'] as String?;
-    if (communityId == null) return null;
+      final userData = userSnapshot.value as Map<dynamic, dynamic>;
+      final communityId = userData['communityId'];
 
-    return getCommunity(communityId);
+      // Handle null or non-string communityId
+      if (communityId == null) return null;
+
+      // Ensure communityId is a string
+      final String communityIdStr = communityId.toString();
+
+      return getCommunity(communityIdStr);
+    } catch (e) {
+      debugPrint('Error in getUserCommunity: $e');
+      return null;
+    }
   }
 }

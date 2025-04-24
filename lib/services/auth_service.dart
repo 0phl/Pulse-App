@@ -5,14 +5,16 @@ import 'package:intl/intl.dart';
 import '../models/admin_user.dart';
 import '../models/firestore_user.dart';
 import 'user_session_service.dart';
+import 'community_notice_service.dart';
 
 class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
   final UserSessionService _sessionService = UserSessionService();
+  final CommunityNoticeService _noticeService = CommunityNoticeService();
   final _maxRetries = 3;
-  final _retryDelay = Duration(milliseconds: 500);
+  final _retryDelay = const Duration(milliseconds: 500);
 
   // Get current user
   User? get currentUser => _auth.currentUser;
@@ -328,6 +330,18 @@ class AuthService {
         'profileImageUrl': imageUrl,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      // Get the user's full name to update comments
+      final userSnapshot = await _database.child('users').child(uid).get();
+      if (userSnapshot.exists) {
+        final userData = userSnapshot.value as Map<dynamic, dynamic>;
+        final String fullName = userData['fullName'] as String? ?? '';
+
+        if (fullName.isNotEmpty) {
+          // Update all comments by this user with the new profile image
+          await _noticeService.updateUserCommentsInfo(uid, fullName, imageUrl);
+        }
+      }
     } catch (e) {
       throw Exception('Failed to update profile image: $e');
     }
@@ -349,6 +363,17 @@ class AuthService {
 
       // Update in Firestore
       await _firestore.collection('users').doc(uid).update(firestoreData);
+
+      // If name or profile image was updated, update all comments by this user
+      if (data.containsKey('fullName') || data.containsKey('profileImageUrl')) {
+        final String? fullName = data['fullName'] as String?;
+        final String? profileImageUrl = data['profileImageUrl'] as String?;
+
+        if (fullName != null) {
+          // Update all comments by this user with the new name and profile image
+          await _noticeService.updateUserCommentsInfo(uid, fullName, profileImageUrl);
+        }
+      }
     } catch (e) {
       throw Exception('Failed to update user profile: $e');
     }

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'community_notice.dart';
 
 class Community {
@@ -29,50 +30,78 @@ class Community {
   });
 
   factory Community.fromMap(dynamic source, [Map<dynamic, dynamic>? data]) {
-    if (data != null) {
-      // Handle case where id and data are passed separately
+    try {
+      if (data != null) {
+        // Handle case where id and data are passed separately
+        String id = source.toString();
+        String name = data['name']?.toString() ?? 'Unknown Community';
+        String adminId = data['adminId']?.toString() ?? '';
+        String adminName = data['adminName']?.toString() ?? '';
+
+        return Community(
+          id: id,
+          name: name,
+          adminId: adminId,
+          adminName: adminName,
+          adminAvatar: data['adminAvatar']?.toString(),
+          description: data['description']?.toString(),
+          coverImage: data['coverImage']?.toString(),
+          createdAt: DateTime.fromMillisecondsSinceEpoch(
+              data['createdAt'] is int ? data['createdAt'] : 0),
+          updatedAt: DateTime.fromMillisecondsSinceEpoch(
+              data['updatedAt'] is int ? data['updatedAt'] : 0),
+          membersCount: data['membersCount'] is int ? data['membersCount'] : 0,
+          notices: data['notices'] is List
+              ? (data['notices'] as List)
+                  .whereType<Map>()
+                  .map((notice) => CommunityNotice.fromMap(notice))
+                  .toList()
+              : [],
+        );
+      }
+
+      // Handle case where everything is in a single map
+      if (source is! Map) {
+        throw FormatException('Source is not a Map: $source');
+      }
+
+      final map = source;
+
       return Community(
-        id: source as String,
-        name: data['name'] as String,
-        adminId: data['adminId'] as String? ?? '',
-        adminName: data['adminName'] as String? ?? '',
-        adminAvatar: data['adminAvatar'] as String?,
-        description: data['description'] as String?,
-        coverImage: data['coverImage'] as String?,
-        createdAt:
-            DateTime.fromMillisecondsSinceEpoch(data['createdAt'] as int? ?? 0),
-        updatedAt:
-            DateTime.fromMillisecondsSinceEpoch(data['updatedAt'] as int? ?? 0),
-        membersCount: data['membersCount'] as int? ?? 0,
-        notices: data['notices'] != null
-            ? (data['notices'] as List)
-                .map((notice) =>
-                    CommunityNotice.fromMap(notice as Map<String, dynamic>))
+        id: map['id']?.toString() ?? 'unknown',
+        name: map['name']?.toString() ?? 'Unknown Community',
+        adminId: map['adminId']?.toString() ?? '',
+        adminName: map['adminName']?.toString() ?? '',
+        adminAvatar: map['adminAvatar']?.toString(),
+        description: map['description']?.toString(),
+        coverImage: map['coverImage']?.toString(),
+        createdAt: map['createdAt'] is Timestamp
+            ? (map['createdAt'] as Timestamp).toDate()
+            : DateTime.fromMillisecondsSinceEpoch(map['createdAt'] is int ? map['createdAt'] : 0),
+        updatedAt: map['updatedAt'] is Timestamp
+            ? (map['updatedAt'] as Timestamp).toDate()
+            : DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] is int ? map['updatedAt'] : 0),
+        membersCount: map['membersCount'] is int ? map['membersCount'] : 0,
+        notices: map['notices'] is List
+            ? (map['notices'] as List)
+                .whereType<Map>()
+                .map((notice) => CommunityNotice.fromMap(notice))
                 .toList()
             : [],
       );
+    } catch (e) {
+      debugPrint('Error in Community.fromMap: $e');
+      // Return a fallback community to prevent app crashes
+      return Community(
+        id: 'error',
+        name: 'Error Loading Community',
+        adminId: '',
+        adminName: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        membersCount: 0,
+      );
     }
-
-    // Handle case where everything is in a single map
-    final map = source as Map<String, dynamic>;
-    return Community(
-      id: map['id'] as String,
-      name: map['name'] as String,
-      adminId: map['adminId'] as String,
-      adminName: map['adminName'] as String,
-      adminAvatar: map['adminAvatar'] as String?,
-      description: map['description'] as String?,
-      coverImage: map['coverImage'] as String?,
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
-      updatedAt: (map['updatedAt'] as Timestamp).toDate(),
-      membersCount: map['membersCount'] as int? ?? 0,
-      notices: map['notices'] != null
-          ? (map['notices'] as List)
-              .map((notice) =>
-                  CommunityNotice.fromMap(notice as Map<String, dynamic>))
-              .toList()
-          : [],
-    );
   }
 
   Map<String, dynamic> toMap() {

@@ -777,7 +777,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: const AdminDrawer(currentPage: 'Manage Users'),
+      drawer: const AdminDrawer(),
       appBar: AppBar(
         title: const Text(
           'Manage Users',

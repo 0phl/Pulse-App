@@ -24,6 +24,7 @@ import 'pages/add_item_page.dart';
 import 'pages/seller_dashboard_page.dart';
 import 'pages/admin/add_volunteer_post_page.dart';
 import 'pages/admin/show_create_notice_sheet.dart';
+import 'pages/admin/profile_page.dart';
 import 'services/user_session_service.dart';
 
 void main() async {
@@ -112,6 +113,7 @@ class MyApp extends StatelessWidget {
                   const AdminVolunteerPostsPage(),
               '/admin/volunteer-posts/add': (context) => const AddVolunteerPostPage(),
               '/admin/reports': (context) => const AdminReportsPage(),
+              '/admin/profile': (context) => const AdminProfilePage(),
               // User verification functionality consolidated into Manage Users page
 
               // Main app routes
