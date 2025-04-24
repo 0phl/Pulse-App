@@ -21,7 +21,30 @@
             ".write": "auth != null"
           },
           "comments": {
-            ".write": "auth != null"
+            ".write": "auth != null",
+            "$commentId": {
+              ".write": "auth != null",
+              "likes": {
+                ".write": "auth != null",
+                "$userId": {
+                  ".validate": "auth.uid === $userId",
+                  ".write": "auth.uid === $userId"
+                }
+              },
+              "replies": {
+                ".write": "auth != null",
+                "$replyId": {
+                  ".write": "auth != null",
+                  "likes": {
+                    ".write": "auth != null",
+                    "$userId": {
+                      ".validate": "auth.uid === $userId",
+                      ".write": "auth.uid === $userId"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -30,7 +53,7 @@
   ".indexOn": ["email", "role", "communityId", "username"],
   "$uid": {
     ".write": "auth != null && (
-      auth.uid === $uid || 
+      auth.uid === $uid ||
       root.child('users').child(auth.uid).child('role').val() === 'admin'
     )",
     ".validate": "newData.hasChildren(['email', 'role', 'communityId', 'username'])",

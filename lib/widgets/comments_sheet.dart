@@ -4,6 +4,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
+import '../services/community_notice_service.dart';
 
 class CommentsSheet extends StatefulWidget {
   final CommunityNotice notice;
@@ -21,8 +22,15 @@ class _CommentsSheetState extends State<CommentsSheet> {
   final _commentController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final _adminService = AdminService();
+  final _noticeService = CommunityNoticeService();
   bool _isSubmitting = false;
   List<Comment> _comments = [];
+
+  // Track which comment we're replying to (null if not replying)
+  Comment? _replyingTo;
+
+  // Track expanded comments (showing replies)
+  final Set<String> _expandedComments = {};
 
   @override
   void initState() {
@@ -37,6 +45,113 @@ class _CommentsSheetState extends State<CommentsSheet> {
     super.dispose();
   }
 
+  // Toggle expanded state of a comment
+  void _toggleExpanded(String commentId) {
+    setState(() {
+      if (_expandedComments.contains(commentId)) {
+        _expandedComments.remove(commentId);
+      } else {
+        _expandedComments.add(commentId);
+      }
+    });
+  }
+
+  // Set replying to a comment
+  void _setReplyingTo(Comment? comment) {
+    setState(() {
+      _replyingTo = comment;
+      if (comment != null) {
+        // Ensure the comment is expanded when replying
+        _expandedComments.add(comment.id);
+      }
+    });
+  }
+
+  // Like a comment
+  Future<void> _likeComment(Comment comment, {String? parentId}) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Check if user is admin
+      final adminDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (adminDoc.exists) {
+        // Admin user
+        await _adminService.likeComment(
+          widget.notice.id,
+          comment.id,
+          parentCommentId: parentId,
+        );
+      } else {
+        // Regular user
+        await _noticeService.likeComment(
+          widget.notice.id,
+          comment.id,
+          user.uid,
+          parentCommentId: parentId,
+        );
+      }
+
+      // Update UI immediately
+      setState(() {
+        if (parentId != null) {
+          // Find parent comment
+          final parentIndex = _comments.indexWhere((c) => c.id == parentId);
+          if (parentIndex >= 0) {
+            // Find reply in parent's replies
+            final replyIndex = _comments[parentIndex].replies.indexWhere((r) => r.id == comment.id);
+            if (replyIndex >= 0) {
+              final reply = _comments[parentIndex].replies[replyIndex];
+              final updatedReplies = List<Comment>.from(_comments[parentIndex].replies);
+
+              if (reply.isLikedBy(user.uid)) {
+                // Unlike
+                updatedReplies[replyIndex] = reply.copyWith(
+                  likedBy: reply.likedBy.where((id) => id != user.uid).toList(),
+                );
+              } else {
+                // Like
+                updatedReplies[replyIndex] = reply.copyWith(
+                  likedBy: [...reply.likedBy, user.uid],
+                );
+              }
+
+              _comments[parentIndex] = _comments[parentIndex].copyWith(
+                replies: updatedReplies,
+              );
+            }
+          }
+        } else {
+          // Top-level comment
+          final index = _comments.indexWhere((c) => c.id == comment.id);
+          if (index >= 0) {
+            if (_comments[index].isLikedBy(user.uid)) {
+              // Unlike
+              _comments[index] = _comments[index].copyWith(
+                likedBy: _comments[index].likedBy.where((id) => id != user.uid).toList(),
+              );
+            } else {
+              // Like
+              _comments[index] = _comments[index].copyWith(
+                likedBy: [..._comments[index].likedBy, user.uid],
+              );
+            }
+          }
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error liking comment: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _addComment() async {
     if (!_formKey.currentState!.validate() || _isSubmitting) return;
 
@@ -46,6 +161,8 @@ class _CommentsSheetState extends State<CommentsSheet> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         String fullName = 'Admin';  // Default name
+        String? profileImageUrl;
+        bool isAdmin = false;
 
         // Try to get admin data from Firestore first
         final adminDoc = await FirebaseFirestore.instance
@@ -53,10 +170,9 @@ class _CommentsSheetState extends State<CommentsSheet> {
             .doc(user.uid)
             .get();
 
-        String? profileImageUrl;
-
         if (adminDoc.exists) {
           // User is an admin, get name from Firestore
+          isAdmin = true;
           final adminData = adminDoc.data() as Map<String, dynamic>;
           fullName = 'Admin ${adminData['fullName'] as String}';
           profileImageUrl = adminData['profileImageUrl'] as String?;
@@ -75,30 +191,60 @@ class _CommentsSheetState extends State<CommentsSheet> {
           }
         }
 
-        await _adminService.addComment(
-          widget.notice.id,
-          _commentController.text,
-        );
+        String commentId;
+        if (isAdmin) {
+          commentId = await _adminService.addComment(
+            widget.notice.id,
+            _commentController.text,
+            parentCommentId: _replyingTo?.id,
+          );
+        } else {
+          commentId = await _noticeService.addComment(
+            widget.notice.id,
+            _commentController.text,
+            user.uid,
+            fullName,
+            profileImageUrl,
+            parentCommentId: _replyingTo?.id,
+          );
+        }
 
         // Create a temporary comment to show immediately
         final newComment = Comment(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          id: commentId,
           content: _commentController.text,
           authorId: user.uid,
           authorName: fullName,
           authorAvatar: profileImageUrl,
           createdAt: DateTime.now(),
+          parentId: _replyingTo?.id,
         );
 
         setState(() {
-          _comments.insert(0, newComment);
+          if (_replyingTo != null) {
+            // Add as a reply to an existing comment
+            final parentIndex = _comments.indexWhere((c) => c.id == _replyingTo!.id);
+            if (parentIndex >= 0) {
+              final updatedReplies = [..._comments[parentIndex].replies, newComment];
+              _comments[parentIndex] = _comments[parentIndex].copyWith(
+                replies: updatedReplies,
+              );
+            }
+            // Clear replying state
+            _replyingTo = null;
+          } else {
+            // Add as a top-level comment
+            _comments.insert(0, newComment);
+          }
           _commentController.clear();
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding comment: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error adding comment: $e')),
+        );
+      }
     } finally {
       setState(() => _isSubmitting = false);
     }
@@ -138,6 +284,19 @@ class _CommentsSheetState extends State<CommentsSheet> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                if (_replyingTo != null) ...[
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => setState(() => _replyingTo = null),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.grey[600],
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('Cancel Reply'),
+                  ),
+                ],
               ],
             ),
           ),
@@ -179,7 +338,15 @@ class _CommentsSheetState extends State<CommentsSheet> {
                     ),
                     itemBuilder: (context, index) {
                       final comment = _comments[index];
-                      return _CommentItem(comment: comment);
+                      return _CommentItem(
+                        comment: comment,
+                        isExpanded: _expandedComments.contains(comment.id),
+                        onToggleExpanded: () => _toggleExpanded(comment.id),
+                        onReply: () => _setReplyingTo(comment),
+                        onLike: () => _likeComment(comment),
+                        onLikeReply: (reply) => _likeComment(reply, parentId: comment.id),
+                        onReplyToReply: (reply) => _setReplyingTo(comment), // Reply to parent, not to reply
+                      );
                     },
                   ),
           ),
@@ -194,121 +361,158 @@ class _CommentsSheetState extends State<CommentsSheet> {
                 ),
               ),
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  FutureBuilder<Map<String, dynamic>>(
-                    future: () async {
-                      final userId = FirebaseAuth.instance.currentUser?.uid;
-                      if (userId == null) return {'initial': 'A', 'profileImageUrl': null};
-
-                      // Check Firestore first for admin
-                      final adminDoc = await FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(userId)
-                          .get();
-
-                      if (adminDoc.exists) {
-                        final adminData = adminDoc.data() as Map<String, dynamic>;
-                        return {
-                          'initial': (adminData['fullName'] as String)[0],
-                          'profileImageUrl': adminData['profileImageUrl'] as String?,
-                          'isAdmin': true
-                        };
-                      }
-
-                      // If not in Firestore, check RTDB for regular users
-                      final userSnapshot = await FirebaseDatabase.instance
-                          .ref()
-                          .child('users')
-                          .child(userId)
-                          .get();
-
-                      if (userSnapshot.exists) {
-                        final userData = userSnapshot.value as Map<dynamic, dynamic>;
-                        return {
-                          'initial': (userData['fullName'] as String)[0],
-                          'profileImageUrl': userData['profileImageUrl'] as String?,
-                          'isAdmin': false
-                        };
-                      }
-
-                      return {'initial': 'A', 'profileImageUrl': null, 'isAdmin': false};
-                    }(),
-                    builder: (context, snapshot) {
-                      final data = snapshot.data ?? {'initial': 'A', 'profileImageUrl': null, 'isAdmin': false};
-                      final initial = data['initial'] as String;
-                      final profileImageUrl = data['profileImageUrl'] as String?;
-                      final isAdmin = data['isAdmin'] as bool;
-
-                      return CircleAvatar(
-                        radius: 16,
-                        backgroundColor: isAdmin
-                            ? const Color(0xFF00C49A).withOpacity(0.1)
-                            : Colors.blue[50],
-                        backgroundImage: profileImageUrl != null
-                            ? NetworkImage(profileImageUrl)
-                            : null,
-                        child: profileImageUrl == null
-                            ? Text(
-                                initial.toUpperCase(),
-                                style: TextStyle(
-                                  color: isAdmin ? const Color(0xFF00C49A) : Colors.blue[700],
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              )
-                            : null,
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Form(
-                            key: _formKey,
-                            child: TextFormField(
-                              controller: _commentController,
-                              decoration: InputDecoration(
-                                hintText: 'Write a comment...',
-                                hintStyle: TextStyle(
-                                  color: Colors.grey[400],
-                                  fontSize: 14,
-                                ),
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.zero,
+                  // Show who we're replying to
+                  if (_replyingTo != null)
+                    Container(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      width: double.infinity,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.reply,
+                            size: 16,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Replying to ${_replyingTo!.authorName}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
                               ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Please enter a comment';
-                                }
-                                return null;
-                              },
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
-                        ValueListenableBuilder<TextEditingValue>(
-                          valueListenable: _commentController,
-                          builder: (context, value, child) {
-                            final hasText = value.text.isNotEmpty;
-                            return IconButton(
-                              onPressed: _isSubmitting || !hasText ? null : _addComment,
-                              icon: Icon(
-                                Icons.send_rounded,
-                                color: hasText
-                                    ? const Color(0xFF00C49A)
-                                    : Colors.grey[400],
-                                size: 20,
-                              ),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            );
-                          },
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+
+                  // Input row
+                  Row(
+                    children: [
+                      FutureBuilder<Map<String, dynamic>>(
+                        future: () async {
+                          final userId = FirebaseAuth.instance.currentUser?.uid;
+                          if (userId == null) return {'initial': 'A', 'profileImageUrl': null};
+
+                          // Check Firestore first for admin
+                          final adminDoc = await FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(userId)
+                              .get();
+
+                          if (adminDoc.exists) {
+                            final adminData = adminDoc.data() as Map<String, dynamic>;
+                            return {
+                              'initial': (adminData['fullName'] as String)[0],
+                              'profileImageUrl': adminData['profileImageUrl'] as String?,
+                              'isAdmin': true
+                            };
+                          }
+
+                          // If not in Firestore, check RTDB for regular users
+                          final userSnapshot = await FirebaseDatabase.instance
+                              .ref()
+                              .child('users')
+                              .child(userId)
+                              .get();
+
+                          if (userSnapshot.exists) {
+                            final userData = userSnapshot.value as Map<dynamic, dynamic>;
+                            return {
+                              'initial': (userData['fullName'] as String)[0],
+                              'profileImageUrl': userData['profileImageUrl'] as String?,
+                              'isAdmin': false
+                            };
+                          }
+
+                          return {'initial': 'A', 'profileImageUrl': null, 'isAdmin': false};
+                        }(),
+                        builder: (context, snapshot) {
+                          final data = snapshot.data ?? {'initial': 'A', 'profileImageUrl': null, 'isAdmin': false};
+                          final initial = data['initial'] as String;
+                          final profileImageUrl = data['profileImageUrl'] as String?;
+                          final isAdmin = data['isAdmin'] as bool;
+
+                          return CircleAvatar(
+                            radius: 16,
+                            backgroundColor: isAdmin
+                                ? const Color(0xFF00C49A).withOpacity(0.1)
+                                : Colors.blue[50],
+                            backgroundImage: profileImageUrl != null
+                                ? NetworkImage(profileImageUrl)
+                                : null,
+                            child: profileImageUrl == null
+                                ? Text(
+                                    initial.toUpperCase(),
+                                    style: TextStyle(
+                                      color: isAdmin ? const Color(0xFF00C49A) : Colors.blue[700],
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  )
+                                : null,
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Form(
+                                key: _formKey,
+                                child: TextFormField(
+                                  controller: _commentController,
+                                  decoration: InputDecoration(
+                                    hintText: _replyingTo != null
+                                        ? 'Write a reply...'
+                                        : 'Write a comment...',
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 14,
+                                    ),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Please enter a comment';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                            ),
+                            ValueListenableBuilder<TextEditingValue>(
+                              valueListenable: _commentController,
+                              builder: (context, value, child) {
+                                final hasText = value.text.isNotEmpty;
+                                return IconButton(
+                                  onPressed: _isSubmitting || !hasText ? null : _addComment,
+                                  icon: Icon(
+                                    Icons.send_rounded,
+                                    color: hasText
+                                        ? const Color(0xFF00C49A)
+                                        : Colors.grey[400],
+                                    size: 20,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -322,75 +526,299 @@ class _CommentsSheetState extends State<CommentsSheet> {
 
 class _CommentItem extends StatelessWidget {
   final Comment comment;
+  final bool isExpanded;
+  final VoidCallback onToggleExpanded;
+  final VoidCallback onReply;
+  final VoidCallback onLike;
+  final Function(Comment) onLikeReply;
+  final Function(Comment) onReplyToReply;
 
-  const _CommentItem({required this.comment});
+  const _CommentItem({
+    required this.comment,
+    required this.isExpanded,
+    required this.onToggleExpanded,
+    required this.onReply,
+    required this.onLike,
+    required this.onLikeReply,
+    required this.onReplyToReply,
+  });
 
   @override
   Widget build(BuildContext context) {
     final bool isAdmin = comment.authorName.startsWith('Admin ');
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final bool isLiked = currentUserId != null && comment.isLikedBy(currentUserId);
+    final hasReplies = comment.replies.isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: isAdmin
-                ? const Color(0xFF00C49A).withOpacity(0.1)
-                : Colors.blue[50],
-            backgroundImage: comment.authorAvatar != null
-                ? NetworkImage(comment.authorAvatar!)
-                : null,
-            child: comment.authorAvatar == null
-                ? Text(
-                    comment.authorName[0].toUpperCase(),
-                    style: TextStyle(
-                      color: isAdmin ? const Color(0xFF00C49A) : Colors.blue[700],
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Main comment
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: isAdmin
+                    ? const Color(0xFF00C49A).withOpacity(0.1)
+                    : Colors.blue[50],
+                backgroundImage: comment.authorAvatar != null
+                    ? NetworkImage(comment.authorAvatar!)
+                    : null,
+                child: comment.authorAvatar == null
+                    ? Text(
+                        comment.authorName[0].toUpperCase(),
+                        style: TextStyle(
+                          color: isAdmin ? const Color(0xFF00C49A) : Colors.blue[700],
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      children: [
+                        Text(
+                          comment.authorName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                            color:
+                                isAdmin ? const Color(0xFF00C49A) : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _formatTimeAgo(comment.createdAt),
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                     Text(
-                      comment.authorName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
+                      comment.content,
+                      style: const TextStyle(
                         fontSize: 14,
-                        color:
-                            isAdmin ? const Color(0xFF00C49A) : Colors.black87,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _formatTimeAgo(comment.createdAt),
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 13,
-                      ),
+                    const SizedBox(height: 8),
+                    // Like and reply buttons
+                    Row(
+                      children: [
+                        // Like button
+                        InkWell(
+                          onTap: onLike,
+                          child: Row(
+                            children: [
+                              Icon(
+                                isLiked ? Icons.favorite : Icons.favorite_border,
+                                size: 16,
+                                color: isLiked ? const Color(0xFF00C49A) : Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                comment.likesCount.toString(),
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // Reply button
+                        InkWell(
+                          onTap: onReply,
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.reply,
+                                size: 16,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Reply',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (hasReplies) ...[
+                          const SizedBox(width: 16),
+                          // Show/hide replies button
+                          InkWell(
+                            onTap: onToggleExpanded,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                                  size: 16,
+                                  color: Colors.grey[600],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isExpanded ? 'Hide replies' : 'Show ${comment.repliesCount} ${comment.repliesCount == 1 ? 'reply' : 'replies'}',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  comment.content,
-                  style: const TextStyle(
-                    fontSize: 14,
-                  ),
-                ),
-              ],
+              ),
+            ],
+          ),
+        ),
+
+        // Replies section
+        if (hasReplies && isExpanded)
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            child: Container(
+              margin: const EdgeInsets.only(left: 40),
+              child: Column(
+                children: comment.replies.map((reply) {
+                  final bool isReplyAdmin = reply.authorName.startsWith('Admin ');
+                  final bool isReplyLiked = currentUserId != null && reply.isLikedBy(currentUserId);
+
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundColor: isReplyAdmin
+                              ? const Color(0xFF00C49A).withOpacity(0.1)
+                              : Colors.blue[50],
+                          backgroundImage: reply.authorAvatar != null
+                              ? NetworkImage(reply.authorAvatar!)
+                              : null,
+                          child: reply.authorAvatar == null
+                              ? Text(
+                                  reply.authorName[0].toUpperCase(),
+                                  style: TextStyle(
+                                    color: isReplyAdmin ? const Color(0xFF00C49A) : Colors.blue[700],
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    reply.authorName,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 13,
+                                      color: isReplyAdmin ? const Color(0xFF00C49A) : Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _formatTimeAgo(reply.createdAt),
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                reply.content,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              // Like and reply buttons for replies
+                              Row(
+                                children: [
+                                  // Like button
+                                  InkWell(
+                                    onTap: () => onLikeReply(reply),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          isReplyLiked ? Icons.favorite : Icons.favorite_border,
+                                          size: 14,
+                                          color: isReplyLiked ? const Color(0xFF00C49A) : Colors.grey[600],
+                                        ),
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          reply.likesCount.toString(),
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Reply button
+                                  InkWell(
+                                    onTap: () => onReplyToReply(reply),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.reply,
+                                          size: 14,
+                                          color: Colors.grey[600],
+                                        ),
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          'Reply',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 

@@ -1442,44 +1442,132 @@ class AdminService {
   }
 
   // Add a comment to a notice
-  Future<void> addComment(String noticeId, String content) async {
+  Future<String> addComment(String noticeId, String content, {String? parentCommentId}) async {
     if (currentUserId == null) {
       throw Exception('No user logged in');
     }
 
-    final newCommentRef = _database
-        .child('community_notices')
-        .child(noticeId)
-        .child('comments')
-        .push();
-
-    await newCommentRef.set({
-      'content': content,
-      'createdAt': ServerValue.timestamp,
-      'authorId': currentUserId,
-      'authorName': await () async {
-        final user = _auth.currentUser;
-        if (user != null) {
-          final adminDoc = await _usersCollection.doc(user.uid).get();
-          if (adminDoc.exists) {
-            final adminData = adminDoc.data() as Map<String, dynamic>;
-            return 'Admin ${adminData['fullName']}';
-          }
+    final String adminName = await () async {
+      final user = _auth.currentUser;
+      if (user != null) {
+        final adminDoc = await _usersCollection.doc(user.uid).get();
+        if (adminDoc.exists) {
+          final adminData = adminDoc.data() as Map<String, dynamic>;
+          return 'Admin ${adminData['fullName']}';
         }
-        return 'Admin';
-      }(),
-      'authorAvatar': _auth.currentUser?.photoURL,
-    });
+      }
+      return 'Admin';
+    }();
+
+    final String? profileImageUrl = _auth.currentUser?.photoURL;
+
+    // If parentCommentId is provided, add as a reply to that comment
+    if (parentCommentId != null) {
+      final newReplyRef = _database
+          .child('community_notices')
+          .child(noticeId)
+          .child('comments')
+          .child(parentCommentId)
+          .child('replies')
+          .push();
+
+      await newReplyRef.set({
+        'content': content,
+        'createdAt': ServerValue.timestamp,
+        'authorId': currentUserId,
+        'authorName': adminName,
+        'authorAvatar': profileImageUrl,
+        'parentId': parentCommentId,
+      });
+
+      return newReplyRef.key!;
+    } else {
+      // Add as a top-level comment
+      final newCommentRef = _database
+          .child('community_notices')
+          .child(noticeId)
+          .child('comments')
+          .push();
+
+      await newCommentRef.set({
+        'content': content,
+        'createdAt': ServerValue.timestamp,
+        'authorId': currentUserId,
+        'authorName': adminName,
+        'authorAvatar': profileImageUrl,
+      });
+
+      return newCommentRef.key!;
+    }
   }
 
   // Delete a comment from a notice
-  Future<void> deleteComment(String noticeId, String commentId) async {
-    await _database
-        .child('community_notices')
-        .child(noticeId)
-        .child('comments')
-        .child(commentId)
-        .remove();
+  Future<void> deleteComment(String noticeId, String commentId, {String? parentCommentId}) async {
+    if (parentCommentId != null) {
+      // Delete a reply
+      await _database
+          .child('community_notices')
+          .child(noticeId)
+          .child('comments')
+          .child(parentCommentId)
+          .child('replies')
+          .child(commentId)
+          .remove();
+    } else {
+      // Delete a top-level comment
+      await _database
+          .child('community_notices')
+          .child(noticeId)
+          .child('comments')
+          .child(commentId)
+          .remove();
+    }
+  }
+
+  // Like or unlike a comment
+  Future<void> likeComment(
+    String noticeId,
+    String commentId,
+    {String? parentCommentId}
+  ) async {
+    if (currentUserId == null) {
+      throw Exception('No user logged in');
+    }
+
+    final DatabaseReference likesRef;
+
+    if (parentCommentId != null) {
+      // Like a reply
+      likesRef = _database
+          .child('community_notices')
+          .child(noticeId)
+          .child('comments')
+          .child(parentCommentId)
+          .child('replies')
+          .child(commentId)
+          .child('likes')
+          .child(currentUserId!);
+    } else {
+      // Like a top-level comment
+      likesRef = _database
+          .child('community_notices')
+          .child(noticeId)
+          .child('comments')
+          .child(commentId)
+          .child('likes')
+          .child(currentUserId!);
+    }
+
+    final snapshot = await likesRef.get();
+    if (snapshot.exists) {
+      // Unlike if already liked
+      await likesRef.remove();
+    } else {
+      // Like if not already liked
+      await likesRef.set({
+        'createdAt': ServerValue.timestamp,
+      });
+    }
   }
 
   // Get market items for a community

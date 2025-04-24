@@ -980,7 +980,7 @@ class NoticeCard extends StatelessWidget {
                                 size: 20,
                                 color: notice.isLikedBy(
                                         adminService.currentUserId ?? '')
-                                    ? Colors.red
+                                    ? const Color(0xFF00C49A)
                                     : Colors.grey[600],
                               ),
                               const SizedBox(width: 4),

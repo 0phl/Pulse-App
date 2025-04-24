@@ -96,26 +96,95 @@ class CommunityNoticeService {
   }
 
   // Add a comment
-  Future<void> addComment(
+  Future<String> addComment(
     String noticeId,
     String content,
     String authorId,
     String authorName,
     String? authorAvatar,
+    {String? parentCommentId}
   ) async {
-    final newCommentRef = _database
-        .child('community_notices')
-        .child(noticeId)
-        .child('comments')
-        .push();
+    // If parentCommentId is provided, add as a reply to that comment
+    if (parentCommentId != null) {
+      final newReplyRef = _database
+          .child('community_notices')
+          .child(noticeId)
+          .child('comments')
+          .child(parentCommentId)
+          .child('replies')
+          .push();
 
-    await newCommentRef.set({
-      'content': content,
-      'createdAt': ServerValue.timestamp,
-      'authorId': authorId,
-      'authorName': authorName,
-      'authorAvatar': authorAvatar,
-    });
+      await newReplyRef.set({
+        'content': content,
+        'createdAt': ServerValue.timestamp,
+        'authorId': authorId,
+        'authorName': authorName,
+        'authorAvatar': authorAvatar,
+        'parentId': parentCommentId,
+      });
+
+      return newReplyRef.key!;
+    } else {
+      // Add as a top-level comment
+      final newCommentRef = _database
+          .child('community_notices')
+          .child(noticeId)
+          .child('comments')
+          .push();
+
+      await newCommentRef.set({
+        'content': content,
+        'createdAt': ServerValue.timestamp,
+        'authorId': authorId,
+        'authorName': authorName,
+        'authorAvatar': authorAvatar,
+      });
+
+      return newCommentRef.key!;
+    }
+  }
+
+  // Like or unlike a comment
+  Future<void> likeComment(
+    String noticeId,
+    String commentId,
+    String userId,
+    {String? parentCommentId}
+  ) async {
+    final DatabaseReference likesRef;
+
+    if (parentCommentId != null) {
+      // Like a reply
+      likesRef = _database
+          .child('community_notices')
+          .child(noticeId)
+          .child('comments')
+          .child(parentCommentId)
+          .child('replies')
+          .child(commentId)
+          .child('likes')
+          .child(userId);
+    } else {
+      // Like a top-level comment
+      likesRef = _database
+          .child('community_notices')
+          .child(noticeId)
+          .child('comments')
+          .child(commentId)
+          .child('likes')
+          .child(userId);
+    }
+
+    final snapshot = await likesRef.get();
+    if (snapshot.exists) {
+      // Unlike if already liked
+      await likesRef.remove();
+    } else {
+      // Like if not already liked
+      await likesRef.set({
+        'createdAt': ServerValue.timestamp,
+      });
+    }
   }
 
   // Vote on a poll

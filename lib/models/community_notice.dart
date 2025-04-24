@@ -315,7 +315,15 @@ class CommunityNotice {
   bool isLikedBy(String userId) => likedBy.contains(userId);
 
   int get likesCount => likedBy.length;
-  int get commentsCount => comments.length;
+
+  // Get total comments count including replies
+  int get commentsCount {
+    int totalCount = comments.length;
+    for (var comment in comments) {
+      totalCount += comment.replies.length;
+    }
+    return totalCount;
+  }
 
   CommunityNotice copyWith({
     String? id,
@@ -359,6 +367,9 @@ class Comment {
   final String authorName;
   final String? authorAvatar;
   final DateTime createdAt;
+  final List<String> likedBy;
+  final List<Comment> replies;
+  final String? parentId;
 
   Comment({
     required this.id,
@@ -367,9 +378,34 @@ class Comment {
     required this.authorName,
     this.authorAvatar,
     required this.createdAt,
+    this.likedBy = const [],
+    this.replies = const [],
+    this.parentId,
   });
 
   factory Comment.fromMap(Map<dynamic, dynamic> map) {
+    // Parse likes
+    List<String> likedBy = [];
+    if (map['likes'] is Map) {
+      likedBy = (map['likes'] as Map<dynamic, dynamic>)
+          .keys
+          .map((k) => k.toString())
+          .toList();
+    }
+
+    // Parse replies
+    List<Comment> replies = [];
+    if (map['replies'] is Map) {
+      replies = (map['replies'] as Map<dynamic, dynamic>).entries.map((entry) {
+        if (entry.value is! Map) return null;
+        return Comment.fromMap({
+          ...entry.value as Map<dynamic, dynamic>,
+          'id': entry.key.toString(),
+          'parentId': map['id'] as String,
+        });
+      }).whereType<Comment>().toList();
+    }
+
     return Comment(
       id: map['id'] as String,
       content: map['content'] as String,
@@ -379,6 +415,9 @@ class Comment {
       createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate()
           : DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int? ?? 0),
+      likedBy: likedBy,
+      replies: replies,
+      parentId: map['parentId'] as String?,
     );
   }
 
@@ -390,6 +429,40 @@ class Comment {
       'authorName': authorName,
       'authorAvatar': authorAvatar,
       'createdAt': createdAt,
+      'parentId': parentId,
+      // Convert likes to map format for Firebase
+      'likes': likedBy.isEmpty ? null : {for (var userId in likedBy) userId: true},
+      // Convert replies to map format for Firebase
+      'replies': replies.isEmpty ? null : {for (var reply in replies) reply.id: reply.toMap()},
     };
+  }
+
+  bool isLikedBy(String userId) => likedBy.contains(userId);
+
+  int get likesCount => likedBy.length;
+  int get repliesCount => replies.length;
+
+  Comment copyWith({
+    String? id,
+    String? content,
+    String? authorId,
+    String? authorName,
+    String? authorAvatar,
+    DateTime? createdAt,
+    List<String>? likedBy,
+    List<Comment>? replies,
+    String? parentId,
+  }) {
+    return Comment(
+      id: id ?? this.id,
+      content: content ?? this.content,
+      authorId: authorId ?? this.authorId,
+      authorName: authorName ?? this.authorName,
+      authorAvatar: authorAvatar ?? this.authorAvatar,
+      createdAt: createdAt ?? this.createdAt,
+      likedBy: likedBy ?? this.likedBy,
+      replies: replies ?? this.replies,
+      parentId: parentId ?? this.parentId,
+    );
   }
 }
