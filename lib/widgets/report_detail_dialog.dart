@@ -37,22 +37,80 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
 
   Future<void> _fetchUserData() async {
     try {
+      // Check if reporter information is already in the report
+      if (widget.report.containsKey('reporterInfo') && widget.report['reporterInfo'] != null) {
+        print('Using reporter info from report data');
+        setState(() {
+          _userData = Map<String, dynamic>.from(widget.report['reporterInfo'] as Map);
+          _isLoading = false;
+        });
+        return;
+      }
+
       final userId = widget.report['userId'];
+      print('Fetching user data for userId: $userId');
+
       if (userId != null) {
+        // First try to get user from RTDB (regular users)
         final userSnapshot = await _database.ref().child('users/$userId').get();
         if (userSnapshot.exists) {
           final userData = Map<String, dynamic>.from(userSnapshot.value as Map);
+          print('Found user in RTDB: ${userData['fullName']}');
+
           setState(() {
             _userData = userData;
             _isLoading = false;
           });
           return;
+        } else {
+          print('User not found in RTDB');
         }
+
+        // If not found in RTDB, try Firestore (admin users)
+        try {
+          final adminSnapshot = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .get();
+
+          if (adminSnapshot.exists) {
+            final adminData = adminSnapshot.data() as Map<String, dynamic>;
+            print('Found user in Firestore: ${adminData['fullName']}');
+
+            setState(() {
+              _userData = adminData;
+              _isLoading = false;
+            });
+            return;
+          } else {
+            print('User not found in Firestore');
+          }
+        } catch (firestoreError) {
+          print('Error fetching admin data from Firestore: $firestoreError');
+        }
+      }
+
+      // If we reach here, try to use the reporter information directly from the report
+      if (widget.report.containsKey('reporterName') && widget.report['reporterName'] != null) {
+        print('Using reporter name and email from report data');
+        final Map<String, dynamic> reporterData = {
+          'fullName': widget.report['reporterName'],
+          'email': widget.report['reporterEmail'] ?? 'N/A',
+          'mobile': widget.report['reporterPhone'] ?? 'N/A',
+          'profilePicture': widget.report['reporterProfilePicture'],
+        };
+
+        setState(() {
+          _userData = reporterData;
+          _isLoading = false;
+        });
+        return;
       }
     } catch (e) {
       print('Error fetching user data: $e');
     }
 
+    print('No user data found, setting _isLoading to false');
     setState(() {
       _isLoading = false;
     });
@@ -155,21 +213,33 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildInfoRow(
+                            // Name with profile picture
+                            _buildInfoRowWithAvatar(
                               'Name',
-                              _userData?['fullName'] ?? 'Anonymous',
-                              Icons.person,
+                              _userData?['fullName'] ??
+                              _userData?['name'] ??
+                              _userData?['displayName'] ?? 'Anonymous',
                             ),
                             const SizedBox(height: 8),
+
+                            // Email
                             _buildInfoRow(
                               'Email',
-                              _userData?['email'] ?? 'N/A',
+                              _userData?['email'] ??
+                              _userData?['userEmail'] ??
+                              _userData?['mail'] ?? 'N/A',
                               Icons.email,
                             ),
+
                             const SizedBox(height: 8),
+
+                            // Phone
                             _buildInfoRow(
                               'Phone',
-                              _userData?['mobile'] ?? 'N/A',
+                              _userData?['mobile'] ??
+                              _userData?['phone'] ??
+                              _userData?['phoneNumber'] ??
+                              _userData?['contactNumber'] ?? 'N/A',
                               Icons.phone,
                             ),
                           ],
@@ -408,15 +478,98 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 34, // Fixed width for consistency
+            height: 34, // Fixed height for consistency
+            padding: const EdgeInsets.all(0),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              color: Colors.transparent, // Match the profile picture container
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 18, color: Theme.of(context).primaryColor),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 16, color: Theme.of(context).primaryColor),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRowWithAvatar(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 34, // Match the size of the icon containers
+            height: 34,
+            padding: const EdgeInsets.all(0),
+            decoration: BoxDecoration(
+              color: Colors.transparent, // Remove the light blue background
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Builder(
+                builder: (context) {
+                  final profileImage = _getProfileImage();
+                  final String fullName = value;
+                  final String firstLetter = fullName.isNotEmpty ?
+                                           fullName.substring(0, 1).toUpperCase() : 'A';
+
+                  return CircleAvatar(
+                    radius: 15, // Slightly larger radius since we removed the container background
+                    backgroundColor: profileImage == null ?
+                                    Theme.of(context).primaryColor.withOpacity(0.1) :
+                                    Colors.transparent,
+                    backgroundImage: profileImage,
+                    child: profileImage == null
+                        ? Text(
+                            firstLetter,
+                            style: TextStyle(
+                              color: Theme.of(context).primaryColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12, // Smaller font size
+                            ),
+                          )
+                        : null,
+                  );
+                },
+              ),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -505,5 +658,40 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
     }
   }
 
-  // Helper method removed as it's no longer needed
+  ImageProvider? _getProfileImage() {
+    if (_userData == null) return null;
+
+    // List of possible profile image field names
+    final List<String> possibleFields = [
+      'profilePicture',
+      'photoURL',
+      'profileImageUrl',
+      'photoUrl',
+      'profile_image',
+      'avatar',
+      'avatarUrl',
+      'image',
+      'imageUrl',
+      'picture',
+      'pictureUrl',
+      'profileImage',
+      'userImage',
+      'userPhoto',
+      'photo',
+    ];
+
+    // Check each possible field
+    for (final field in possibleFields) {
+      if (_userData!.containsKey(field) &&
+          _userData![field] != null &&
+          _userData![field] is String &&
+          (_userData![field] as String).isNotEmpty) {
+        final String imageUrl = _userData![field];
+        return NetworkImage(imageUrl);
+      }
+    }
+
+    // If we reach here, no profile image was found
+    return null;
+  }
 }
