@@ -54,6 +54,7 @@ class _ChatPageState extends State<ChatPage> {
   MarketItem? _marketItem;
   StreamSubscription<MarketItem?>? _marketItemSubscription;
   String? _otherUserProfileUrl;
+  String? _selectedMessageId; // Track which message is showing timestamp
 
   @override
   void initState() {
@@ -1036,9 +1037,50 @@ class _ChatPageState extends State<ChatPage> {
     return discreetParts.join(' ');
   }
 
+  // Format timestamp for display
+  String _formatTimestamp(DateTime timestamp) {
+    // Convert to Philippines timezone (UTC+8)
+    final philippinesTime = timestamp.toUtc().add(const Duration(hours: 8));
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final difference = now.difference(philippinesTime);
+
+    if (difference.inDays == 0) {
+      final hour = philippinesTime.hour > 12
+          ? philippinesTime.hour - 12
+          : philippinesTime.hour;
+      final period = philippinesTime.hour >= 12 ? 'PM' : 'AM';
+      // Handle 12 AM/PM case
+      final displayHour = hour == 0 ? 12 : hour;
+      return '$displayHour:${philippinesTime.minute.toString().padLeft(2, '0')} $period';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      // Format date with month/day/year
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+      ];
+      final month = months[philippinesTime.month - 1];
+      return '$month ${philippinesTime.day}, ${philippinesTime.year}';
+    }
+  }
+
   Widget _buildMessage(ChatMessage message) {
     final isMe = message.senderId == _currentUserId;
     final isSystemMessage = message.isSystemMessage;
+    final isSelected = _selectedMessageId == '${message.senderId}_${message.timestamp.millisecondsSinceEpoch}';
 
     // For system messages, display them centered with a different style
     if (isSystemMessage) {
@@ -1062,48 +1104,93 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
 
+    // Create a unique ID for this message
+    final messageId = '${message.senderId}_${message.timestamp.millisecondsSinceEpoch}';
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (!isMe) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.grey[300],
-              backgroundImage: message.profileImageUrl != null
-                  ? NetworkImage(message.profileImageUrl!)
-                  : null,
-              child: message.profileImageUrl == null
-                  ? Text(
-                      message.senderName[0].toUpperCase(),
-                      style: const TextStyle(color: Colors.black87),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 8),
-          ],
-          Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.7,
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 10,
-            ),
-            decoration: BoxDecoration(
-              color: isMe ? const Color(0xFF00C49A) : Colors.grey[200],
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              message.message,
-              style: TextStyle(
-                color: isMe ? Colors.white : Colors.black87,
+          // Timestamp with animation
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            height: isSelected ? 20 : 0,
+            curve: Curves.easeInOut,
+            child: AnimatedOpacity(
+              opacity: isSelected ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 150),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: 4,
+                  left: isMe ? 0 : 40,
+                  right: isMe ? 8 : 0,
+                ),
+                child: Text(
+                  _formatTimestamp(message.timestamp),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               ),
             ),
           ),
-          if (isMe) const SizedBox(width: 8),
+          Row(
+            mainAxisAlignment:
+                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: [
+              if (!isMe) ...[
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.grey[300],
+                  backgroundImage: message.profileImageUrl != null
+                      ? NetworkImage(message.profileImageUrl!)
+                      : null,
+                  child: message.profileImageUrl == null
+                      ? Text(
+                          message.senderName[0].toUpperCase(),
+                          style: const TextStyle(color: Colors.black87),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 8),
+              ],
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    // Toggle timestamp visibility
+                    _selectedMessageId = isSelected ? null : messageId;
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  transform: isSelected
+                      ? Matrix4.translationValues(isMe ? -3.0 : 3.0, 0, 0)
+                      : Matrix4.translationValues(0, 0, 0),
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.7,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isMe ? const Color(0xFF00C49A) : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    message.message,
+                    style: TextStyle(
+                      color: isMe ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+              ),
+              if (isMe) const SizedBox(width: 8),
+            ],
+          ),
         ],
       ),
     );
