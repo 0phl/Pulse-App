@@ -16,6 +16,7 @@ import '../services/community_service.dart';
 import '../services/cloudinary_service.dart';
 import '../services/global_state.dart';
 import 'seller_profile_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MarketPage extends StatefulWidget {
   final Function(int)? onUnreadChatsChanged;
@@ -134,6 +135,9 @@ class _MarketPageState extends State<MarketPage>
   String? _currentUserCommunityId;
   late StreamSubscription<int> _unreadCountSubscription;
 
+  // View mode state
+  bool _isGridView = false; // Default to list view
+
   @override
   void initState() {
     super.initState();
@@ -147,20 +151,58 @@ class _MarketPageState extends State<MarketPage>
     _unreadChats = _globalState.unreadChatCount;
 
     // Set up subscription to unread count changes
-    _unreadCountSubscription = _globalState.unreadChatCountStream.listen((count) {
-      if (mounted && _unreadChats != count) {
+    _unreadCountSubscription =
+        _globalState.unreadChatCountStream.listen((chatCount) {
+      if (mounted && _unreadChats != chatCount) {
         setState(() {
-          _unreadChats = count;
+          _unreadChats = chatCount;
         });
-        widget.onUnreadChatsChanged?.call(count);
+        widget.onUnreadChatsChanged?.call(chatCount);
       }
     });
 
     _loadUserCommunity();
     _setupChatListener();
+    _loadViewPreference();
 
     // Force refresh the unread count
     _globalState.refreshUnreadCount();
+  }
+
+  // Load the user's view preference from SharedPreferences
+  Future<void> _loadViewPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final user = _auth.currentUser;
+      if (user != null && mounted) {
+        setState(() {
+          _isGridView = prefs.getBool('market_grid_view_${user.uid}') ?? false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading view preference: $e');
+    }
+  }
+
+  // Save the user's view preference to SharedPreferences
+  Future<void> _saveViewPreference(bool isGridView) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final user = _auth.currentUser;
+      if (user != null) {
+        await prefs.setBool('market_grid_view_${user.uid}', isGridView);
+      }
+    } catch (e) {
+      debugPrint('Error saving view preference: $e');
+    }
+  }
+
+  // Toggle between grid and list view
+  void _toggleViewMode() {
+    setState(() {
+      _isGridView = !_isGridView;
+    });
+    _saveViewPreference(_isGridView);
   }
 
   @override
@@ -202,7 +244,10 @@ class _MarketPageState extends State<MarketPage>
     if (currentUser == null) return;
 
     // Listen for changes to the user's lastChatListVisit timestamp
-    _database.ref('users/${currentUser.uid}/lastChatListVisit').onValue.listen((event) {
+    _database
+        .ref('users/${currentUser.uid}/lastChatListVisit')
+        .onValue
+        .listen((event) {
       // When this changes, refresh the unread count
       _updateUnreadCount();
     });
@@ -223,7 +268,8 @@ class _MarketPageState extends State<MarketPage>
       int totalChats = 0;
 
       // If no snapshot was provided, get one
-      DataSnapshot snapshot = chatSnapshot ?? await _database.ref('chats').get();
+      DataSnapshot snapshot =
+          chatSnapshot ?? await _database.ref('chats').get();
       final chatData = snapshot.value as Map<dynamic, dynamic>?;
 
       if (chatData != null) {
@@ -245,7 +291,8 @@ class _MarketPageState extends State<MarketPage>
           final sellerId = chatInfo['sellerId'] as String?;
           final communityId = chatInfo['communityId'] as String?;
 
-          print('DEBUG: Checking chat $chatId - buyerId: $buyerId, sellerId: $sellerId, communityId: $communityId');
+          print(
+              'DEBUG: Checking chat $chatId - buyerId: $buyerId, sellerId: $sellerId, communityId: $communityId');
 
           // Skip if not in user's community
           if (communityId != _currentUserCommunityId) {
@@ -263,13 +310,17 @@ class _MarketPageState extends State<MarketPage>
 
           // Get unread count directly from the unreadCount field
           if (chatInfo.containsKey('unreadCount')) {
-            final unreadCountMap = chatInfo['unreadCount'] as Map<dynamic, dynamic>?;
-            if (unreadCountMap != null && unreadCountMap.containsKey(currentUser.uid)) {
+            final unreadCountMap =
+                chatInfo['unreadCount'] as Map<dynamic, dynamic>?;
+            if (unreadCountMap != null &&
+                unreadCountMap.containsKey(currentUser.uid)) {
               final count = unreadCountMap[currentUser.uid] as int? ?? 0;
-              print('DEBUG: Chat $chatId has $count unread messages for user ${currentUser.uid}');
+              print(
+                  'DEBUG: Chat $chatId has $count unread messages for user ${currentUser.uid}');
               unreadCount += count;
             } else {
-              print('DEBUG: Chat $chatId has no unread count for user ${currentUser.uid}');
+              print(
+                  'DEBUG: Chat $chatId has no unread count for user ${currentUser.uid}');
             }
           } else {
             print('DEBUG: Chat $chatId has no unreadCount field');
@@ -369,7 +420,9 @@ class _MarketPageState extends State<MarketPage>
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item added successfully! It will be visible after admin approval.')),
+        const SnackBar(
+            content: Text(
+                'Item added successfully! It will be visible after admin approval.')),
       );
     } catch (e) {
       print('Detailed error adding item: $e');
@@ -412,7 +465,12 @@ class _MarketPageState extends State<MarketPage>
         // Add padding to the actions
         actionsIconTheme: const IconThemeData(size: 26),
         actions: [
-          // Fix button removed as it's no longer needed
+          // View Toggle Button
+          IconButton(
+            icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
+            onPressed: _toggleViewMode,
+            tooltip: _isGridView ? 'Switch to List View' : 'Switch to Grid View',
+          ),
           // Seller Dashboard Button
           IconButton(
             icon: const Icon(Icons.dashboard),
@@ -533,9 +591,11 @@ class _MarketPageState extends State<MarketPage>
           final timeDifference = now.difference(soldAt);
           final secondsAgo = timeDifference.inSeconds;
           final minutesAgo = timeDifference.inMinutes;
-          debugPrint('Item ${item.title} (status: ${item.status}) sold $minutesAgo minutes ($secondsAgo seconds) ago (soldAt: $soldAt)');
+          debugPrint(
+              'Item ${item.title} (status: ${item.status}) sold $minutesAgo minutes ($secondsAgo seconds) ago (soldAt: $soldAt)');
         } else {
-          debugPrint('Item ${item.title} (status: ${item.status}) is marked as sold but has no soldAt timestamp');
+          debugPrint(
+              'Item ${item.title} (status: ${item.status}) is marked as sold but has no soldAt timestamp');
         }
       } else {
         debugPrint('Item ${item.title} (status: ${item.status}) is not sold');
@@ -545,7 +605,9 @@ class _MarketPageState extends State<MarketPage>
     // For My Items tab, hide sold items immediately
     // For All Items tab, filter out items that are not approved and hide sold items after 10 minutes
     final List<MarketItem> displayItems = isMyItemsTab
-        ? items.where((item) => !item.isSold).toList() // Immediately hide sold items in My Items tab
+        ? items
+            .where((item) => !item.isSold)
+            .toList() // Immediately hide sold items in My Items tab
         : items.where((item) {
             // Always show approved items that are not sold
             if (item.status == 'approved' && !item.isSold) {
@@ -557,7 +619,8 @@ class _MarketPageState extends State<MarketPage>
               // If soldAt is null, set a default timestamp 10 minutes ago
               // This ensures items with missing soldAt will disappear after a refresh
               if (item.soldAt == null) {
-                debugPrint('Item ${item.title} has null soldAt timestamp, using default logic');
+                debugPrint(
+                    'Item ${item.title} has null soldAt timestamp, using default logic');
                 // For items with null soldAt, show them for this session but they'll disappear on refresh
                 return true;
               }
@@ -572,9 +635,11 @@ class _MarketPageState extends State<MarketPage>
               // Use total seconds for more precise comparison (avoid rounding issues)
               final shouldShow = secondsAgo < 600; // 10 minutes = 600 seconds
               if (shouldShow) {
-                debugPrint('Item ${item.title} is showing because it was sold $secondsAgo seconds ago (< 600 seconds)');
+                debugPrint(
+                    'Item ${item.title} is showing because it was sold $secondsAgo seconds ago (< 600 seconds)');
               } else {
-                debugPrint('Item ${item.title} is NOT showing because it was sold $secondsAgo seconds ago (>= 600 seconds)');
+                debugPrint(
+                    'Item ${item.title} is NOT showing because it was sold $secondsAgo seconds ago (>= 600 seconds)');
               }
               return shouldShow;
             }
@@ -615,26 +680,65 @@ class _MarketPageState extends State<MarketPage>
       }
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: displayItems.length,
-      itemBuilder: (context, index) {
-        final bool isMyItemsTab = _tabController.index == 1;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: MarketItemCard(
-            item: displayItems[index],
-            onInterested: () => _handleInterested(context, displayItems[index]),
-            onImageTap: () => _handleImageTap(context, displayItems[index].imageUrl),
-            isOwner: _auth.currentUser?.uid == displayItems[index].sellerId,
-            showEditButton: isMyItemsTab,
-            onEdit: isMyItemsTab ? () => _handleEditItem(displayItems[index]) : null,
-            onDelete: isMyItemsTab ? () => _handleDelete(displayItems[index]) : null,
-            onSellerTap: !isMyItemsTab ? () => _navigateToSellerProfile(displayItems[index]) : null,
-          ),
-        );
-      },
-    );
+    // Return either ListView or GridView based on the current view mode
+    return _isGridView
+        ? GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2, // Reduced to 2 items per row for more space
+              childAspectRatio: 0.6, // Further reduced to give more height for buttons
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 16,
+            ),
+            itemCount: displayItems.length,
+            itemBuilder: (context, index) {
+              final bool isMyItemsTab = _tabController.index == 1;
+              return MarketItemCard(
+                item: displayItems[index],
+                onInterested: () => _handleInterested(context, displayItems[index]),
+                onImageTap: () =>
+                    _handleImageTap(context, displayItems[index].imageUrl),
+                isOwner: _auth.currentUser?.uid == displayItems[index].sellerId,
+                showEditButton: isMyItemsTab,
+                onEdit: isMyItemsTab
+                    ? () => _handleEditItem(displayItems[index])
+                    : null,
+                onDelete:
+                    isMyItemsTab ? () => _handleDelete(displayItems[index]) : null,
+                onSellerTap: !isMyItemsTab
+                    ? () => _navigateToSellerProfile(displayItems[index])
+                    : null,
+                isGridView: true, // Pass grid view flag to card
+              );
+            },
+          )
+        : ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: displayItems.length,
+            itemBuilder: (context, index) {
+              final bool isMyItemsTab = _tabController.index == 1;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: MarketItemCard(
+                  item: displayItems[index],
+                  onInterested: () => _handleInterested(context, displayItems[index]),
+                  onImageTap: () =>
+                      _handleImageTap(context, displayItems[index].imageUrl),
+                  isOwner: _auth.currentUser?.uid == displayItems[index].sellerId,
+                  showEditButton: isMyItemsTab,
+                  onEdit: isMyItemsTab
+                      ? () => _handleEditItem(displayItems[index])
+                      : null,
+                  onDelete:
+                      isMyItemsTab ? () => _handleDelete(displayItems[index]) : null,
+                  onSellerTap: !isMyItemsTab
+                      ? () => _navigateToSellerProfile(displayItems[index])
+                      : null,
+                  isGridView: false, // Pass list view flag to card
+                ),
+              );
+            },
+          );
   }
 
   void _handleEditItem(MarketItem item) {
@@ -692,8 +796,6 @@ class _MarketPageState extends State<MarketPage>
     }
   }
 
-
-
   void _navigateToSellerProfile(MarketItem item) {
     // Navigate to seller profile page, passing the seller ID and name
     // The seller profile page will filter out pending items since this is not the current user
@@ -735,7 +837,9 @@ class _MarketPageState extends State<MarketPage>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Item updated successfully! It will need to be approved again.')),
+          const SnackBar(
+              content: Text(
+                  'Item updated successfully! It will need to be approved again.')),
         );
       }
     } catch (e) {

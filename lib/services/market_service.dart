@@ -29,12 +29,13 @@ class MarketService {
   // Get market items for a specific seller
   Stream<List<MarketItem>> getSellerItemsStream(String sellerId, {bool isCurrentUser = false}) {
     // If viewing own profile, show all items including pending
-    // If viewing another seller's profile, only show approved items
+    // If viewing another seller's profile, only show approved items that are not sold
     Query query = _marketItemsCollection.where('sellerId', isEqualTo: sellerId);
 
     // Only filter by status if not viewing own profile
     if (!isCurrentUser) {
       query = query.where('status', isEqualTo: 'approved');
+      query = query.where('isSold', isEqualTo: false); // Only show active items when viewing other sellers
     }
 
     return query
@@ -195,6 +196,38 @@ class MarketService {
       'ratingsCount': ratingsCount.count,
       'joinedDate': (userData['createdAt'] as Timestamp?)?.toDate(),
     };
+  }
+
+  // Get seller profile data as a stream for real-time updates
+  Stream<Map<String, dynamic>> getSellerProfileStream(String sellerId) {
+    // Create a stream that combines user data and ratings
+    return _usersCollection.doc(sellerId).snapshots().asyncMap((userDoc) async {
+      if (!userDoc.exists) {
+        throw Exception('Seller not found');
+      }
+
+      final userData = userDoc.data() as Map<String, dynamic>;
+
+      // Get the latest average rating
+      final averageRating = await getSellerAverageRating(sellerId);
+
+      // Get the latest ratings count
+      final ratingsCount = await _sellerRatingsCollection
+          .where('sellerId', isEqualTo: sellerId)
+          .count()
+          .get();
+
+      return {
+        'id': sellerId,
+        'name': userData['fullName'] ?? userData['username'] ?? 'Unknown User',
+        'email': userData['email'] ?? 'N/A',
+        'phone': userData['phone'] ?? 'N/A',
+        'profileImage': userData['profileImageUrl'] ?? '',
+        'averageRating': averageRating,
+        'ratingsCount': ratingsCount.count,
+        'joinedDate': (userData['createdAt'] as Timestamp?)?.toDate(),
+      };
+    });
   }
 
   // Check if current user can rate a seller

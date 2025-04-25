@@ -89,7 +89,6 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: kIsWeb ? const SuperAdminLoginPage() : const DelayedAuthWrapper(),
-
       routes: kIsWeb
           ? {
               '/super-admin': (context) => const SuperAdminDashboardPage(),
@@ -106,12 +105,15 @@ class MyApp extends StatelessWidget {
               '/admin/notices/add': (context) => const ShowCreateNoticeSheet(),
               '/admin/marketplace': (context) => const AdminMarketplacePage(),
               '/admin/marketplace/add': (context) => AddItemPage(
-                onItemAdded: (item) {
-                  Navigator.pushReplacementNamed(context, '/admin/marketplace');
-                },
-              ),
-              '/admin/volunteer-posts': (context) => const AdminVolunteerPostsPage(),
-              '/admin/volunteer-posts/add': (context) => const AddVolunteerPostPage(),
+                    onItemAdded: (item) {
+                      Navigator.pushReplacementNamed(
+                          context, '/admin/marketplace');
+                    },
+                  ),
+              '/admin/volunteer-posts': (context) =>
+                  const AdminVolunteerPostsPage(),
+              '/admin/volunteer-posts/add': (context) =>
+                  const AddVolunteerPostPage(),
               '/admin/reports': (context) => const AdminReportsPage(),
               '/admin/profile': (context) => const AdminProfilePage(),
               // User verification functionality consolidated into Manage Users page
@@ -144,9 +146,8 @@ class _MainScreenState extends State<MainScreen> {
   late final List<Widget> _pages = <Widget>[
     const HomePage(),
     MarketPage(
-      key: UniqueKey(), // Add a unique key to force rebuild
-      onUnreadChatsChanged: _updateUnreadChats
-    ),
+        key: UniqueKey(), // Add a unique key to force rebuild
+        onUnreadChatsChanged: _updateUnreadChats),
     const VolunteerPage(),
     const ReportPage(),
   ];
@@ -162,9 +163,7 @@ class _MainScreenState extends State<MainScreen> {
       setState(() {
         // Replace the MarketPage with a new instance to force a rebuild
         _pages[1] = MarketPage(
-          key: UniqueKey(),
-          onUnreadChatsChanged: _updateUnreadChats
-        );
+            key: UniqueKey(), onUnreadChatsChanged: _updateUnreadChats);
         _selectedIndex = index;
       });
 

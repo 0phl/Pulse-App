@@ -58,6 +58,7 @@ class _SellerProfilePageState extends State<SellerProfilePage>
       final isCurrentUser = currentUser != null && currentUser.uid == widget.sellerId;
 
       // Set up streams for items and ratings
+      // For other sellers' profiles, this will only show active (not sold) items
       _marketService.getSellerItemsStream(widget.sellerId, isCurrentUser: isCurrentUser).listen((items) {
         if (mounted) {
           setState(() {
@@ -169,9 +170,9 @@ class _SellerProfilePageState extends State<SellerProfilePage>
                   labelColor: const Color(0xFF00C49A),
                   unselectedLabelColor: Colors.grey,
                   indicatorColor: const Color(0xFF00C49A),
-                  tabs: const [
-                    Tab(text: 'Items'),
-                    Tab(text: 'Reviews'),
+                  tabs: [
+                    Tab(text: FirebaseAuth.instance.currentUser?.uid == widget.sellerId ? 'Items' : 'Active Items'),
+                    const Tab(text: 'Reviews'),
                   ],
                 ),
                 Expanded(
@@ -272,7 +273,9 @@ class _SellerProfilePageState extends State<SellerProfilePage>
                 size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'No items available',
+              FirebaseAuth.instance.currentUser?.uid == widget.sellerId
+                ? 'No items available'
+                : 'No active items available',
               style: TextStyle(
                 fontSize: 18,
                 color: Colors.grey[600],
@@ -280,7 +283,9 @@ class _SellerProfilePageState extends State<SellerProfilePage>
             ),
             const SizedBox(height: 8),
             Text(
-              'This seller has no items for sale',
+              FirebaseAuth.instance.currentUser?.uid == widget.sellerId
+                ? 'You have no items for sale'
+                : 'This seller has no active items for sale',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[500],
