@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 import '../../models/volunteer_post.dart';
 import '../../services/auth_service.dart';
@@ -1025,15 +1026,20 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                               return ListTile(
                                 leading: CircleAvatar(
                                   backgroundColor: const Color(0xFF00C49A).withOpacity(0.1),
-                                  child: Text(
-                                    user['fullName']?.isNotEmpty == true
-                                        ? user['fullName'][0].toUpperCase()
-                                        : '?',
-                                    style: const TextStyle(
-                                      color: Color(0xFF00C49A),
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                                  backgroundImage: user['profileImageUrl'] != null
+                                      ? NetworkImage(user['profileImageUrl'])
+                                      : null,
+                                  child: user['profileImageUrl'] == null
+                                      ? Text(
+                                          user['fullName']?.isNotEmpty == true
+                                              ? user['fullName'][0].toUpperCase()
+                                              : '?',
+                                          style: const TextStyle(
+                                            color: Color(0xFF00C49A),
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                      : null,
                                 ),
                                 title: Text(
                                   user['fullName'] ?? 'Unknown User',
@@ -1089,6 +1095,7 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
 
       // Fetch user data for each user ID
       for (final userId in userIds) {
+        // First try to get user from Firestore (admin users)
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
@@ -1098,12 +1105,54 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
           final userData = userDoc.data() as Map<String, dynamic>;
           users.add(userData);
         } else {
-          // Add placeholder for users that don't exist
-          users.add({
-            'fullName': 'Unknown User',
-            'email': 'User not found',
-            'mobile': '',
-          });
+          // If not found in Firestore, try RTDB (regular users)
+          try {
+            final rtdbSnapshot = await FirebaseDatabase.instance
+                .ref()
+                .child('users/$userId')
+                .get();
+
+            if (rtdbSnapshot.exists) {
+              final rtdbData = rtdbSnapshot.value as Map<dynamic, dynamic>;
+
+              // Get user's name (handle both formats)
+              String fullName = '';
+              if (rtdbData['firstName'] != null && rtdbData['lastName'] != null) {
+                fullName = rtdbData['middleName'] != null &&
+                        rtdbData['middleName'].toString().isNotEmpty
+                    ? '${rtdbData['firstName']} ${rtdbData['middleName']} ${rtdbData['lastName']}'
+                    : '${rtdbData['firstName']} ${rtdbData['lastName']}';
+              } else if (rtdbData['fullName'] != null) {
+                fullName = rtdbData['fullName'];
+              } else {
+                fullName = 'User $userId';
+              }
+
+              users.add({
+                'fullName': fullName,
+                'email': rtdbData['email'] ?? '',
+                'mobile': rtdbData['mobile'] ?? '',
+                'profileImageUrl': rtdbData['profileImageUrl'],
+              });
+            } else {
+              // Add placeholder for users that don't exist
+              users.add({
+                'fullName': 'Unknown User',
+                'email': 'User not found',
+                'mobile': '',
+                'profileImageUrl': null,
+              });
+            }
+          } catch (rtdbError) {
+            debugPrint('Error fetching user from RTDB: $rtdbError');
+            // Add placeholder for users that don't exist
+            users.add({
+              'fullName': 'Unknown User',
+              'email': 'User not found',
+              'mobile': '',
+              'profileImageUrl': null,
+            });
+          }
         }
       }
 

@@ -989,6 +989,12 @@ class AdminService {
 
         // Update all comments by this admin
         await _noticeService.updateUserCommentsInfo(adminId, adminCommentName, profileImageUrl);
+
+        // Also update all community notices by this admin
+        // Run this in the background to avoid blocking the UI
+        if (_auth.currentUser?.uid == adminId) {
+          updateExistingNoticesWithProfileInfo();
+        }
       }
     } catch (e) {
       throw Exception('Failed to update admin profile: $e');
@@ -2122,5 +2128,174 @@ class AdminService {
       debugPrint('CRITICAL ERROR in updateUserVerificationStatus: $e');
       rethrow; // Re-throw to let the UI handle it
     }
+  }
+
+  // Update all existing community notices with the admin's profile information (name and picture)
+  Future<void> updateExistingNoticesWithProfileInfo() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user logged in');
+
+      // Get admin's profile information
+      final adminDoc = await _usersCollection.doc(user.uid).get();
+      if (!adminDoc.exists) throw Exception('Admin not found');
+
+      final adminData = adminDoc.data() as Map<String, dynamic>;
+      final communityId = adminData['communityId'] as String;
+      final profileImageUrl = adminData['profileImageUrl'] as String?;
+      final fullName = adminData['fullName'] as String?;
+
+      // If no profile info to update, return early
+      if (profileImageUrl == null && fullName == null) return;
+
+      // Format the admin name with "Admin " prefix
+      final adminName = fullName != null ? 'Admin $fullName' : null;
+
+      // Get all notices by this admin
+      final noticesSnapshot = await _database
+          .child('community_notices')
+          .orderByChild('communityId')
+          .equalTo(communityId)
+          .get();
+
+      if (!noticesSnapshot.exists) return;
+
+      final noticesData = noticesSnapshot.value as Map<dynamic, dynamic>;
+
+      // Update each notice that belongs to this admin
+      for (var entry in noticesData.entries) {
+        try {
+          if (entry.value is! Map<dynamic, dynamic>) continue;
+
+          final noticeData = entry.value as Map<dynamic, dynamic>;
+          final noticeAuthorId = noticeData['authorId']?.toString();
+          final noticeId = entry.key.toString();
+
+          // Only update notices by this admin
+          if (noticeAuthorId == user.uid) {
+            final updates = <String, dynamic>{};
+
+            // Always update profile picture if available
+            if (profileImageUrl != null) {
+              updates['authorAvatar'] = profileImageUrl;
+            }
+
+            // Add name update if needed
+            if (adminName != null && noticeData['authorName'] != adminName) {
+              updates['authorName'] = adminName;
+            }
+
+            // Only update if there are changes to make
+            if (updates.isNotEmpty) {
+              await _database.child('community_notices').child(noticeId).update(updates);
+              debugPrint('Updated profile info for notice: $noticeId');
+            }
+          }
+
+          // Update comments by this admin in this notice
+          if (noticeData['comments'] is Map) {
+            final commentsData = noticeData['comments'] as Map<dynamic, dynamic>;
+
+            for (var commentEntry in commentsData.entries) {
+              try {
+                if (commentEntry.value is! Map<dynamic, dynamic>) continue;
+
+                final commentData = commentEntry.value as Map<dynamic, dynamic>;
+                final commentAuthorId = commentData['authorId']?.toString();
+                final commentId = commentEntry.key.toString();
+
+                // Only update comments by this admin
+                if (commentAuthorId == user.uid) {
+                  final commentUpdates = <String, dynamic>{};
+
+                  // Always update profile picture if available
+                  if (profileImageUrl != null) {
+                    commentUpdates['authorAvatar'] = profileImageUrl;
+                  }
+
+                  // Add name update if needed
+                  if (adminName != null && commentData['authorName'] != adminName) {
+                    commentUpdates['authorName'] = adminName;
+                  }
+
+                  // Only update if there are changes to make
+                  if (commentUpdates.isNotEmpty) {
+                    await _database
+                        .child('community_notices')
+                        .child(noticeId)
+                        .child('comments')
+                        .child(commentId)
+                        .update(commentUpdates);
+                    debugPrint('Updated profile info for comment: $commentId in notice: $noticeId');
+                  }
+                }
+
+                // Update replies by this admin
+                if (commentData['replies'] is Map) {
+                  final repliesData = commentData['replies'] as Map<dynamic, dynamic>;
+
+                  for (var replyEntry in repliesData.entries) {
+                    try {
+                      if (replyEntry.value is! Map<dynamic, dynamic>) continue;
+
+                      final replyData = replyEntry.value as Map<dynamic, dynamic>;
+                      final replyAuthorId = replyData['authorId']?.toString();
+                      final replyId = replyEntry.key.toString();
+
+                      // Only update replies by this admin
+                      if (replyAuthorId == user.uid) {
+                        final replyUpdates = <String, dynamic>{};
+
+                        // Always update profile picture if available
+                        if (profileImageUrl != null) {
+                          replyUpdates['authorAvatar'] = profileImageUrl;
+                        }
+
+                        // Add name update if needed
+                        if (adminName != null && replyData['authorName'] != adminName) {
+                          replyUpdates['authorName'] = adminName;
+                        }
+
+                        // Only update if there are changes to make
+                        if (replyUpdates.isNotEmpty) {
+                          await _database
+                              .child('community_notices')
+                              .child(noticeId)
+                              .child('comments')
+                              .child(commentId)
+                              .child('replies')
+                              .child(replyId)
+                              .update(replyUpdates);
+                          debugPrint('Updated profile info for reply: $replyId in comment: $commentId in notice: $noticeId');
+                        }
+                      }
+                    } catch (e) {
+                      debugPrint('Error updating reply ${replyEntry.key}: $e');
+                      // Continue with other replies even if one fails
+                    }
+                  }
+                }
+              } catch (e) {
+                debugPrint('Error updating comment ${commentEntry.key}: $e');
+                // Continue with other comments even if one fails
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error updating notice ${entry.key}: $e');
+          // Continue with other notices even if one fails
+        }
+      }
+
+      debugPrint('Finished updating existing notices and comments with profile information');
+    } catch (e) {
+      debugPrint('Error updating existing notices and comments: $e');
+      // Don't throw, as this is a background operation that shouldn't interrupt the UI
+    }
+  }
+
+  // Alias for backward compatibility
+  Future<void> updateExistingNoticesWithProfilePicture() async {
+    return updateExistingNoticesWithProfileInfo();
   }
 }

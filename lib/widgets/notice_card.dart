@@ -116,13 +116,18 @@ class NoticeCard extends StatelessWidget {
             leading: CircleAvatar(
               radius: 24,
               backgroundColor: const Color(0xFF00C49A).withOpacity(0.1),
-              child: Text(
-                notice.authorName[0].toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFF00C49A),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              backgroundImage: notice.authorAvatar != null
+                  ? NetworkImage(notice.authorAvatar!)
+                  : null,
+              child: notice.authorAvatar == null
+                  ? Text(
+                      notice.authorName[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Color(0xFF00C49A),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
             ),
             title: Text(
               notice.authorName,

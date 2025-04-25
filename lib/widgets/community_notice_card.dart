@@ -424,14 +424,19 @@ class _CommentsPageState extends State<CommentsPage> {
                     CircleAvatar(
                       radius: 16,
                       backgroundColor: const Color(0xFF00C49A).withOpacity(0.1),
-                      child: Text(
-                        widget.notice.authorName[0].toUpperCase(),
-                        style: const TextStyle(
-                          color: Color(0xFF00C49A),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      backgroundImage: widget.notice.authorAvatar != null
+                          ? NetworkImage(widget.notice.authorAvatar!)
+                          : null,
+                      child: widget.notice.authorAvatar == null
+                          ? Text(
+                              widget.notice.authorName[0].toUpperCase(),
+                              style: const TextStyle(
+                                color: Color(0xFF00C49A),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -2092,13 +2097,18 @@ class CommunityNoticeCard extends StatelessWidget {
             leading: CircleAvatar(
               radius: 24,
               backgroundColor: const Color(0xFF00C49A).withOpacity(0.1),
-              child: Text(
-                notice.authorName[0].toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFF00C49A),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              backgroundImage: notice.authorAvatar != null
+                  ? NetworkImage(notice.authorAvatar!)
+                  : null,
+              child: notice.authorAvatar == null
+                  ? Text(
+                      notice.authorName[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Color(0xFF00C49A),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
             ),
             title: Text(
               notice.authorName,

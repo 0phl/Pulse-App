@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
 import '../../models/community_notice.dart';
 import '../../widgets/create_notice_sheet.dart';
@@ -21,6 +23,7 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
   bool _isLoading = true;
   List<CommunityNotice> _notices = [];
   bool _isCreatingNotice = false;
+  String? _profileImageUrl;
 
   @override
   void initState() {
@@ -28,7 +31,17 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
     WidgetsBinding.instance.addObserver(this);
     _loadCommunity();
     _loadNotices();
+    _updateProfileInNotices(); // Update profile info in all notices
     _scrollController.addListener(_onScroll);
+  }
+
+  // Update profile information in all notices
+  Future<void> _updateProfileInNotices() async {
+    try {
+      await _adminService.updateExistingNoticesWithProfileInfo();
+    } catch (e) {
+      debugPrint('Error updating profile in notices: $e');
+    }
   }
 
   @override
@@ -43,6 +56,8 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
     if (state == AppLifecycleState.resumed) {
       // Reload notices when app is resumed from background
       debugPrint('App resumed - reloading notices');
+      _updateProfileInNotices(); // Update profile info in all notices
+      _loadAdminProfile(); // Reload admin profile
       _loadNotices();
     }
   }
@@ -61,6 +76,7 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
   Future<void> _loadCommunity() async {
     try {
       await _adminService.getCurrentAdminCommunity();
+      await _loadAdminProfile();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -70,6 +86,30 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
           ),
         );
       }
+    }
+  }
+
+  Future<void> _loadAdminProfile() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final adminDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!adminDoc.exists) return;
+
+      final adminData = adminDoc.data() as Map<String, dynamic>;
+
+      if (mounted) {
+        setState(() {
+          _profileImageUrl = adminData['profileImageUrl'] as String?;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading admin profile: $e');
     }
   }
 
@@ -118,11 +158,16 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
                 radius: 16,
                 backgroundColor:
                     Theme.of(context).primaryColor.withOpacity(0.1),
-                child: Icon(
-                  Icons.person,
-                  size: 20,
-                  color: Theme.of(context).primaryColor,
-                ),
+                backgroundImage: _profileImageUrl != null
+                    ? NetworkImage(_profileImageUrl!)
+                    : null,
+                child: _profileImageUrl == null
+                    ? Icon(
+                        Icons.person,
+                        size: 20,
+                        color: Theme.of(context).primaryColor,
+                      )
+                    : null,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -264,7 +309,7 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
         // Show a more user-friendly error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading notices. Please try again.'),
+            content: const Text('Error loading notices. Please try again.'),
             action: SnackBarAction(
               label: 'Retry',
               onPressed: _loadNotices,

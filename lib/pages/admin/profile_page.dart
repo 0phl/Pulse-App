@@ -255,6 +255,11 @@ class _AdminProfilePageState extends State<AdminProfilePage> with WidgetsBinding
       // Update admin profile using the new method that updates comments
       await _adminService.updateAdminProfile(user.uid, updateData);
 
+      // Update existing community notices with new profile info
+      // This will update both the profile picture and name in all notices
+      // Run this in the background to avoid blocking the UI
+      _adminService.updateExistingNoticesWithProfileInfo();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

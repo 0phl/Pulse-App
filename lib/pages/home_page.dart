@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../services/community_notice_service.dart';
 import '../services/community_service.dart';
+import '../services/admin_service.dart';
 import '../models/community_notice.dart';
 import '../widgets/community_notice_card.dart';
 import 'add_community_notice_page.dart';
@@ -20,6 +21,7 @@ class _HomePageState extends State<HomePage> {
   final _auth = FirebaseAuth.instance;
   final _communityService = CommunityService();
   final _noticeService = CommunityNoticeService();
+  final _adminService = AdminService();
   String? _currentUserCommunityId;
   bool _isAdmin = false;
   bool _isLoading = true;
@@ -70,6 +72,12 @@ class _HomePageState extends State<HomePage> {
           _isLoading = false;
           _communityName = community.name;
         });
+
+        // If this is an admin, update existing notices with profile information
+        if (_isAdmin) {
+          // Run this in the background to avoid blocking the UI
+          _adminService.updateExistingNoticesWithProfileInfo();
+        }
       }
     } catch (e) {
       debugPrint('Error loading user data: $e');

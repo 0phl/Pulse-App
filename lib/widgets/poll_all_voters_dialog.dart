@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/community_notice.dart';
 
 class PollAllVotersDialog extends StatefulWidget {
@@ -30,19 +31,19 @@ class _PollAllVotersDialogState extends State<PollAllVotersDialog> {
 
     try {
       final Map<String, List<Map<String, dynamic>>> votersByOption = {};
-      
+
       // Process each option
       for (final option in widget.poll.options) {
         final List<Map<String, dynamic>> optionVoters = [];
-        
+
         // Process each voter ID for this option
         for (final voterId in option.votedBy) {
           // Get user data from RTDB
           final userSnapshot = await _database.child('users/$voterId').get();
-          
+
           if (userSnapshot.exists) {
             final userData = userSnapshot.value as Map<dynamic, dynamic>;
-            
+
             // Get user's name (handle both formats)
             String fullName = '';
             if (userData['firstName'] != null && userData['lastName'] != null) {
@@ -63,20 +64,52 @@ class _PollAllVotersDialogState extends State<PollAllVotersDialog> {
               'email': userData['email'] ?? '',
               'mobile': userData['mobile'] ?? '',
               'isAdmin': userData['role'] == 'admin',
+              'profileImageUrl': userData['profileImageUrl'],
             });
           } else {
             // If user not found in RTDB, check if it's an admin in Firestore
-            // For simplicity, we'll just add a placeholder
-            optionVoters.add({
-              'id': voterId,
-              'name': 'Admin User',
-              'email': '',
-              'mobile': '',
-              'isAdmin': true,
-            });
+            // Try to get admin data from Firestore
+            try {
+              final adminSnapshot = await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(voterId)
+                  .get();
+
+              if (adminSnapshot.exists) {
+                final adminData = adminSnapshot.data() as Map<String, dynamic>;
+                optionVoters.add({
+                  'id': voterId,
+                  'name': adminData['fullName'] ?? 'Admin User',
+                  'email': adminData['email'] ?? '',
+                  'mobile': adminData['mobile'] ?? '',
+                  'isAdmin': true,
+                  'profileImageUrl': adminData['profileImageUrl'],
+                });
+              } else {
+                // Fallback if not found in Firestore either
+                optionVoters.add({
+                  'id': voterId,
+                  'name': 'Admin User',
+                  'email': '',
+                  'mobile': '',
+                  'isAdmin': true,
+                  'profileImageUrl': null,
+                });
+              }
+            } catch (e) {
+              // Fallback on error
+              optionVoters.add({
+                'id': voterId,
+                'name': 'Admin User',
+                'email': '',
+                'mobile': '',
+                'isAdmin': true,
+                'profileImageUrl': null,
+              });
+            }
           }
         }
-        
+
         // Add this option's voters to the map
         if (optionVoters.isNotEmpty) {
           votersByOption[option.text] = optionVoters;
@@ -124,13 +157,13 @@ class _PollAllVotersDialogState extends State<PollAllVotersDialog> {
           children: [
             Row(
               children: [
-                const Icon(Icons.poll_outlined, 
+                const Icon(Icons.poll_outlined,
                   color: Color(0xFF00C49A), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
+                  child: const Text(
                     'Poll Voters',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -176,7 +209,7 @@ class _PollAllVotersDialogState extends State<PollAllVotersDialog> {
                           itemBuilder: (context, index) {
                             final optionText = _votersByOption.keys.elementAt(index);
                             final voters = _votersByOption[optionText]!;
-                            
+
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -224,18 +257,23 @@ class _PollAllVotersDialogState extends State<PollAllVotersDialog> {
                                 ),
                                 ...voters.map((voter) => ListTile(
                                   leading: CircleAvatar(
-                                    backgroundColor: voter['isAdmin'] 
+                                    backgroundColor: voter['isAdmin']
                                         ? Colors.amber.withOpacity(0.2)
                                         : const Color(0xFF00C49A).withOpacity(0.2),
-                                    child: Text(
-                                      voter['name'][0].toUpperCase(),
-                                      style: TextStyle(
-                                        color: voter['isAdmin']
-                                            ? Colors.amber[800]
-                                            : const Color(0xFF00C49A),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                                    backgroundImage: voter['profileImageUrl'] != null
+                                        ? NetworkImage(voter['profileImageUrl'])
+                                        : null,
+                                    child: voter['profileImageUrl'] == null
+                                        ? Text(
+                                            voter['name'][0].toUpperCase(),
+                                            style: TextStyle(
+                                              color: voter['isAdmin']
+                                                  ? Colors.amber[800]
+                                                  : const Color(0xFF00C49A),
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          )
+                                        : null,
                                   ),
                                   title: Text(
                                     voter['name'],
@@ -279,7 +317,7 @@ class _PollAllVotersDialogState extends State<PollAllVotersDialog> {
                                           ),
                                         )
                                       : null,
-                                )).toList(),
+                                )),
                                 if (index < _votersByOption.length - 1)
                                   const Divider(height: 32),
                               ],
