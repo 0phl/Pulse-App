@@ -7,6 +7,13 @@ import '../models/seller_rating.dart';
 import '../models/market_item.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+
+import 'package:cloudinary_public/cloudinary_public.dart';
+import '../widgets/video_player_page.dart';
+import '../widgets/image_viewer_page.dart';
+import '../widgets/video_thumbnail.dart';
 
 class ChatPage extends StatefulWidget {
   final String itemId;
@@ -44,10 +51,9 @@ class _ChatPageState extends State<ChatPage> {
   late String _chatId;
   bool _isLoading = true;
   String? _error;
-  Map<String, String> _userNames = {};
+  final Map<String, String> _userNames = {};
   String _displayName = '';
   String? _currentUserCommunityId;
-  final _firestore = FirebaseFirestore.instance;
   final _marketService = MarketService();
   bool _isItemSold = false;
   bool _hasRatedSeller = false;
@@ -55,6 +61,12 @@ class _ChatPageState extends State<ChatPage> {
   StreamSubscription<MarketItem?>? _marketItemSubscription;
   String? _otherUserProfileUrl;
   String? _selectedMessageId; // Track which message is showing timestamp
+
+  // Media handling
+  final _imagePicker = ImagePicker();
+  File? _selectedImage;
+  File? _selectedVideo;
+  bool _isUploadingMedia = false;
 
   @override
   void initState() {
@@ -378,6 +390,285 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  // Show media picker options
+  Future<void> _showMediaPickerOptions() async {
+    await showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Send Image'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickImage();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.videocam),
+                title: const Text('Send Video'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickVideo();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Pick image from gallery
+  Future<void> _pickImage() async {
+    try {
+      setState(() {
+        _isUploadingMedia = true;
+      });
+
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85, // Higher quality but still compressed
+        maxWidth: 1920,   // Limit max width to 1920px
+        maxHeight: 1920,  // Limit max height to 1920px
+      );
+
+      if (image != null) {
+        final file = File(image.path);
+
+        // Check file size (5MB limit)
+        final fileSize = await file.length();
+        final fileSizeInMB = fileSize / (1024 * 1024);
+
+        if (fileSizeInMB > 5) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Image size exceeds 5MB limit. Please select a smaller image.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+
+        setState(() {
+          _selectedImage = file;
+          _selectedVideo = null; // Clear any selected video
+        });
+
+        // Upload and send the image
+        await _uploadAndSendMedia(isImage: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: $e')),
+        );
+      }
+    } finally {
+      setState(() {
+        _isUploadingMedia = false;
+      });
+    }
+  }
+
+  // Pick video from gallery
+  Future<void> _pickVideo() async {
+    try {
+      setState(() {
+        _isUploadingMedia = true;
+      });
+
+      final XFile? video = await _imagePicker.pickVideo(
+        source: ImageSource.gallery,
+        maxDuration: const Duration(seconds: 60), // Limit to 60 seconds
+      );
+
+      if (video != null) {
+        final file = File(video.path);
+
+        // Check file size (20MB limit)
+        final fileSize = await file.length();
+        final fileSizeInMB = fileSize / (1024 * 1024);
+
+        if (fileSizeInMB > 20) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Video size exceeds 20MB limit. Please select a smaller video.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+
+        setState(() {
+          _selectedVideo = file;
+          _selectedImage = null; // Clear any selected image
+        });
+
+        // Upload and send the video
+        await _uploadAndSendMedia(isImage: false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking video: $e')),
+        );
+      }
+    } finally {
+      setState(() {
+        _isUploadingMedia = false;
+      });
+    }
+  }
+
+  // Upload and send media
+  Future<void> _uploadAndSendMedia({required bool isImage}) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return;
+
+      String? mediaUrl;
+      String mediaType = isImage ? 'image' : 'video';
+
+      // Upload the media to Cloudinary using a single upload preset for chat
+      if (isImage && _selectedImage != null) {
+        try {
+          // Create a CloudinaryPublic instance for chat uploads
+          final chatCloudinary = CloudinaryPublic('dy1jizr52', 'chat_uploads', cache: false);
+
+          // Check file size before uploading (5MB limit for images)
+          final fileSize = await _selectedImage!.length();
+          const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+
+          if (fileSize > maxSize) {
+            throw Exception('Image size exceeds 5MB limit. Please select a smaller image.');
+          }
+
+          // We'll use the upload preset configured in Cloudinary
+          // The preset should handle transformations automatically
+          final cloudinaryFile = CloudinaryFile.fromFile(
+            _selectedImage!.path,
+            folder: 'chat_media',
+            resourceType: CloudinaryResourceType.Image,
+          );
+
+          final response = await chatCloudinary.uploadFile(cloudinaryFile);
+          mediaUrl = response.secureUrl;
+        } catch (e) {
+          print('Error uploading image: $e');
+          rethrow; // Rethrow to be caught by the outer try-catch
+        }
+      } else if (!isImage && _selectedVideo != null) {
+        try {
+          // Use the same CloudinaryPublic instance for videos
+          final chatCloudinary = CloudinaryPublic('dy1jizr52', 'chat_uploads', cache: false);
+
+          // Check file size before uploading (20MB limit for videos)
+          final fileSize = await _selectedVideo!.length();
+          const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+
+          if (fileSize > maxSize) {
+            throw Exception('Video size exceeds 20MB limit. Please select a smaller video.');
+          }
+
+          // We'll use the upload preset configured in Cloudinary
+          // The preset should handle transformations automatically
+          final cloudinaryFile = CloudinaryFile.fromFile(
+            _selectedVideo!.path,
+            folder: 'chat_media',
+            resourceType: CloudinaryResourceType.Video,
+          );
+
+          final response = await chatCloudinary.uploadFile(cloudinaryFile);
+          mediaUrl = response.secureUrl;
+        } catch (e) {
+          print('Error uploading video: $e');
+          rethrow; // Rethrow to be caught by the outer try-catch
+        }
+      }
+
+      if (mediaUrl != null) {
+        // Get user profile image
+        String? profileImageUrl;
+        try {
+          final userSnapshot = await _userRef.child(currentUser.uid).get();
+          if (userSnapshot.exists) {
+            final userData = userSnapshot.value as Map<dynamic, dynamic>;
+            profileImageUrl = userData['profileImageUrl'] as String?;
+          }
+        } catch (e) {
+          // Continue without profile image
+        }
+
+        // Create message with media - without text labels
+        final newMessage = ChatMessage(
+          message: '', // Empty message for cleaner look
+          senderId: currentUser.uid,
+          senderName: _userNames[currentUser.uid] ?? 'User',
+          timestamp: DateTime.now(),
+          profileImageUrl: profileImageUrl,
+          imageUrl: isImage ? mediaUrl : null,
+          videoUrl: !isImage ? mediaUrl : null,
+          mediaType: mediaType,
+        );
+
+        // Send the message
+        await _chatRef.child('messages').push().set(newMessage.toJson());
+
+        // Update unread count for the recipient
+        final recipientId = widget.isSeller ? widget.buyerId! : widget.sellerId;
+        final unreadSnapshot = await _chatRef.child('unreadCount').child(recipientId).get();
+        final currentUnreadCount = (unreadSnapshot.value as int?) ?? 0;
+        await _chatRef.child('unreadCount').update({recipientId: currentUnreadCount + 1});
+
+        // Always include buyerId when sending a message
+        if (!widget.isSeller) {
+          await _chatRef.update({'buyerId': currentUser.uid});
+        }
+
+        // Clear selected media
+        setState(() {
+          _selectedImage = null;
+          _selectedVideo = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        // Extract the meaningful part of the error message
+        String errorMessage = 'Error sending media';
+
+        if (e.toString().contains('DioException')) {
+          if (e.toString().contains('400')) {
+            errorMessage = 'Upload failed: The upload preset "chat_uploads" may not exist or is not properly configured in Cloudinary.';
+          } else {
+            errorMessage = 'Upload failed: Please check your internet connection and try again.';
+          }
+        } else if (e.toString().contains('size exceeds')) {
+          errorMessage = e.toString();
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Dismiss',
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _sendMessage(
       {String? message,
       bool isInitial = false,
@@ -587,6 +878,26 @@ class _ChatPageState extends State<ChatPage> {
                       ),
                       maxLines: null,
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Gallery/Media button
+                  IconButton(
+                    onPressed: _isUploadingMedia ? null : _showMediaPickerOptions,
+                    icon: _isUploadingMedia
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF00C49A),
+                            ),
+                          )
+                        : const Icon(Icons.photo_library_rounded),
+                    color: const Color(0xFF00C49A),
+                    tooltip: 'Send media',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    iconSize: 24,
                   ),
                   const SizedBox(width: 8),
                   ValueListenableBuilder<TextEditingValue>(
@@ -1172,20 +1483,129 @@ class _ChatPageState extends State<ChatPage> {
                   constraints: BoxConstraints(
                     maxWidth: MediaQuery.of(context).size.width * 0.7,
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
+                  padding: message.hasMedia
+                      ? const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
+                        )
+                      : const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                   decoration: BoxDecoration(
                     color: isMe ? const Color(0xFF00C49A) : Colors.grey[200],
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
-                    message.message,
-                    style: TextStyle(
-                      color: isMe ? Colors.white : Colors.black87,
-                    ),
-                  ),
+                  child: message.hasMedia
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (message.imageUrl != null)
+                              GestureDetector(
+                                onTap: () {
+                                  // Navigate to dedicated image viewer page with zoom functionality
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => ImageViewerPage(
+                                        imageUrl: message.imageUrl!,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.white, width: 0.5),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 3,
+                                        offset: const Offset(0, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(
+                                      message.imageUrl!,
+                                      width: 200,
+                                      height: 150,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return SizedBox(
+                                          width: 200,
+                                          height: 150,
+                                          child: Center(
+                                            child: CircularProgressIndicator(
+                                              value: loadingProgress.expectedTotalBytes != null
+                                                  ? loadingProgress.cumulativeBytesLoaded /
+                                                      loadingProgress.expectedTotalBytes!
+                                                  : null,
+                                              color: const Color(0xFF00C49A),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (message.videoUrl != null)
+                              GestureDetector(
+                                child: Container(
+                                  width: 200,
+                                  height: 150,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.white, width: 0.5),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 3,
+                                        offset: const Offset(0, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: VideoThumbnail(
+                                      videoUrl: message.videoUrl!,
+                                      width: 200,
+                                      height: 150,
+                                      onTap: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (context) => VideoPlayerPage(
+                                              videoUrl: message.videoUrl!,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (message.message.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4, left: 8, right: 8, bottom: 4),
+                                child: Text(
+                                  message.message,
+                                  style: TextStyle(
+                                    color: isMe ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        )
+                      : Text(
+                          message.message,
+                          style: TextStyle(
+                            color: isMe ? Colors.white : Colors.black87,
+                          ),
+                        ),
                 ),
               ),
               if (isMe) const SizedBox(width: 8),
@@ -1205,6 +1625,9 @@ class ChatMessage {
   final bool isInitialMessage;
   final bool isSystemMessage;
   final String? profileImageUrl;
+  final String? imageUrl; // URL for image attachment
+  final String? videoUrl; // URL for video attachment
+  final String? mediaType; // Type of media: 'image' or 'video'
 
   ChatMessage({
     required this.message,
@@ -1214,7 +1637,13 @@ class ChatMessage {
     this.isInitialMessage = false,
     this.isSystemMessage = false,
     this.profileImageUrl,
+    this.imageUrl,
+    this.videoUrl,
+    this.mediaType,
   });
+
+  // Check if this message has media attached
+  bool get hasMedia => imageUrl != null || videoUrl != null;
 
   Map<String, dynamic> toJson() {
     final json = {
@@ -1232,6 +1661,15 @@ class ChatMessage {
     if (profileImageUrl != null) {
       json['profileImageUrl'] = profileImageUrl as Object;
     }
+    if (imageUrl != null) {
+      json['imageUrl'] = imageUrl as Object;
+    }
+    if (videoUrl != null) {
+      json['videoUrl'] = videoUrl as Object;
+    }
+    if (mediaType != null) {
+      json['mediaType'] = mediaType as Object;
+    }
     return json;
   }
 
@@ -1244,6 +1682,9 @@ class ChatMessage {
       isInitialMessage: json['isInitialMessage'] ?? false,
       isSystemMessage: json['isSystemMessage'] ?? false,
       profileImageUrl: json['profileImageUrl'] as String?,
+      imageUrl: json['imageUrl'] as String?,
+      videoUrl: json['videoUrl'] as String?,
+      mediaType: json['mediaType'] as String?,
     );
   }
 }

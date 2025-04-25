@@ -196,6 +196,8 @@ class UserReportDetailDialog extends StatelessWidget {
                               height: 200,
                               child: VideoThumbnail(
                                 videoUrl: videoUrl,
+                                width: 200,
+                                height: 200,
                                 onTap: () {
                                   Navigator.push(
                                     context,

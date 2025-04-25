@@ -431,6 +431,18 @@ class _ChatListPageState extends State<ChatListPage> {
                   .get();
               final unreadCount = (unreadSnapshot.value as int?) ?? 0;
 
+              // Check if the last message contains media
+              bool hasMedia = false;
+              String? mediaType;
+
+              if (lastMessage.containsKey('imageUrl') && lastMessage['imageUrl'] != null) {
+                hasMedia = true;
+                mediaType = 'image';
+              } else if (lastMessage.containsKey('videoUrl') && lastMessage['videoUrl'] != null) {
+                hasMedia = true;
+                mediaType = 'video';
+              }
+
               chats.add(ChatInfo(
                 chatId: chatId,
                 itemId: itemId,
@@ -449,6 +461,8 @@ class _ChatListPageState extends State<ChatListPage> {
                 unreadCount: unreadCount,
                 deletedTimestamps: deletedTimestamps,
                 profileImageUrl: profileImageUrl,
+                hasMedia: hasMedia,
+                mediaType: mediaType,
               ));
             }
           }
@@ -705,16 +719,50 @@ class _ChatListPageState extends State<ChatListPage> {
           ),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              chat.lastMessage,
-              style: TextStyle(
-                fontSize: 14,
-                color: hasUnread ? Colors.black87 : Colors.grey[600],
-                fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: chat.hasMedia
+              ? Row(
+                  children: [
+                    Icon(
+                      chat.mediaType == 'image' ? Icons.image : Icons.videocam,
+                      size: 16,
+                      color: hasUnread ? Colors.black87 : Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      chat.mediaType == 'image' ? '[Image]' : '[Video]',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: hasUnread ? Colors.black87 : Colors.grey[600],
+                        fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+                      ),
+                    ),
+                    if (chat.lastMessage.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          chat.lastMessage,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: hasUnread ? Colors.black87 : Colors.grey[600],
+                            fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ],
+                )
+              : Text(
+                  chat.lastMessage,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: hasUnread ? Colors.black87 : Colors.grey[600],
+                    fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
           ),
         ),
       ),
@@ -776,6 +824,8 @@ class ChatInfo {
   final int unreadCount;
   final Map<String, int>? deletedTimestamps;
   final String? profileImageUrl;
+  final bool hasMedia; // Whether the last message contains media
+  final String? mediaType; // Type of media: 'image' or 'video'
 
   ChatInfo({
     required this.chatId,
@@ -792,5 +842,7 @@ class ChatInfo {
     required this.unreadCount,
     this.deletedTimestamps,
     this.profileImageUrl,
+    this.hasMedia = false,
+    this.mediaType,
   });
 }
