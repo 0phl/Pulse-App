@@ -1094,7 +1094,7 @@ class _ChatPageState extends State<ChatPage> {
               description: _marketItem!.description,
               sellerId: _marketItem!.sellerId,
               sellerName: _marketItem!.sellerName,
-              imageUrl: _marketItem!.imageUrl,
+              imageUrls: _marketItem!.imageUrls,
               communityId: _marketItem!.communityId,
               createdAt: _marketItem!.createdAt,
               isSold: true,

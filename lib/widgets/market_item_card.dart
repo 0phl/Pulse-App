@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:transparent_image/transparent_image.dart';
 import '../services/market_service.dart';
+import 'multi_image_viewer_page.dart';
 
 class MarketItemCard extends StatefulWidget {
   final MarketItem item;
@@ -42,6 +43,8 @@ class _MarketItemCardState extends State<MarketItemCard> {
   bool isLoading = true;
   final MarketService _marketService = MarketService();
   StreamSubscription? _sellerProfileSubscription;
+  final PageController _imagePageController = PageController();
+  int _currentImagePage = 0;
 
   @override
   void initState() {
@@ -52,6 +55,7 @@ class _MarketItemCardState extends State<MarketItemCard> {
   @override
   void dispose() {
     _sellerProfileSubscription?.cancel();
+    _imagePageController.dispose();
     super.dispose();
   }
 
@@ -146,24 +150,78 @@ class _MarketItemCardState extends State<MarketItemCard> {
           // Image at the top with status badges
           Stack(
             children: [
-              // Image
+              // Image carousel
               GestureDetector(
-                onTap: widget.onImageTap,
-                child: Hero(
-                  tag: widget.item.imageUrl,
-                  child: ClipRRect(
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(16)),
-                    child: AspectRatio(
-                      aspectRatio: widget.isGridView ? 1 : 4/3, // Square for grid view
-                      child: _buildImage(),
+                onTap: () {
+                  // Pass the current image index to the image viewer
+                  if (widget.item.imageUrls.isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MultiImageViewerPage(
+                          imageUrls: widget.item.imageUrls,
+                          initialIndex: _currentImagePage,
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: ClipRRect(
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(16)),
+                  child: AspectRatio(
+                    aspectRatio: widget.isGridView ? 1 : 4/3, // Square for grid view
+                    child: Stack(
+                      children: [
+                        // Image PageView
+                        PageView.builder(
+                          controller: _imagePageController,
+                          itemCount: widget.item.imageUrls.length,
+                          onPageChanged: (index) {
+                            setState(() {
+                              _currentImagePage = index;
+                            });
+                          },
+                          itemBuilder: (context, index) {
+                            return Hero(
+                              tag: '${widget.item.id}_image_$index',
+                              child: _buildImage(widget.item.imageUrls[index]),
+                            );
+                          },
+                        ),
+
+                        // Page indicator dots (only if more than one image)
+                        if (widget.item.imageUrls.length > 1)
+                          Positioned(
+                            bottom: 8,
+                            left: 0,
+                            right: 0,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(
+                                widget.item.imageUrls.length,
+                                (index) => Container(
+                                  width: 8,
+                                  height: 8,
+                                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: _currentImagePage == index
+                                        ? const Color(0xFF00C49A)
+                                        : Colors.white.withOpacity(0.5),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
               ),
 
-              // Owner indicator badge for grid view
-              if (widget.isOwner && widget.isGridView)
+              // Owner indicator badge for grid view - only show in All Items tab (when showEditButton is false)
+              if (widget.isOwner && widget.isGridView && !widget.showEditButton)
                 Positioned(
                   top: 6,
                   right: 6,
@@ -314,7 +372,9 @@ class _MarketItemCardState extends State<MarketItemCard> {
               if (widget.unreadCount != null && widget.unreadCount! > 0)
                 Positioned(
                   top: widget.isGridView ? 6 : 12,
-                  right: widget.isGridView ? (widget.isOwner ? 80 : 6) : 12,
+                  right: widget.isGridView
+                      ? (widget.isOwner && !widget.showEditButton ? 80 : 6)
+                      : 12,
                   child: Container(
                     padding: widget.isGridView
                         ? const EdgeInsets.symmetric(horizontal: 6, vertical: 2)
@@ -371,6 +431,38 @@ class _MarketItemCardState extends State<MarketItemCard> {
                           color: Color(0xFF00C49A),
                         ),
                       ),
+                      // Add a small description preview with "Read more" option
+                      if (widget.item.description.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        GestureDetector(
+                          onTap: () => _showDescriptionDialog(context),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  widget.item.description,
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.grey[600],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              // Only show "More" button if description is longer than 30 characters
+                              if (widget.item.description.length > 30)
+                                const Text(
+                                  'More',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Color(0xFF00C49A),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   )
                 : Row(
@@ -406,15 +498,36 @@ class _MarketItemCardState extends State<MarketItemCard> {
           if (!widget.isGridView)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                widget.item.description,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                  height: 1.4,
+              child: GestureDetector(
+                onTap: () => _showDescriptionDialog(context),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.item.description,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    // Only show 'Tap to read more' if description is longer than ~100 characters
+                    // which would likely cause it to be truncated in 2 lines
+                    if (widget.item.description.length > 100) ...[
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Tap to read more',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF00C49A),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
 
@@ -778,8 +891,8 @@ class _MarketItemCardState extends State<MarketItemCard> {
     );
   }
 
-  Widget _buildImage() {
-    if (widget.item.imageUrl.startsWith('http')) {
+  Widget _buildImage(String imageUrl) {
+    if (imageUrl.startsWith('http')) {
       // Network image
       return Stack(
         fit: StackFit.expand, // Make stack fill the available space
@@ -789,7 +902,7 @@ class _MarketItemCardState extends State<MarketItemCard> {
           ),
           FadeInImage.memoryNetwork(
             placeholder: kTransparentImage,
-            image: widget.item.imageUrl,
+            image: imageUrl,
             fit: BoxFit.cover,
             fadeInDuration: const Duration(milliseconds: 200),
             imageErrorBuilder: (context, error, stackTrace) =>
@@ -800,7 +913,7 @@ class _MarketItemCardState extends State<MarketItemCard> {
     } else {
       // Local file image
       return Image.file(
-        File(widget.item.imageUrl),
+        File(imageUrl),
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
           return _buildErrorPlaceholder();
@@ -831,6 +944,86 @@ class _MarketItemCardState extends State<MarketItemCard> {
                   fontSize: 12,
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Show full description dialog
+  void _showDescriptionDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: const BoxDecoration(
+                color: Color(0xFF00C49A),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Text(
+                widget.item.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+
+            // Description content
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.5, // Max 50% of screen height
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  widget.item.description,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[800],
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ),
+
+            // Close button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00C49A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Close',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

@@ -7,7 +7,7 @@ class MarketItem {
   final String description;
   final String sellerId;
   final String sellerName;
-  final String imageUrl;
+  final List<String> imageUrls;
   final String communityId;
   final DateTime? createdAt;
   final bool isSold;
@@ -25,7 +25,7 @@ class MarketItem {
     required this.description,
     required this.sellerId,
     required this.sellerName,
-    required this.imageUrl,
+    required this.imageUrls,
     required this.communityId,
     this.createdAt,
     this.isSold = false,
@@ -39,6 +39,17 @@ class MarketItem {
 
   factory MarketItem.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+
+    // Handle both old format (single imageUrl) and new format (imageUrls array)
+    List<String> imageUrls = [];
+    if (data['imageUrls'] != null) {
+      // New format with multiple images
+      imageUrls = List<String>.from(data['imageUrls']);
+    } else if (data['imageUrl'] != null) {
+      // Old format with single image
+      imageUrls = [data['imageUrl']];
+    }
+
     return MarketItem(
       id: doc.id,
       title: data['title'] ?? '',
@@ -46,7 +57,7 @@ class MarketItem {
       description: data['description'] ?? '',
       sellerId: data['sellerId'] ?? '',
       sellerName: data['sellerName'] ?? '',
-      imageUrl: data['imageUrl'] ?? '',
+      imageUrls: imageUrls,
       communityId: data['communityId'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       isSold: data['isSold'] ?? false,
@@ -66,7 +77,7 @@ class MarketItem {
       'description': description,
       'sellerId': sellerId,
       'sellerName': sellerName,
-      'imageUrl': imageUrl,
+      'imageUrls': imageUrls,
       'communityId': communityId,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'isSold': isSold,
@@ -87,7 +98,7 @@ class MarketItem {
       'description': description,
       'sellerId': sellerId,
       'sellerName': sellerName,
-      'imageUrl': imageUrl,
+      'imageUrls': imageUrls,
       'communityId': communityId,
       'isSold': isSold,
       'soldAt': soldAt,
@@ -100,6 +111,16 @@ class MarketItem {
   }
 
   factory MarketItem.fromJson(Map<String, dynamic> json) {
+    // Handle both old format (single imageUrl) and new format (imageUrls array)
+    List<String> imageUrls = [];
+    if (json['imageUrls'] != null) {
+      // New format with multiple images
+      imageUrls = List<String>.from(json['imageUrls']);
+    } else if (json['imageUrl'] != null) {
+      // Old format with single image
+      imageUrls = [json['imageUrl']];
+    }
+
     return MarketItem(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -107,7 +128,7 @@ class MarketItem {
       description: json['description'] as String,
       sellerId: json['sellerId'] as String,
       sellerName: json['sellerName'] as String,
-      imageUrl: json['imageUrl'] as String,
+      imageUrls: imageUrls,
       communityId: json['communityId'] as String,
       status: json['status'] as String? ?? 'pending',
       isSold: json['isSold'] as bool? ?? false,

@@ -321,7 +321,7 @@ class _SellerProfilePageState extends State<SellerProfilePage>
                   fit: StackFit.expand,
                   children: [
                     Image.network(
-                      item.imageUrl,
+                      item.imageUrls.isNotEmpty ? item.imageUrls[0] : '',
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(

@@ -42,6 +42,15 @@ class CloudinaryService {
     }
   }
 
+  Future<List<String>> uploadMarketImages(List<File> files) async {
+    List<String> urls = [];
+    for (var file in files) {
+      String url = await uploadMarketImage(file);
+      urls.add(url);
+    }
+    return urls;
+  }
+
   Future<String> uploadNoticeImage(File file) async {
     try {
       final cloudinaryFile = CloudinaryFile.fromFile(

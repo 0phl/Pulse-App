@@ -5,9 +5,15 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/market_item.dart';
 import '../services/market_service.dart';
 import '../widgets/shimmer_loading.dart';
+import '../widgets/confirmation_dialog.dart';
 
 class SellerDashboardPage extends StatefulWidget {
-  const SellerDashboardPage({Key? key}) : super(key: key);
+  final int initialTabIndex;
+
+  const SellerDashboardPage({
+    Key? key,
+    this.initialTabIndex = 0
+  }) : super(key: key);
 
   @override
   State<SellerDashboardPage> createState() => _SellerDashboardPageState();
@@ -39,9 +45,23 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> with SingleTi
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 4, vsync: this, initialIndex: widget.initialTabIndex);
     _initializeStreams();
     _loadSellerData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Check if we have arguments with an initialTabIndex
+    final arguments = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (arguments != null && arguments.containsKey('initialTabIndex')) {
+      final initialTabIndex = arguments['initialTabIndex'] as int;
+      if (initialTabIndex >= 0 && initialTabIndex < 4 && _tabController.index != initialTabIndex) {
+        _tabController.animateTo(initialTabIndex);
+      }
+    }
   }
 
   void _initializeStreams() {
@@ -362,11 +382,11 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> with SingleTi
                           final item = _soldItems[index];
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            leading: item.imageUrl.isNotEmpty
+                            leading: item.imageUrls.isNotEmpty
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
                                     child: Image.network(
-                                      item.imageUrl,
+                                      item.imageUrls[0],
                                       width: 50,
                                       height: 50,
                                       fit: BoxFit.cover,
@@ -638,7 +658,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> with SingleTi
                 child: AspectRatio(
                   aspectRatio: 16 / 9,
                   child: Image.network(
-                    item.imageUrl,
+                    item.imageUrls.isNotEmpty ? item.imageUrls[0] : '',
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
@@ -819,7 +839,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> with SingleTi
         description: item.description,
         sellerId: item.sellerId,
         sellerName: item.sellerName,
-        imageUrl: item.imageUrl,
+        imageUrls: item.imageUrls,
         communityId: item.communityId,
         status: 'pending', // Reset to pending
         rejectionReason: null, // Clear rejection reason
@@ -845,22 +865,15 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> with SingleTi
 
 
   Future<void> _confirmRemoveItem(MarketItem item) async {
-    final result = await showDialog<bool>(
+    final result = await ConfirmationDialog.show(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Remove Item'),
-        content: const Text('Are you sure you want to remove this item? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('REMOVE'),
-          ),
-        ],
-      ),
+      title: 'Remove Item',
+      message: 'Are you sure you want to remove this item? This action cannot be undone.',
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+      confirmColor: Colors.red,
+      icon: Icons.delete_forever_rounded,
+      iconBackgroundColor: Colors.red,
     );
 
     if (result == true) {

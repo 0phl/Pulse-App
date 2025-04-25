@@ -148,7 +148,7 @@ class _MultiImageViewerPageState extends State<MultiImageViewerPage> {
                 initialScale: PhotoViewComputedScale.contained,
                 minScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.covered * 2,
-                heroAttributes: PhotoViewHeroAttributes(tag: widget.imageUrls[index]),
+                heroAttributes: PhotoViewHeroAttributes(tag: '${widget.imageUrls[index]}_$index'),
               );
             },
             itemCount: widget.imageUrls.length,

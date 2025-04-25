@@ -10,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../widgets/image_viewer_page.dart';
+import '../widgets/multi_image_viewer_page.dart';
 import 'edit_item_page.dart';
 import 'chat_list_page.dart';
 import '../services/community_service.dart';
@@ -17,6 +18,7 @@ import '../services/cloudinary_service.dart';
 import '../services/global_state.dart';
 import 'seller_profile_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/confirmation_dialog.dart';
 
 class MarketPage extends StatefulWidget {
   final Function(int)? onUnreadChatsChanged;
@@ -398,8 +400,8 @@ class _MarketPageState extends State<MarketPage>
 
       final userData = userSnapshot.value as Map<dynamic, dynamic>;
 
-      // Upload image to Cloudinary and get the download URL
-      String downloadUrl = await _uploadImage(item.imageUrl);
+      // Upload images to Cloudinary and get the download URLs
+      List<String> downloadUrls = await _uploadImages(item.imageUrls);
 
       // Create new item document in Firestore using the item's ID
       await _firestore.collection('market_items').doc(item.id).set({
@@ -409,7 +411,7 @@ class _MarketPageState extends State<MarketPage>
         'sellerId': currentUser.uid,
         'sellerName':
             userData['fullName'] ?? userData['username'] ?? 'Unknown User',
-        'imageUrl': downloadUrl,
+        'imageUrls': downloadUrls,
         'communityId': _currentUserCommunityId,
         'createdAt': FieldValue.serverTimestamp(),
         'isSold': false,
@@ -442,13 +444,35 @@ class _MarketPageState extends State<MarketPage>
     return await cloudinaryService.uploadMarketImage(imageFile);
   }
 
-  void _handleImageTap(BuildContext context, String imageUrl) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ImageViewerPage(imageUrl: imageUrl),
-      ),
-    );
+  Future<List<String>> _uploadImages(List<String> imagePaths) async {
+    List<File> imageFiles = imagePaths.map((path) => File(path)).toList();
+    final cloudinaryService = CloudinaryService();
+    return await cloudinaryService.uploadMarketImages(imageFiles);
+  }
+
+  void _handleImageTap(BuildContext context, MarketItem item) {
+    if (item.imageUrls.isEmpty) return;
+
+    if (item.imageUrls.length == 1) {
+      // Single image - use the simple image viewer
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ImageViewerPage(imageUrl: item.imageUrls[0]),
+        ),
+      );
+    } else {
+      // Multiple images - use the multi-image viewer
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MultiImageViewerPage(
+            imageUrls: item.imageUrls,
+            initialIndex: 0,
+          ),
+        ),
+      );
+    }
   }
 
   // Fix method removed as it's no longer needed
@@ -471,11 +495,11 @@ class _MarketPageState extends State<MarketPage>
             onPressed: _toggleViewMode,
             tooltip: _isGridView ? 'Switch to List View' : 'Switch to Grid View',
           ),
-          // Seller Dashboard Button
+          // Seller Dashboard Button with distinct icon
           IconButton(
-            icon: const Icon(Icons.dashboard),
+            icon: const Icon(Icons.store_outlined),
             onPressed: () {
-              Navigator.pushNamed(context, '/seller/dashboard');
+              Navigator.pushNamed(context, '/seller/dashboard', arguments: {'initialTabIndex': 0});
             },
             tooltip: 'Seller Dashboard',
           ),
@@ -553,7 +577,55 @@ class _MarketPageState extends State<MarketPage>
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              return _buildItemList(snapshot.data ?? []);
+
+              final items = snapshot.data ?? [];
+              final hasPendingItems = items.any((item) => item.status == 'pending');
+
+              return Column(
+                children: [
+                  // Show pending items notification if there are any
+                  if (hasPendingItems)
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.pushNamed(context, '/seller/dashboard', arguments: {'initialTabIndex': 1});
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                        color: Colors.orange.withOpacity(0.1),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.pending_actions,
+                              size: 18,
+                              color: Colors.orange,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'You have items pending approval',
+                                style: TextStyle(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              size: 14,
+                              color: Colors.orange,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // Main content
+                  Expanded(
+                    child: _buildItemList(items),
+                  ),
+                ],
+              );
             },
           ),
         ],
@@ -602,12 +674,12 @@ class _MarketPageState extends State<MarketPage>
       }
     }
 
-    // For My Items tab, hide sold items immediately
+    // For My Items tab, hide sold items and pending items immediately
     // For All Items tab, filter out items that are not approved and hide sold items after 10 minutes
     final List<MarketItem> displayItems = isMyItemsTab
         ? items
-            .where((item) => !item.isSold)
-            .toList() // Immediately hide sold items in My Items tab
+            .where((item) => !item.isSold && item.status != 'pending')
+            .toList() // Hide sold and pending items in My Items tab
         : items.where((item) {
             // Always show approved items that are not sold
             if (item.status == 'approved' && !item.isSold) {
@@ -663,20 +735,50 @@ class _MarketPageState extends State<MarketPage>
     }
 
     if (displayItems.isEmpty) {
+      // Check if there are pending items when in My Items tab
+      bool hasPendingItems = isMyItemsTab &&
+          items.any((item) => item.status == 'pending');
+
       return Center(
-        child: Text(
-          isMyItemsTab
-              ? 'You haven\'t added any items yet'
-              : 'No items to display',
-          style: const TextStyle(fontSize: 16, color: Colors.grey),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              isMyItemsTab
+                  ? hasPendingItems
+                      ? 'No active items to display'
+                      : 'You haven\'t added any items yet'
+                  : 'No items to display',
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            if (hasPendingItems) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'You have items pending approval',
+                style: TextStyle(fontSize: 14, color: Colors.orange),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/seller/dashboard', arguments: {'initialTabIndex': 1});
+                },
+                icon: const Icon(Icons.dashboard),
+                label: const Text('View in Seller Dashboard'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00C49A),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ],
         ),
       );
     }
 
     // Precache next few images
     for (var i = 0; i < items.length && i < 5; i++) {
-      if (items[i].imageUrl.startsWith('http')) {
-        precacheImage(NetworkImage(items[i].imageUrl), context);
+      if (items[i].imageUrls.isNotEmpty && items[i].imageUrls[0].startsWith('http')) {
+        precacheImage(NetworkImage(items[i].imageUrls[0]), context);
       }
     }
 
@@ -697,7 +799,7 @@ class _MarketPageState extends State<MarketPage>
                 item: displayItems[index],
                 onInterested: () => _handleInterested(context, displayItems[index]),
                 onImageTap: () =>
-                    _handleImageTap(context, displayItems[index].imageUrl),
+                    _handleImageTap(context, displayItems[index]),
                 isOwner: _auth.currentUser?.uid == displayItems[index].sellerId,
                 showEditButton: isMyItemsTab,
                 onEdit: isMyItemsTab
@@ -723,7 +825,7 @@ class _MarketPageState extends State<MarketPage>
                   item: displayItems[index],
                   onInterested: () => _handleInterested(context, displayItems[index]),
                   onImageTap: () =>
-                      _handleImageTap(context, displayItems[index].imageUrl),
+                      _handleImageTap(context, displayItems[index]),
                   isOwner: _auth.currentUser?.uid == displayItems[index].sellerId,
                   showEditButton: isMyItemsTab,
                   onEdit: isMyItemsTab
@@ -754,26 +856,15 @@ class _MarketPageState extends State<MarketPage>
   }
 
   Future<void> _handleDelete(MarketItem item) async {
-    final confirmDelete = await showDialog<bool>(
+    final confirmDelete = await ConfirmationDialog.show(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Item'),
-        content: const Text(
-            'Are you sure you want to delete this item? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      title: 'Delete Item',
+      message: 'Are you sure you want to delete this item? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      confirmColor: Colors.red,
+      icon: Icons.delete_forever_rounded,
+      iconBackgroundColor: Colors.red,
     );
 
     if (confirmDelete != true) return;
@@ -811,17 +902,31 @@ class _MarketPageState extends State<MarketPage>
   }
 
   Future<void> _handleItemUpdate(
-      MarketItem updatedItem, String? newImagePath) async {
+      MarketItem updatedItem, List<String>? newImagePaths) async {
     setState(() {
       _isAddingItem = true;
     });
 
     try {
-      String imageUrl = updatedItem.imageUrl;
+      List<String> finalImageUrls = List.from(updatedItem.imageUrls);
 
-      // Only upload new image if provided
-      if (newImagePath != null) {
-        imageUrl = await _uploadImage(newImagePath);
+      // Only upload new images if provided
+      if (newImagePaths != null && newImagePaths.isNotEmpty) {
+        // Upload the new images
+        List<String> newUploadedUrls = await _uploadImages(newImagePaths);
+
+        // Merge existing images with new ones, respecting the 5 image limit
+        if (finalImageUrls.isEmpty) {
+          // If there are no existing images, just use the new ones
+          finalImageUrls = newUploadedUrls;
+        } else {
+          // If there are existing images, add the new ones up to a maximum of 5 total
+          final int remainingSlots = 5 - finalImageUrls.length;
+          if (remainingSlots > 0) {
+            // Add only up to the remaining slots
+            finalImageUrls.addAll(newUploadedUrls.take(remainingSlots));
+          }
+        }
       }
 
       // Update the item in Firestore
@@ -829,7 +934,7 @@ class _MarketPageState extends State<MarketPage>
         'title': updatedItem.title,
         'price': updatedItem.price,
         'description': updatedItem.description,
-        'imageUrl': imageUrl,
+        'imageUrls': finalImageUrls,
         'communityId': updatedItem.communityId,
         'isSold': updatedItem.isSold,
         'status': 'pending', // Reset to pending after edit for re-approval

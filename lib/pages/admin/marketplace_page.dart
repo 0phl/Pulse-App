@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
 // auth_service import removed as it's no longer needed
-// market_item import removed as it's no longer needed
+import '../../models/market_item.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/image_viewer_page.dart';
+import '../../widgets/multi_image_viewer_page.dart';
 import '../../widgets/admin_scaffold.dart';
 
 class AdminMarketplacePage extends StatefulWidget {
@@ -92,6 +93,17 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
         setState(() {
           _marketItems = snapshot.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
+
+            // Handle both old and new image formats
+            List<String> imageUrls = [];
+            if (data['imageUrls'] != null) {
+              // New format with multiple images
+              imageUrls = List<String>.from(data['imageUrls']);
+            } else if (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty) {
+              // Old format with single image
+              imageUrls = [data['imageUrl']];
+            }
+
             return {
               ...data,
               'id': doc.id,
@@ -99,6 +111,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
               'title': data['title'] ?? 'Untitled',
               'price': (data['price'] as num?)?.toDouble() ?? 0.0,
               'imageUrl': data['imageUrl'] ?? '',
+              'imageUrls': imageUrls,
               'description': data['description'] ?? '',
               'sellerName': data['sellerName'] ?? 'Unknown Seller',
               'sellerId': data['sellerId'] ?? '',
@@ -107,6 +120,9 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
               'rejectionReason': data['rejectionReason'],
             };
           }).toList();
+
+          // Filter out pending items from the listings tab
+          _marketItems = _marketItems.where((item) => item['status'] != 'pending').toList();
         });
       }
     } catch (e) {
@@ -129,6 +145,17 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
         setState(() {
           _pendingItems = snapshot.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
+
+            // Handle both old and new image formats
+            List<String> imageUrls = [];
+            if (data['imageUrls'] != null) {
+              // New format with multiple images
+              imageUrls = List<String>.from(data['imageUrls']);
+            } else if (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty) {
+              // Old format with single image
+              imageUrls = [data['imageUrl']];
+            }
+
             return {
               ...data,
               'id': doc.id,
@@ -136,6 +163,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
               'title': data['title'] ?? 'Untitled',
               'price': (data['price'] as num?)?.toDouble() ?? 0.0,
               'imageUrl': data['imageUrl'] ?? '',
+              'imageUrls': imageUrls,
               'description': data['description'] ?? '',
               'sellerName': data['sellerName'] ?? 'Unknown Seller',
               'sellerId': data['sellerId'] ?? '',
@@ -193,13 +221,31 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
   }
 
   // Method to handle image taps and open the image viewer
-  void _handleImageTap(String imageUrl) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ImageViewerPage(imageUrl: imageUrl),
-      ),
-    );
+  void _handleImageTap(dynamic imageData) {
+    if (imageData is List<String>) {
+      // Handle multiple images
+      if (imageData.isEmpty) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MultiImageViewerPage(
+            imageUrls: imageData,
+            initialIndex: 0,
+          ),
+        ),
+      );
+    } else if (imageData is String) {
+      // Handle single image
+      if (imageData.isEmpty) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ImageViewerPage(imageUrl: imageData),
+        ),
+      );
+    }
   }
 
   // _signOut method removed as it's no longer needed
@@ -227,7 +273,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                 title: const Text('Approve Item'),
                 onTap: () {
                   Navigator.pop(context);
-                  _approveItem(item['id']);
+                  _confirmApproveItem(item['id']);
                 },
               ),
             if (item['status'] == 'pending')
@@ -271,24 +317,22 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       GestureDetector(
-                        onTap: () => _handleImageTap(item['imageUrl'] ?? ''),
+                        onTap: () {
+                          // Check if we have multiple images
+                          if (item['imageUrls'] != null && (item['imageUrls'] as List).isNotEmpty) {
+                            _handleImageTap(item['imageUrls']);
+                          } else if (item['imageUrl'] != null && item['imageUrl'].toString().isNotEmpty) {
+                            _handleImageTap(item['imageUrl']);
+                          }
+                        },
                         child: Hero(
-                          tag: item['imageUrl'] ?? '',
+                          tag: 'item_${item['id']}',
                           child: ClipRRect(
                             borderRadius: const BorderRadius.vertical(
                                 top: Radius.circular(16)),
                             child: AspectRatio(
                               aspectRatio: 16 / 9,
-                              child: Image.network(
-                                item['imageUrl'] ?? '',
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.grey[300],
-                                    child: const Icon(Icons.error),
-                                  );
-                                },
-                              ),
+                              child: _buildItemImage(item),
                             ),
                           ),
                         ),
@@ -459,6 +503,33 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
           SnackBar(content: Text('Error removing item: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _confirmApproveItem(String itemId) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Approve Item'),
+        content: const Text('Are you sure you want to approve this item? It will be visible to all users.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.green,
+            ),
+            child: const Text('Approve'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await _approveItem(itemId);
     }
   }
 
@@ -707,24 +778,22 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: GestureDetector(
-              onTap: () => _handleImageTap(transaction['imageUrl']),
+              onTap: () {
+                // Check if we have multiple images
+                if (transaction['imageUrls'] != null && (transaction['imageUrls'] as List).isNotEmpty) {
+                  _handleImageTap(transaction['imageUrls']);
+                } else if (transaction['imageUrl'] != null && transaction['imageUrl'].toString().isNotEmpty) {
+                  _handleImageTap(transaction['imageUrl']);
+                }
+              },
               child: Hero(
-                tag: transaction['imageUrl'],
+                tag: 'transaction_${transaction['id']}',
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: Image.network(
-                    transaction['imageUrl'],
+                  child: SizedBox(
                     width: 48,
                     height: 48,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 48,
-                        height: 48,
-                        color: Colors.grey[300],
-                        child: const Icon(Icons.error),
-                      );
-                    },
+                    child: _buildTransactionImage(transaction),
                   ),
                 ),
               ),
@@ -1141,20 +1210,17 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                                     fit: StackFit.expand,
                                     children: [
                                       GestureDetector(
-                                        onTap: () => _handleImageTap(imageUrl),
+                                        onTap: () {
+                                          // Check if we have multiple images
+                                          if (item['imageUrls'] != null && (item['imageUrls'] as List).isNotEmpty) {
+                                            _handleImageTap(item['imageUrls']);
+                                          } else if (imageUrl.isNotEmpty) {
+                                            _handleImageTap(imageUrl);
+                                          }
+                                        },
                                         child: Hero(
-                                          tag: imageUrl,
-                                          child: Image.network(
-                                            imageUrl,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) {
-                                              return Container(
-                                                color: Colors.grey[300],
-                                                child: const Icon(Icons.error),
-                                              );
-                                            },
-                                          ),
+                                          tag: 'listing_${item['id']}',
+                                          child: _buildItemImage(item),
                                         ),
                                       ),
                                       if (isSold)
@@ -1171,26 +1237,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                                             ),
                                           ),
                                         ),
-                                      if (!isSold && status == 'pending')
-                                        Positioned(
-                                          top: 8,
-                                          right: 8,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.orange,
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            child: const Text(
-                                              'PENDING',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
+                                      // Removed PENDING label as it has its own tab
                                       if (!isSold && status == 'rejected')
                                         Positioned(
                                           top: 8,
@@ -1303,6 +1350,80 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
     }
   }
 
+  // Helper method to build item image
+  Widget _buildItemImage(Map<String, dynamic> item) {
+    // Check if we have multiple images
+    if (item['imageUrls'] != null && (item['imageUrls'] as List).isNotEmpty) {
+      // Use the first image from the list
+      final imageUrl = (item['imageUrls'] as List<String>)[0];
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(Icons.error),
+          );
+        },
+      );
+    } else if (item['imageUrl'] != null && item['imageUrl'].toString().isNotEmpty) {
+      // Use the single image
+      return Image.network(
+        item['imageUrl'],
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(Icons.error),
+          );
+        },
+      );
+    } else {
+      // No image available
+      return Container(
+        color: Colors.grey[300],
+        child: const Icon(Icons.image_not_supported),
+      );
+    }
+  }
+
+  // Helper method to build transaction image
+  Widget _buildTransactionImage(Map<String, dynamic> transaction) {
+    // Check if we have multiple images
+    if (transaction['imageUrls'] != null && (transaction['imageUrls'] as List).isNotEmpty) {
+      // Use the first image from the list
+      final imageUrl = (transaction['imageUrls'] as List<String>)[0];
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(Icons.error),
+          );
+        },
+      );
+    } else if (transaction['imageUrl'] != null && transaction['imageUrl'].toString().isNotEmpty) {
+      // Use the single image
+      return Image.network(
+        transaction['imageUrl'],
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(Icons.error),
+          );
+        },
+      );
+    } else {
+      // No image available
+      return Container(
+        color: Colors.grey[300],
+        child: const Icon(Icons.image_not_supported),
+      );
+    }
+  }
+
   Widget _buildPendingTab() {
     return Column(
       children: [
@@ -1402,24 +1523,22 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   GestureDetector(
-                                    onTap: () => _handleImageTap(imageUrl),
+                                    onTap: () {
+                                      // Check if we have multiple images
+                                      if (item['imageUrls'] != null && (item['imageUrls'] as List).isNotEmpty) {
+                                        _handleImageTap(item['imageUrls']);
+                                      } else if (imageUrl.isNotEmpty) {
+                                        _handleImageTap(imageUrl);
+                                      }
+                                    },
                                     child: Hero(
-                                      tag: imageUrl,
+                                      tag: 'pending_${item['id']}',
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                          imageUrl,
+                                        child: SizedBox(
                                           width: 80,
                                           height: 80,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Container(
-                                              width: 80,
-                                              height: 80,
-                                              color: Colors.grey[300],
-                                              child: const Icon(Icons.error),
-                                            );
-                                          },
+                                          child: _buildItemImage(item),
                                         ),
                                       ),
                                     ),
@@ -1467,7 +1586,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                                   Column(
                                     children: [
                                       ElevatedButton.icon(
-                                        onPressed: () => _approveItem(item['id']),
+                                        onPressed: () => _confirmApproveItem(item['id']),
                                         icon: const Icon(Icons.check),
                                         label: const Text('Approve'),
                                         style: ElevatedButton.styleFrom(

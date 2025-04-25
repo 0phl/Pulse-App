@@ -1841,10 +1841,22 @@ class AdminService {
 
     return snapshot.docs.map((doc) {
       final data = doc.data() as Map<String, dynamic>;
+
+      // Handle both old and new image formats
+      List<String> imageUrls = [];
+      if (data['imageUrls'] != null) {
+        // New format with multiple images
+        imageUrls = List<String>.from(data['imageUrls']);
+      } else if (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty) {
+        // Old format with single image
+        imageUrls = [data['imageUrl']];
+      }
+
       return {
         'id': doc.id,
         'title': data['title'] ?? '',
         'imageUrl': data['imageUrl'] ?? '',
+        'imageUrls': imageUrls,
         'amount': data['price'] ?? 0,
         'date': data['soldAt'] ?? data['createdAt'],
       };
