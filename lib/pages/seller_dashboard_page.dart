@@ -10,10 +10,22 @@ import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+// Models and services
 import '../models/market_item.dart';
 import '../services/market_service.dart';
+
+// Widgets
 import '../widgets/shimmer_loading.dart';
 import '../widgets/confirmation_dialog.dart';
+import '../widgets/dashboard_widgets.dart';
+import '../widgets/item_card_widget.dart';
+import '../widgets/sales_chart_widget.dart';
+import '../widgets/gallery_page.dart';
+import '../widgets/modern_shimmer_loading.dart';
+
+// Utils
+import '../utils/dashboard_utils.dart';
 
 class SellerDashboardPage extends StatefulWidget {
   final int initialTabIndex;
@@ -26,7 +38,7 @@ class SellerDashboardPage extends StatefulWidget {
 }
 
 class _SellerDashboardPageState extends State<SellerDashboardPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, TabLockMixin {
   final MarketService _marketService = MarketService();
   late TabController _tabController;
   bool _isLoading = true;
@@ -61,6 +73,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
   Stream<List<MarketItem>>? _pendingItemsStream;
   Stream<List<MarketItem>>? _rejectedItemsStream;
   Stream<List<MarketItem>>? _soldItemsStream;
+  Stream<Map<String, dynamic>>? _dailySalesStream;
 
   // Seller ratings
   double _averageRating = 0.0;
@@ -100,7 +113,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
         length: 4, vsync: this, initialIndex: widget.initialTabIndex);
 
     // Add listener to track tab changes
-    _tabController.addListener(_handleTabChange);
+    _tabController.addListener(() => handleTabChange(_tabController));
 
     _initializeStreams();
     _loadSellerData();
@@ -110,51 +123,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
         // This will trigger a rebuild when search text changes
       });
     });
-  }
-
-  // Flag to prevent unwanted tab changes
-  bool _isTabLocked = false;
-  int _lockedTabIndex = 0;
-
-  // Track tab changes
-  void _handleTabChange() {
-    // Only handle tab changes when the controller is actually changing tabs
-    if (_tabController.indexIsChanging) {
-      final newIndex = _tabController.index;
-
-      // If tab is locked, prevent the change
-      if (_isTabLocked && newIndex != _lockedTabIndex) {
-        // Immediately jump back to the locked tab without animation
-        _tabController.index = _lockedTabIndex;
-
-        // Also use post-frame callback as a backup to ensure we stay on the locked tab
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _isTabLocked) {
-            if (_tabController.index != _lockedTabIndex) {
-              _tabController.index = _lockedTabIndex;
-            }
-          }
-        });
-      }
-    }
-  }
-
-  // Helper method to safely unlock the tab with a delay
-  Future<void> _safelyUnlockTab() async {
-    // Add a small delay before unlocking to ensure any pending tab changes are processed
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    if (mounted) {
-      final currentTab = _tabController.index;
-      if (currentTab != _lockedTabIndex) {
-        _tabController.index = _lockedTabIndex;
-
-        // Add another small delay to ensure the tab is restored
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-
-      _isTabLocked = false;
-    }
   }
 
   @override
@@ -182,6 +150,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
       _rejectedItemsStream =
           _marketService.getSellerItemsByStatusStream('rejected');
       _soldItemsStream = _marketService.getSellerSoldItemsStream();
+      _dailySalesStream = _marketService.getDailySalesDataStream();
     } catch (e) {
       // Log error
       debugPrint('Error initializing streams: $e');
@@ -190,7 +159,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
 
   @override
   void dispose() {
-    _tabController.removeListener(_handleTabChange);
+    _tabController.removeListener(() => handleTabChange(_tabController));
     _tabController.dispose();
     _searchController.dispose();
     _overviewRefreshController.dispose();
@@ -206,11 +175,11 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
       final currentTab = _tabController.index;
 
       // Lock the tab to prevent unwanted changes during data loading
-      final wasTabAlreadyLocked = _isTabLocked;
+      final wasTabAlreadyLocked = isTabLocked;
 
       if (!wasTabAlreadyLocked) {
-        _isTabLocked = true;
-        _lockedTabIndex = currentTab;
+        setIsTabLocked(true);
+        setLockedTabIndex(currentTab);
       }
 
       setState(() {
@@ -310,7 +279,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
           WidgetsBinding.instance.addPostFrameCallback((_) async {
             if (mounted) {
               await Future.delayed(const Duration(milliseconds: 100));
-              _isTabLocked = false;
+              setIsTabLocked(false);
             }
           });
         }
@@ -335,21 +304,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
 
   void _onRefresh() async {
     await _loadSellerData();
-  }
-
-  // Helper method to get the appropriate refresh controller based on the stream
-  RefreshController _getRefreshControllerForTab(
-      Stream<List<MarketItem>>? itemsStream) {
-    if (itemsStream == _pendingItemsStream) {
-      return _pendingRefreshController;
-    } else if (itemsStream == _rejectedItemsStream) {
-      return _rejectedRefreshController;
-    } else if (itemsStream == _soldItemsStream) {
-      return _soldRefreshController;
-    } else {
-      // Default to overview controller if stream doesn't match any known stream
-      return _overviewRefreshController;
-    }
   }
 
   @override
@@ -437,12 +391,20 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
         padding: const EdgeInsets.all(16),
         children: [
           // Quick Actions
-          _buildQuickActions(),
+          DashboardWidgets.buildQuickActions(
+            textPrimaryColor,
+            cardShadow,
+            () => Navigator.pushNamed(context, '/add_item')
+                .then((_) => _loadSellerData()),
+            _tabController,
+          ),
 
           const SizedBox(height: 16),
 
           // Seller Rating Card
-          _buildDashboardCard(
+          DashboardWidgets.buildDashboardCard(
+            cardBackgroundColor: cardBackgroundColor,
+            cardShadow: cardShadow,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -498,13 +460,15 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
 
           const SizedBox(height: 16),
 
-          // Sales Chart
-          _buildSalesChart(),
+          // Sales Chart - Use real-time stream
+          _buildSalesChartSection(),
 
           const SizedBox(height: 16),
 
           // Sales Summary Card
-          _buildDashboardCard(
+          DashboardWidgets.buildDashboardCard(
+            cardBackgroundColor: cardBackgroundColor,
+            cardShadow: cardShadow,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -517,31 +481,37 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildStatRow(
+                DashboardWidgets.buildStatRow(
                   'Total Revenue',
                   currencyFormat.format(_dashboardStats['totalRevenue'] ?? 0),
                   Icons.account_balance_wallet,
                   const Color(0xFF10B981),
+                  textSecondaryColor,
+                  textPrimaryColor,
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Divider(height: 1, color: dividerColor),
                 ),
-                _buildStatRow(
+                DashboardWidgets.buildStatRow(
                   'Items Sold',
                   '${_dashboardStats['itemsSold'] ?? 0}',
                   Icons.shopping_bag_outlined,
                   const Color(0xFF3B82F6),
+                  textSecondaryColor,
+                  textPrimaryColor,
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Divider(height: 1, color: dividerColor),
                 ),
-                _buildStatRow(
+                DashboardWidgets.buildStatRow(
                   'Average Item Price',
                   currencyFormat.format(_dashboardStats['averagePrice'] ?? 0),
                   Icons.trending_up_rounded,
                   const Color(0xFF8B5CF6),
+                  textSecondaryColor,
+                  textPrimaryColor,
                 ),
               ],
             ),
@@ -550,7 +520,9 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
           const SizedBox(height: 16),
 
           // Items Status Card
-          _buildDashboardCard(
+          DashboardWidgets.buildDashboardCard(
+            cardBackgroundColor: cardBackgroundColor,
+            cardShadow: cardShadow,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -563,31 +535,34 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildItemStatusRow(
+                DashboardWidgets.buildItemStatusRow(
                   'Pending Approval',
                   '${_pendingItems.length}',
                   Icons.pending_outlined,
                   const Color(0xFFF59E0B),
+                  textSecondaryColor,
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Divider(height: 1, color: dividerColor),
                 ),
-                _buildItemStatusRow(
+                DashboardWidgets.buildItemStatusRow(
                   'Active Listings',
                   '${_approvedItems.length}',
                   Icons.check_circle_outline,
                   const Color(0xFF10B981),
+                  textSecondaryColor,
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Divider(height: 1, color: dividerColor),
                 ),
-                _buildItemStatusRow(
+                DashboardWidgets.buildItemStatusRow(
                   'Rejected Items',
                   '${_rejectedItems.length}',
                   Icons.cancel_outlined,
                   const Color(0xFFEF4444),
+                  textSecondaryColor,
                 ),
               ],
             ),
@@ -598,7 +573,9 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
           // Recent Activity Card
           if (_dashboardStats['recentActivity'] != null &&
               (_dashboardStats['recentActivity'] as List).isNotEmpty)
-            _buildDashboardCard(
+            DashboardWidgets.buildDashboardCard(
+              cardBackgroundColor: cardBackgroundColor,
+              cardShadow: cardShadow,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -611,7 +588,11 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
                     ),
                   ),
                   const SizedBox(height: 16),
-                  ..._buildRecentActivityList(),
+                  ...DashboardWidgets.buildRecentActivityList(
+                    _dashboardStats,
+                    textPrimaryColor,
+                    textSecondaryColor,
+                  ),
                 ],
               ),
             ),
@@ -620,7 +601,9 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
 
           // Recent Sold Items Card
           if (_soldItems.isNotEmpty)
-            _buildDashboardCard(
+            DashboardWidgets.buildDashboardCard(
+              cardBackgroundColor: cardBackgroundColor,
+              cardShadow: cardShadow,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -738,7 +721,8 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
                                   const SizedBox(height: 4),
                                   Text(
                                     DateFormat('MMM d, yyyy').format(
-                                        _getDateTime(item.createdAt,
+                                        DashboardUtils.getDateTime(
+                                            item.createdAt,
                                             item: item)),
                                     style: TextStyle(
                                       fontSize: 12,
@@ -761,195 +745,89 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
     );
   }
 
-  Widget _buildDashboardCard({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardBackgroundColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: cardShadow,
-      ),
-      child: child,
-    );
-  }
-
-  Widget _buildStatRow(String label, String value, IconData icon, Color color) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            icon,
-            color: color,
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              color: textSecondaryColor,
-            ),
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: textPrimaryColor,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildItemStatusRow(
-      String label, String value, IconData icon, Color color) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            icon,
-            color: color,
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              color: textSecondaryColor,
-            ),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<Widget> _buildRecentActivityList() {
-    final activities = _dashboardStats['recentActivity'] as List;
-    return activities.map((activity) {
-      final DateTime timestamp = (activity['timestamp'] as Timestamp).toDate();
-      final String formattedDate = DateFormat('MMM d, y').format(timestamp);
-
-      IconData activityIcon;
-      Color activityColor;
-
-      switch (activity['type']) {
-        case 'item_approved':
-          activityIcon = Icons.check_circle_outline;
-          activityColor = const Color(0xFF10B981);
-          break;
-        case 'item_rejected':
-          activityIcon = Icons.cancel_outlined;
-          activityColor = const Color(0xFFEF4444);
-          break;
-        case 'item_sold':
-          activityIcon = Icons.shopping_bag_outlined;
-          activityColor = const Color(0xFF3B82F6);
-          break;
-        case 'new_rating':
-          activityIcon = Icons.star_outline;
-          activityColor = const Color(0xFFF59E0B);
-          break;
-        default:
-          activityIcon = Icons.notifications_none_rounded;
-          activityColor = const Color(0xFF718096);
-      }
-
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: activityColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                activityIcon,
-                color: activityColor,
-                size: 18,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    activity['message'] ?? 'Activity',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: textPrimaryColor,
+  // Extract the sales chart into a separate widget with StreamBuilder
+  Widget _buildSalesChartSection() {
+    return StreamBuilder<Map<String, dynamic>>(
+      stream: _dailySalesStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return DashboardWidgets.buildDashboardCard(
+            cardBackgroundColor: cardBackgroundColor,
+            cardShadow: cardShadow,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sales Trend',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: textPrimaryColor,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const SizedBox(
+                  height: 240,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF00C49A),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    formattedDate,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: textSecondaryColor,
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return DashboardWidgets.buildDashboardCard(
+            cardBackgroundColor: cardBackgroundColor,
+            cardShadow: cardShadow,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sales Trend',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: textPrimaryColor,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 240,
+                  child: Center(
+                    child: Text(
+                      'Error loading sales data',
+                      style: TextStyle(color: textSecondaryColor),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
-    }).toList();
-  }
+          );
+        }
 
-  // Helper method to convert various date formats to DateTime
-  // For sold items, prefer using soldAt if available
-  DateTime _getDateTime(dynamic dateValue, {MarketItem? item}) {
-    // If this is a sold item and it has a soldAt timestamp, use that
-    if (item != null && item.isSold && item.soldAt != null) {
-      return item.soldAt!;
-    }
+        // Use sales data from stream or fallback to dashboard stats
+        final dailySales = snapshot.data ?? _dashboardStats['dailySales'] ?? {};
 
-    if (dateValue == null) {
-      return DateTime.now();
-    } else if (dateValue is Timestamp) {
-      return dateValue.toDate();
-    } else if (dateValue is DateTime) {
-      return dateValue;
-    } else {
-      return DateTime.now();
-    }
+        // Create a modified dashboardStats with real-time sales data
+        final updatedDashboardStats =
+            Map<String, dynamic>.from(_dashboardStats);
+        updatedDashboardStats['dailySales'] = dailySales;
+
+        // Call the chart widget with updated data
+        return SalesChartWidget.buildSalesChart(
+          updatedDashboardStats,
+          textPrimaryColor,
+          textSecondaryColor,
+          cardBackgroundColor,
+          cardShadow,
+        );
+      },
+    );
   }
 
   Widget _buildItemsStreamTab(
@@ -1008,12 +886,12 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
         // Apply sorting
         switch (_currentFilter) {
           case 'recent':
-            items.sort((a, b) =>
-                _getDateTime(b.createdAt).compareTo(_getDateTime(a.createdAt)));
+            items.sort((a, b) => DashboardUtils.getDateTime(b.createdAt)
+                .compareTo(DashboardUtils.getDateTime(a.createdAt)));
             break;
           case 'oldest':
-            items.sort((a, b) =>
-                _getDateTime(a.createdAt).compareTo(_getDateTime(b.createdAt)));
+            items.sort((a, b) => DashboardUtils.getDateTime(a.createdAt)
+                .compareTo(DashboardUtils.getDateTime(b.createdAt)));
             break;
           case 'price_desc':
             items.sort((a, b) => b.price.compareTo(a.price));
@@ -1026,7 +904,15 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
         if (items.isEmpty) {
           return Column(
             children: [
-              _buildFilterBar(),
+              DashboardWidgets.buildFilterBar(
+                _searchController,
+                _currentFilter,
+                (value) {
+                  setState(() {
+                    _currentFilter = value;
+                  });
+                },
+              ),
               Expanded(
                 child: Center(
                   child: Column(
@@ -1077,10 +963,27 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
 
         return Column(
           children: [
-            _buildFilterBar(),
+            DashboardWidgets.buildFilterBar(
+              _searchController,
+              _currentFilter,
+              (value) {
+                setState(() {
+                  _currentFilter = value;
+                });
+              },
+            ),
             Expanded(
               child: SmartRefresher(
-                controller: _getRefreshControllerForTab(itemsStream),
+                controller: DashboardUtils.getRefreshControllerForTab(
+                  itemsStream,
+                  _pendingItemsStream!,
+                  _rejectedItemsStream!,
+                  _soldItemsStream!,
+                  _overviewRefreshController,
+                  _pendingRefreshController,
+                  _rejectedRefreshController,
+                  _soldRefreshController,
+                ),
                 onRefresh: _onRefresh,
                 header: const WaterDropHeader(
                   waterDropColor: Color(0xFF00C49A),
@@ -1094,7 +997,18 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final item = items[index];
-                    return _buildModernItemCard(item);
+                    return ItemCardWidget.buildModernItemCard(
+                      item,
+                      textPrimaryColor,
+                      textSecondaryColor,
+                      (item) {
+                        if (item.imageUrls.isNotEmpty) {
+                          _openImageGallery(item.imageUrls, 0);
+                        }
+                      },
+                      _resubmitItem,
+                      _confirmRemoveItem,
+                    );
                   },
                 ),
               ),
@@ -1105,720 +1019,13 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
     );
   }
 
-  Widget _buildFilterBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Column(
-        children: [
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search items...',
-              hintStyle: TextStyle(
-                color: Colors.grey[400],
-              ),
-              prefixIcon: Icon(
-                Icons.search,
-                color: Colors.grey[400],
-              ),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: Colors.grey[200]!,
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF00C49A)),
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildFilterChip('All', 'all'),
-                _buildFilterChip('Recent', 'recent'),
-                _buildFilterChip('Price: High to Low', 'price_desc'),
-                _buildFilterChip('Price: Low to High', 'price_asc'),
-                _buildFilterChip('Oldest', 'oldest'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, String value) {
-    final isSelected = _currentFilter == value;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _currentFilter = value;
-        });
-      },
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF00C49A) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF00C49A) : Colors.grey[300]!,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : Colors.grey[700],
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModernItemCard(MarketItem item) {
-    final currencyFormat = NumberFormat.currency(symbol: '₱', decimalDigits: 2);
-
-    // Determine status badge color
-    Color statusColor;
-    IconData statusIcon;
-    String statusText = item.status.toUpperCase();
-
-    switch (item.status) {
-      case 'pending':
-        statusColor = const Color(0xFFF59E0B);
-        statusIcon = Icons.pending_outlined;
-        break;
-      case 'approved':
-        statusColor = const Color(0xFF10B981);
-        statusIcon = Icons.check_circle_outline;
-        break;
-      case 'rejected':
-        statusColor = const Color(0xFFEF4444);
-        statusIcon = Icons.cancel_outlined;
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusIcon = Icons.help_outline;
-    }
-
-    if (item.isSold) {
-      statusColor = const Color(0xFF3B82F6);
-      statusIcon = Icons.shopping_bag_outlined;
-      statusText = "SOLD";
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Item image and status badge
-          Stack(
-            children: [
-              GestureDetector(
-                onTap: () {
-                  if (item.imageUrls.isNotEmpty) {
-                    _openImageGallery(item.imageUrls, 0);
-                  }
-                },
-                child: ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: CachedNetworkImage(
-                      imageUrl:
-                          item.imageUrls.isNotEmpty ? item.imageUrls[0] : '',
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey[200],
-                        child: const Center(
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(0xFF00C49A),
-                            ),
-                          ),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey[200],
-                        child: Icon(
-                          Icons.image_not_supported_outlined,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 12,
-                right: 12,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        statusIcon,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        statusText,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (item.isSold)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(16)),
-                    ),
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: const Text(
-                          'SOLD',
-                          style: TextStyle(
-                            color: Color(0xFF3B82F6),
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-
-          // Item details
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.title,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: textPrimaryColor,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      currencyFormat.format(item.price),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF10B981),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  item.description,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: textSecondaryColor,
-                    height: 1.4,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-
-                // Show rejection reason if item is rejected
-                if (item.status == 'rejected' && item.rejectionReason != null)
-                  Container(
-                    margin: const EdgeInsets.only(top: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFEF4444)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              color: Color(0xFFEF4444),
-                              size: 16,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Rejection Reason:',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFEF4444),
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item.rejectionReason!,
-                          style: TextStyle(
-                            color: const Color(0xFFEF4444),
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                const SizedBox(height: 16),
-
-                // Item actions
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (item.status == 'rejected')
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.refresh, size: 18),
-                        label: const Text('Resubmit'),
-                        onPressed: () => _resubmitItem(item),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF3B82F6),
-                          side: const BorderSide(color: Color(0xFF3B82F6)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
-                        ),
-                      ),
-                    if (item.status != 'approved' || !item.isSold)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: OutlinedButton.icon(
-                          icon: const Icon(Icons.delete_outline, size: 18),
-                          label: const Text('Remove'),
-                          onPressed: () => _confirmRemoveItem(item),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFEF4444),
-                            side: const BorderSide(color: Color(0xFFEF4444)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // New methods for the enhanced features
-
-  Widget _buildQuickActions() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Quick Actions',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: textPrimaryColor,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildActionButton(
-                icon: Icons.add_circle_outline,
-                label: 'Add Item',
-                onTap: () => Navigator.pushNamed(context, '/add_item'),
-              ),
-              _buildActionButton(
-                icon: Icons.inventory_2_outlined,
-                label: 'Inventory',
-                onTap: () => _tabController.animateTo(0),
-              ),
-              _buildActionButton(
-                icon: Icons.analytics_outlined,
-                label: 'Analytics',
-                onTap: () {
-                  // Navigate to analytics page
-                  // Navigator.pushNamed(context, '/analytics');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Analytics feature coming soon!'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-              ),
-              _buildActionButton(
-                icon: Icons.settings_outlined,
-                label: 'Settings',
-                onTap: () {
-                  // Navigate to settings page
-                  // Navigator.pushNamed(context, '/settings');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Settings feature coming soon!'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF00C49A).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon,
-              color: const Color(0xFF00C49A),
-              size: 24,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: textPrimaryColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSalesChart() {
-    // Extract daily sales data from _dashboardStats
-    final Map<String, dynamic> dailySales = _dashboardStats['dailySales'] ?? {};
-
-    // Convert to a list of FlSpots for the chart
-    List<FlSpot> spots = [];
-    List<String> dates = []; // Store dates for tooltip
-    double maxValue = 0; // Track max value for Y axis scaling
-
-    // Get the dates in chronological order
-    final dateStrings = dailySales.keys.toList();
-    dateStrings.sort(); // Sort dates
-
-    // Only show up to 7 days
-    final int numberOfDays = min(dateStrings.length, 7);
-
-    // Generate spots for each date
-    for (int i = 0; i < numberOfDays; i++) {
-      final dateString = dateStrings[i];
-      final value = (dailySales[dateString] ?? 0).toDouble();
-      spots.add(FlSpot(i.toDouble(), value));
-      dates.add(dateString);
-      if (value > maxValue) {
-        maxValue = value;
-      }
-    }
-
-    // If no data is available, create some dummy data
-    if (spots.isEmpty) {
-      // Generate dates for the last 7 days
-      final now = DateTime.now();
-      for (int i = 6; i >= 0; i--) {
-        final date = now.subtract(Duration(days: i));
-        final dateString = DateFormat('yyyy-MM-dd').format(date);
-        dates.add(dateString);
-
-        // Add a spot with 0 value
-        spots.add(FlSpot((6 - i).toDouble(), 0));
-      }
-    }
-
-    // Return the sales chart widget
-    return _buildDashboardCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Sales Trend',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: textPrimaryColor,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 240,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: maxValue > 100 ? 100 : 10,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(
-                      color: Colors.grey[200]!,
-                      strokeWidth: 1,
-                    );
-                  },
-                ),
-                titlesData: FlTitlesData(
-                  show: true,
-                  rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 30,
-                      getTitlesWidget: (value, meta) {
-                        if (value >= 0 && value < dates.length) {
-                          // Parse the date and get the day
-                          final date = DateTime.parse(dates[value.toInt()]);
-                          final day = date.day.toString();
-
-                          return SideTitleWidget(
-                            axisSide: meta.axisSide,
-                            space: 8,
-                            child: Text(
-                              day,
-                              style: TextStyle(
-                                color: textSecondaryColor,
-                                fontSize: 10,
-                              ),
-                            ),
-                          );
-                        }
-                        return SideTitleWidget(
-                          axisSide: meta.axisSide,
-                          child: const Text(''),
-                        );
-                      },
-                    ),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 35,
-                      getTitlesWidget: (value, meta) {
-                        // Show abbreviated price on y-axis
-                        String text = '';
-                        if (value == 0) {
-                          text = '₱0';
-                        } else if (value >= 1000) {
-                          text = '₱${(value / 1000).toStringAsFixed(0)}K';
-                        } else {
-                          text = '₱${value.toInt()}';
-                        }
-
-                        return SideTitleWidget(
-                          axisSide: meta.axisSide,
-                          space: 8,
-                          child: Text(
-                            text,
-                            style: TextStyle(
-                              color: textSecondaryColor,
-                              fontSize: 10,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                borderData: FlBorderData(
-                  show: true,
-                  border: Border(
-                    bottom: BorderSide(color: Colors.grey[200]!, width: 1),
-                    left: BorderSide(color: Colors.grey[200]!, width: 1),
-                    // Hide top and right borders
-                    top: BorderSide.none,
-                    right: BorderSide.none,
-                  ),
-                ),
-                minX: 0,
-                maxX: max(
-                    6,
-                    (numberOfDays - 1)
-                        .toDouble()), // X-axis for 7 days (0 to 6)
-                minY: 0,
-                maxY: maxValue == 0
-                    ? 50
-                    : maxValue * 1.2, // Dynamic Y max + padding, minimum 50
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: spots, // Use the processed daily sales spots
-                    isCurved: true,
-                    gradient: LinearGradient(
-                      // Use gradient for line color
-                      colors: [
-                        const Color(0xFF00C49A),
-                        Colors.tealAccent.shade700
-                      ],
-                    ),
-                    barWidth: 3, // Slightly thinner line
-                    isStrokeCapRound: true,
-                    dotData:
-                        const FlDotData(show: true), // Show dots on the line
-                    belowBarData: BarAreaData(
-                      // Add gradient below line
-                      show: true,
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFF00C49A).withOpacity(0.3),
-                          Colors.tealAccent.shade700.withOpacity(0.0),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                  ),
-                ],
-                lineTouchData: LineTouchData(
-                  handleBuiltInTouches: true, // Enable default touch behaviors
-                  touchTooltipData: LineTouchTooltipData(
-                    tooltipBgColor: Colors.white.withOpacity(0.8),
-                    getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
-                      return touchedBarSpots.map((barSpot) {
-                        final flSpot = barSpot;
-
-                        // Parse date to display in a more readable format
-                        final dateIndex = flSpot.x.toInt();
-                        if (dateIndex >= 0 && dateIndex < dates.length) {
-                          final dateString = dates[dateIndex];
-                          final date = DateTime.parse(dateString);
-                          final formattedDate =
-                              DateFormat('MMM d, yyyy').format(date);
-
-                          return LineTooltipItem(
-                            '$formattedDate\n', // Date on first line
-                            TextStyle(
-                              color: Colors.black87,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                            children: [
-                              TextSpan(
-                                text:
-                                    '₱${NumberFormat('#,##0.00').format(flSpot.y)}', // Sales amount
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          );
-                        }
-                        return null;
-                      }).toList();
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _openImageGallery(List<String> imageUrls, int initialIndex) {
     // Store the current tab index before navigating
     final currentTab = _tabController.index;
 
     // Lock the tab to prevent unwanted changes
-    _isTabLocked = true;
-    _lockedTabIndex = currentTab;
+    setIsTabLocked(true);
+    setLockedTabIndex(currentTab);
 
     Navigator.push(
       context,
@@ -1839,7 +1046,12 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
         }
 
         // Safely unlock the tab with delay to prevent unwanted tab changes
-        await _safelyUnlockTab();
+        await DashboardUtils.safelyUnlockTab(
+          _tabController,
+          mounted,
+          currentTab,
+          setIsTabLocked,
+        );
       }
     });
 
@@ -1860,8 +1072,8 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
     final currentTab = _tabController.index;
 
     // Lock the tab to prevent unwanted changes
-    _isTabLocked = true;
-    _lockedTabIndex = currentTab;
+    setIsTabLocked(true);
+    setLockedTabIndex(currentTab);
 
     try {
       // Create a new item with the same details but reset the status
@@ -1921,7 +1133,12 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
     } finally {
       // Safely unlock the tab with delay to prevent unwanted tab changes
       if (mounted) {
-        await _safelyUnlockTab();
+        await DashboardUtils.safelyUnlockTab(
+          _tabController,
+          mounted,
+          currentTab,
+          setIsTabLocked,
+        );
       }
     }
   }
@@ -1931,8 +1148,8 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
     final currentTab = _tabController.index;
 
     // Lock the tab to prevent unwanted changes
-    _isTabLocked = true;
-    _lockedTabIndex = currentTab;
+    setIsTabLocked(true);
+    setLockedTabIndex(currentTab);
 
     final result = await ConfirmationDialog.show(
       context: context,
@@ -1995,378 +1212,12 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
 
     // Safely unlock the tab with delay to prevent unwanted tab changes
     if (mounted) {
-      await _safelyUnlockTab();
-    }
-  }
-}
-
-// Gallery Page for viewing images
-class GalleryPage extends StatefulWidget {
-  final List<String> imageUrls;
-  final int initialIndex;
-  final bool isDarkMode;
-  final int sourceTab; // Add source tab parameter
-
-  const GalleryPage({
-    super.key,
-    required this.imageUrls,
-    this.initialIndex = 0,
-    this.isDarkMode = false,
-    this.sourceTab = 0, // Default to overview tab
-  });
-
-  @override
-  State<GalleryPage> createState() => _GalleryPageState();
-}
-
-class _GalleryPageState extends State<GalleryPage> {
-  late int _currentIndex;
-  late PageController _pageController;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return PopScope(
-      // Handle back button press to ensure proper navigation
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, dynamic result) {
-        if (!didPop) {
-          Navigator.of(context).pop();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
-          backgroundColor: Colors.black,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-          ),
-          title: Text(
-            '${_currentIndex + 1}/${widget.imageUrls.length}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-            ),
-          ),
-        ),
-        body: PhotoViewGallery.builder(
-          scrollPhysics: const BouncingScrollPhysics(),
-          builder: (BuildContext context, int index) {
-            return PhotoViewGalleryPageOptions(
-              imageProvider:
-                  CachedNetworkImageProvider(widget.imageUrls[index]),
-              initialScale: PhotoViewComputedScale.contained,
-              minScale: PhotoViewComputedScale.contained,
-              maxScale: PhotoViewComputedScale.covered * 2,
-            );
-          },
-          itemCount: widget.imageUrls.length,
-          loadingBuilder: (context, event) => Center(
-            child: SizedBox(
-              width: 30,
-              height: 30,
-              child: CircularProgressIndicator(
-                value: event == null
-                    ? 0
-                    : event.cumulativeBytesLoaded /
-                        (event.expectedTotalBytes ?? 1),
-                color: const Color(0xFF00C49A),
-              ),
-            ),
-          ),
-          backgroundDecoration: const BoxDecoration(
-            color: Colors.black,
-          ),
-          pageController: _pageController,
-          onPageChanged: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class ModernShimmerLoading extends StatelessWidget {
-  const ModernShimmerLoading({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    // Use a ListView with shrinkWrap: true to avoid overflow
-    return ListView(
-      padding: const EdgeInsets.symmetric(
-          horizontal: 16, vertical: 8), // Reduced vertical padding
-      // Make sure the ListView doesn't try to be as big as its children
-      shrinkWrap: true,
-      // Add physics to make it scrollable
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        _buildLoadingCard(80), // Quick actions (further reduced height)
-        const SizedBox(height: 12), // Reduced spacing
-        _buildLoadingCard(60), // Rating card (further reduced height)
-        const SizedBox(height: 12), // Reduced spacing
-        _buildLoadingCard(120), // Chart (further reduced height)
-        const SizedBox(height: 12), // Reduced spacing
-        _buildStatsLoadingCard(isDarkMode), // Stats card
-        const SizedBox(height: 12), // Reduced spacing
-        _buildItemsLoadingCard(isDarkMode), // Items card
-        const SizedBox(height: 12), // Reduced spacing
-        _buildListLoadingCard(isDarkMode), // Activity list
-      ],
-    );
-  }
-
-  Widget _buildLoadingCard(double height) {
-    return Builder(builder: (context) {
-      final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-      final baseColor = isDarkMode ? Colors.grey[800] : Colors.grey[300];
-
-      return Container(
-        height: height,
-        decoration: BoxDecoration(
-          color: baseColor,
-          borderRadius: BorderRadius.circular(16),
-        ),
+      await DashboardUtils.safelyUnlockTab(
+        _tabController,
+        mounted,
+        currentTab,
+        setIsTabLocked,
       );
-    });
-  }
-
-  Widget _buildStatsLoadingCard(bool isDarkMode) {
-    final baseColor = isDarkMode ? Colors.grey[800] : Colors.grey[300];
-
-    return Container(
-      // Remove fixed height to allow content to determine size
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: baseColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min, // Use minimum space needed
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 120,
-            height: 20,
-            decoration: BoxDecoration(
-              color: isDarkMode ? Colors.grey[700] : Colors.grey[200],
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(height: 12), // Reduced spacing
-          // Generate only 2 items instead of 3
-          ...List.generate(
-            2, // Reduced from 3 to 2
-            (index) => Padding(
-              padding: const EdgeInsets.only(bottom: 8), // Reduced padding
-              child: Row(
-                children: [
-                  Container(
-                    width: 32, // Smaller size
-                    height: 32, // Smaller size
-                    decoration: BoxDecoration(
-                      color: isDarkMode ? Colors.grey[700] : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  const SizedBox(width: 8), // Reduced spacing
-                  Expanded(
-                    child: Container(
-                      height: 12, // Smaller height
-                      decoration: BoxDecoration(
-                        color: isDarkMode ? Colors.grey[700] : Colors.grey[200],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8), // Reduced spacing
-                  Container(
-                    width: 50, // Smaller width
-                    height: 12, // Smaller height
-                    decoration: BoxDecoration(
-                      color: isDarkMode ? Colors.grey[700] : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItemsLoadingCard(bool isDarkMode) {
-    final baseColor = isDarkMode ? Colors.grey[800] : Colors.grey[300];
-
-    return Container(
-      // Remove fixed height to allow content to determine size
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: baseColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min, // Use minimum space needed
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 100,
-            height: 20,
-            decoration: BoxDecoration(
-              color: isDarkMode ? Colors.grey[700] : Colors.grey[200],
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(height: 12), // Reduced spacing
-          // Generate only 2 items instead of 3
-          ...List.generate(
-            2, // Reduced from 3 to 2
-            (index) => Padding(
-              padding: const EdgeInsets.only(bottom: 8), // Reduced padding
-              child: Row(
-                children: [
-                  Container(
-                    width: 32, // Smaller size
-                    height: 32, // Smaller size
-                    decoration: BoxDecoration(
-                      color: isDarkMode ? Colors.grey[700] : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  const SizedBox(width: 8), // Reduced spacing
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          height: 12, // Smaller height
-                          decoration: BoxDecoration(
-                            color: isDarkMode
-                                ? Colors.grey[700]
-                                : Colors.grey[200],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(height: 4), // Reduced spacing
-                        Container(
-                          width: 80, // Smaller width
-                          height: 8, // Smaller height
-                          decoration: BoxDecoration(
-                            color: isDarkMode
-                                ? Colors.grey[700]
-                                : Colors.grey[200],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildListLoadingCard(bool isDarkMode) {
-    final baseColor = isDarkMode ? Colors.grey[800] : Colors.grey[300];
-
-    return Container(
-      // Remove fixed height to allow content to determine size
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: baseColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min, // Use minimum space needed
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 120,
-            height: 20,
-            decoration: BoxDecoration(
-              color: isDarkMode ? Colors.grey[700] : Colors.grey[200],
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(height: 12), // Reduced spacing
-          // Generate only 2 items instead of 3
-          ...List.generate(
-            2, // Reduced from 3 to 2
-            (index) => Padding(
-              padding: const EdgeInsets.only(bottom: 8), // Reduced padding
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 20, // Smaller size
-                    height: 20, // Smaller size
-                    decoration: BoxDecoration(
-                      color: isDarkMode ? Colors.grey[700] : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  const SizedBox(width: 8), // Reduced spacing
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          height: 12, // Smaller height
-                          decoration: BoxDecoration(
-                            color: isDarkMode
-                                ? Colors.grey[700]
-                                : Colors.grey[200],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(height: 4), // Reduced spacing
-                        Container(
-                          width: 60, // Smaller width
-                          height: 8, // Smaller height
-                          decoration: BoxDecoration(
-                            color: isDarkMode
-                                ? Colors.grey[700]
-                                : Colors.grey[200],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    }
   }
 }

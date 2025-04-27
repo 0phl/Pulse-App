@@ -1076,7 +1076,7 @@ class _ChatPageState extends State<ChatPage> {
 
       // Send a system message to the chat
       await _sendMessage(
-        message: '🎉 $sellerName has marked this item as sold!',
+        message: ' $sellerName has marked this item as sold!',
         isSystemMessage: true,
       );
 
@@ -1308,7 +1308,7 @@ class _ChatPageState extends State<ChatPage> {
       // Send a system message to the chat
       await _sendMessage(
         message:
-            '⭐ the buyer has left a $rating-star rating for this transaction!',
+            ' the buyer has left a $rating-star rating for this transaction!',
         isSystemMessage: true,
       );
 

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/market_item.dart';
 import '../models/seller_rating.dart';
+import 'package:intl/intl.dart';
 
 class MarketService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -27,7 +28,8 @@ class MarketService {
   }
 
   // Get market items for a specific seller
-  Stream<List<MarketItem>> getSellerItemsStream(String sellerId, {bool isCurrentUser = false}) {
+  Stream<List<MarketItem>> getSellerItemsStream(String sellerId,
+      {bool isCurrentUser = false}) {
     // If viewing own profile, show all items including pending
     // If viewing another seller's profile, only show approved items that are not sold
     Query query = _marketItemsCollection.where('sellerId', isEqualTo: sellerId);
@@ -35,13 +37,13 @@ class MarketService {
     // Only filter by status if not viewing own profile
     if (!isCurrentUser) {
       query = query.where('status', isEqualTo: 'approved');
-      query = query.where('isSold', isEqualTo: false); // Only show active items when viewing other sellers
+      query = query.where('isSold',
+          isEqualTo:
+              false); // Only show active items when viewing other sellers
     }
 
-    return query
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) =>
+    return query.orderBy('createdAt', descending: true).snapshots().map(
+        (snapshot) =>
             snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList());
   }
 
@@ -141,7 +143,8 @@ class MarketService {
   }
 
   // Check if a user has already rated a transaction
-  Future<bool> hasUserRatedTransaction(String sellerId, String buyerId, String marketItemId) async {
+  Future<bool> hasUserRatedTransaction(
+      String sellerId, String buyerId, String marketItemId) async {
     if (buyerId.isEmpty) return false;
 
     final existingRatings = await _sellerRatingsCollection
@@ -273,6 +276,9 @@ class MarketService {
       averagePrice = totalRevenue / itemsSold;
     }
 
+    // Get daily sales data
+    final dailySales = await getDailySalesData();
+
     // Get recent activity (last 10 events)
     List<Map<String, dynamic>> recentActivity = [];
 
@@ -358,8 +364,111 @@ class MarketService {
       'itemsSold': itemsSold,
       'totalRevenue': totalRevenue,
       'averagePrice': averagePrice,
+      'dailySales': dailySales,
       'recentActivity': recentActivity,
     };
+  }
+
+  // Get daily sales data for the last 7 days
+  Future<Map<String, dynamic>> getDailySalesData() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('User must be logged in to view sales data');
+    }
+
+    // Calculate date range (last 7 days)
+    final now = DateTime.now();
+    final startDate =
+        DateTime(now.year, now.month, now.day - 6); // 7 days including today
+    final Map<String, dynamic> dailySales = {};
+
+    // Initialize all dates in the range with zero values
+    for (int i = 0; i < 7; i++) {
+      final date = startDate.add(Duration(days: i));
+      final dateString = DateFormat('yyyy-MM-dd').format(date);
+      dailySales[dateString] = 0.0;
+    }
+
+    // Get all sold items in the date range
+    final soldItemsSnapshot = await _marketItemsCollection
+        .where('sellerId', isEqualTo: currentUser.uid)
+        .where('isSold', isEqualTo: true)
+        .get();
+
+    // Process each sold item
+    for (var doc in soldItemsSnapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+
+      // Get sold date (use soldAt if available, otherwise createdAt)
+      final timestamp = data['soldAt'] ?? data['createdAt'];
+      if (timestamp == null) continue;
+
+      final soldDate = (timestamp as Timestamp).toDate();
+
+      // Check if the sale occurred within our 7-day window
+      if (soldDate.isAfter(startDate.subtract(const Duration(days: 1)))) {
+        final dateString = DateFormat('yyyy-MM-dd').format(soldDate);
+        final price = (data['price'] as num).toDouble();
+
+        // Add to the corresponding date
+        if (dailySales.containsKey(dateString)) {
+          dailySales[dateString] = (dailySales[dateString] as double) + price;
+        }
+      }
+    }
+
+    return dailySales;
+  }
+
+  // Get daily sales data as a stream for real-time updates
+  Stream<Map<String, dynamic>> getDailySalesDataStream() {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('User must be logged in to view sales data');
+    }
+
+    // Get stream of sold items
+    return _marketItemsCollection
+        .where('sellerId', isEqualTo: currentUser.uid)
+        .where('isSold', isEqualTo: true)
+        .snapshots()
+        .map((snapshot) {
+      // Calculate date range (last 7 days)
+      final now = DateTime.now();
+      final startDate = DateTime(now.year, now.month, now.day - 6);
+      final Map<String, dynamic> dailySales = {};
+
+      // Initialize all dates in the range with zero values
+      for (int i = 0; i < 7; i++) {
+        final date = startDate.add(Duration(days: i));
+        final dateString = DateFormat('yyyy-MM-dd').format(date);
+        dailySales[dateString] = 0.0;
+      }
+
+      // Process each sold item
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+
+        // Get sold date (use soldAt if available, otherwise createdAt)
+        final timestamp = data['soldAt'] ?? data['createdAt'];
+        if (timestamp == null) continue;
+
+        final soldDate = (timestamp as Timestamp).toDate();
+
+        // Check if the sale occurred within our 7-day window
+        if (soldDate.isAfter(startDate.subtract(const Duration(days: 1)))) {
+          final dateString = DateFormat('yyyy-MM-dd').format(soldDate);
+          final price = (data['price'] as num).toDouble();
+
+          // Add to the corresponding date
+          if (dailySales.containsKey(dateString)) {
+            dailySales[dateString] = (dailySales[dateString] as double) + price;
+          }
+        }
+      }
+
+      return dailySales;
+    });
   }
 
   // Get seller items by status
@@ -392,7 +501,8 @@ class MarketService {
         .where('isSold', isEqualTo: false) // Not sold items
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList());
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList());
   }
 
   // Get seller sold items
@@ -423,7 +533,8 @@ class MarketService {
         .where('isSold', isEqualTo: true)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList());
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList());
   }
 
   // Get seller rating information
