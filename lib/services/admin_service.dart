@@ -1832,6 +1832,8 @@ class AdminService {
   // Get recent transactions for a community
   Future<List<Map<String, dynamic>>> getRecentTransactions(
       String communityId) async {
+    debugPrint('AdminService.getRecentTransactions called for community: $communityId');
+
     final snapshot = await _marketItemsCollection
         .where('communityId', isEqualTo: communityId)
         .where('isSold', isEqualTo: true)
@@ -1839,8 +1841,25 @@ class AdminService {
         .limit(5)
         .get();
 
+    debugPrint('Found ${snapshot.docs.length} recent transactions');
+
     return snapshot.docs.map((doc) {
       final data = doc.data() as Map<String, dynamic>;
+
+      // Debug info for each transaction
+      debugPrint('Transaction details for item: ${data['title']}');
+      debugPrint('  - ID: ${doc.id}');
+      debugPrint('  - Price: ${data['price']}');
+      debugPrint('  - soldAt: ${data['soldAt']}');
+      if (data['soldAt'] != null) {
+        final soldAt = (data['soldAt'] as Timestamp).toDate();
+        debugPrint('  - soldAt (converted): $soldAt');
+      }
+      debugPrint('  - createdAt: ${data['createdAt']}');
+      if (data['createdAt'] != null) {
+        final createdAt = (data['createdAt'] as Timestamp).toDate();
+        debugPrint('  - createdAt (converted): $createdAt');
+      }
 
       // Handle both old and new image formats
       List<String> imageUrls = [];
@@ -1852,13 +1871,21 @@ class AdminService {
         imageUrls = [data['imageUrl']];
       }
 
+      // Determine which date to use
+      final date = data['soldAt'] ?? data['createdAt'];
+      debugPrint('  - Using date: $date');
+      if (date != null) {
+        final convertedDate = (date as Timestamp).toDate();
+        debugPrint('  - Date (converted): $convertedDate');
+      }
+
       return {
         'id': doc.id,
         'title': data['title'] ?? '',
         'imageUrl': data['imageUrl'] ?? '',
         'imageUrls': imageUrls,
         'amount': data['price'] ?? 0,
-        'date': data['soldAt'] ?? data['createdAt'],
+        'date': date,
       };
     }).toList();
   }

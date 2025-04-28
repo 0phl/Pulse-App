@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/market_item.dart';
 import '../models/seller_rating.dart';
 import 'package:intl/intl.dart';
@@ -369,25 +370,38 @@ class MarketService {
     };
   }
 
-  // Get daily sales data for the last 7 days
-  Future<Map<String, dynamic>> getDailySalesData() async {
+  // Get daily sales data for a specified date range (defaults to last 7 days)
+  Future<Map<String, dynamic>> getDailySalesData({
+    DateTime? customStartDate,
+    DateTime? customEndDate,
+  }) async {
+    debugPrint('MarketService.getDailySalesData called');
+
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
       throw Exception('User must be logged in to view sales data');
     }
 
-    // Calculate date range (last 7 days)
+    // Calculate date range (default to last 7 days if not specified)
     final now = DateTime.now();
-    final startDate =
-        DateTime(now.year, now.month, now.day - 6); // 7 days including today
+    final endDate = customEndDate ?? now;
+    final startDate = customStartDate ??
+        DateTime(now.year, now.month, now.day - 6); // 7 days including today by default
+
+    debugPrint('Date range: ${DateFormat('yyyy-MM-dd').format(startDate)} to ${DateFormat('yyyy-MM-dd').format(endDate)}');
+
+    // Calculate number of days in the range
+    final daysDifference = endDate.difference(startDate).inDays + 1;
     final Map<String, dynamic> dailySales = {};
 
     // Initialize all dates in the range with zero values
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < daysDifference; i++) {
       final date = startDate.add(Duration(days: i));
       final dateString = DateFormat('yyyy-MM-dd').format(date);
       dailySales[dateString] = 0.0;
     }
+
+    debugPrint('Initialized ${dailySales.length} days with zero values');
 
     // Get all sold items in the date range
     final soldItemsSnapshot = await _marketItemsCollection
@@ -395,33 +409,56 @@ class MarketService {
         .where('isSold', isEqualTo: true)
         .get();
 
+    debugPrint('Found ${soldItemsSnapshot.docs.length} sold items for seller ${currentUser.uid}');
+
     // Process each sold item
     for (var doc in soldItemsSnapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
 
+      debugPrint('Processing sold item: ${data['title']} (ID: ${doc.id})');
+      debugPrint('  - soldAt: ${data['soldAt']}');
+      debugPrint('  - createdAt: ${data['createdAt']}');
+
       // Get sold date (use soldAt if available, otherwise createdAt)
       final timestamp = data['soldAt'] ?? data['createdAt'];
-      if (timestamp == null) continue;
+      if (timestamp == null) {
+        debugPrint('  - No timestamp found, skipping item');
+        continue;
+      }
 
       final soldDate = (timestamp as Timestamp).toDate();
+      debugPrint('  - Using date: $soldDate');
 
-      // Check if the sale occurred within our 7-day window
-      if (soldDate.isAfter(startDate.subtract(const Duration(days: 1)))) {
+      // Check if the sale occurred within our date range window
+      if (soldDate.isAfter(startDate.subtract(const Duration(days: 1))) &&
+          soldDate.isBefore(endDate.add(const Duration(days: 1)))) {
         final dateString = DateFormat('yyyy-MM-dd').format(soldDate);
         final price = (data['price'] as num).toDouble();
+
+        debugPrint('  - Sale falls within date range, adding ₱$price to $dateString');
 
         // Add to the corresponding date
         if (dailySales.containsKey(dateString)) {
           dailySales[dateString] = (dailySales[dateString] as double) + price;
+          debugPrint('  - Updated total for $dateString: ₱${dailySales[dateString]}');
+        } else {
+          debugPrint('  - Date $dateString not in range, skipping');
         }
+      } else {
+        debugPrint('  - Sale date outside of range window, skipping');
       }
     }
 
+    debugPrint('Final daily sales data: $dailySales');
     return dailySales;
   }
 
-  // Get daily sales data as a stream for real-time updates
-  Stream<Map<String, dynamic>> getDailySalesDataStream() {
+  // Get daily sales data as a stream for real-time updates with optional date range
+  Stream<Map<String, dynamic>> getDailySalesDataStream({
+    DateTime? customStartDate,
+    DateTime? customEndDate,
+    int defaultDays = 7,
+  }) {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
       throw Exception('User must be logged in to view sales data');
@@ -433,13 +470,18 @@ class MarketService {
         .where('isSold', isEqualTo: true)
         .snapshots()
         .map((snapshot) {
-      // Calculate date range (last 7 days)
+      // Calculate date range (default to last 7 days if not specified)
       final now = DateTime.now();
-      final startDate = DateTime(now.year, now.month, now.day - 6);
+      final endDate = customEndDate ?? now;
+      final startDate = customStartDate ??
+          DateTime(now.year, now.month, now.day - (defaultDays - 1));
+
+      // Calculate number of days in the range
+      final daysDifference = endDate.difference(startDate).inDays + 1;
       final Map<String, dynamic> dailySales = {};
 
       // Initialize all dates in the range with zero values
-      for (int i = 0; i < 7; i++) {
+      for (int i = 0; i < daysDifference; i++) {
         final date = startDate.add(Duration(days: i));
         final dateString = DateFormat('yyyy-MM-dd').format(date);
         dailySales[dateString] = 0.0;
@@ -455,8 +497,9 @@ class MarketService {
 
         final soldDate = (timestamp as Timestamp).toDate();
 
-        // Check if the sale occurred within our 7-day window
-        if (soldDate.isAfter(startDate.subtract(const Duration(days: 1)))) {
+        // Check if the sale occurred within our date range window
+        if (soldDate.isAfter(startDate.subtract(const Duration(days: 1))) &&
+            soldDate.isBefore(endDate.add(const Duration(days: 1)))) {
           final dateString = DateFormat('yyyy-MM-dd').format(soldDate);
           final price = (data['price'] as num).toDouble();
 

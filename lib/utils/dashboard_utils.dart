@@ -29,20 +29,40 @@ class DashboardUtils {
 
   // Helper method to convert various date formats to DateTime
   static DateTime getDateTime(dynamic dateValue, {MarketItem? item}) {
+    // Debug info
+    debugPrint('DashboardUtils.getDateTime called with:');
+    debugPrint('  - dateValue type: ${dateValue?.runtimeType}');
+    debugPrint('  - dateValue: $dateValue');
+    if (item != null) {
+      debugPrint('  - item.title: ${item.title}');
+      debugPrint('  - item.isSold: ${item.isSold}');
+      debugPrint('  - item.soldAt: ${item.soldAt}');
+      debugPrint('  - item.createdAt: ${item.createdAt}');
+    }
+
     // If this is a sold item and it has a soldAt timestamp, use that
     if (item != null && item.isSold && item.soldAt != null) {
+      debugPrint('  - Using item.soldAt: ${item.soldAt}');
       return item.soldAt!;
     }
 
+    DateTime result;
     if (dateValue == null) {
-      return DateTime.now();
+      debugPrint('  - dateValue is null, using DateTime.now()');
+      result = DateTime.now();
     } else if (dateValue is Timestamp) {
-      return dateValue.toDate();
+      debugPrint('  - Converting Timestamp to DateTime: ${dateValue.toDate()}');
+      result = dateValue.toDate();
     } else if (dateValue is DateTime) {
-      return dateValue;
+      debugPrint('  - Using DateTime directly: $dateValue');
+      result = dateValue;
     } else {
-      return DateTime.now();
+      debugPrint('  - Unknown type, using DateTime.now()');
+      result = DateTime.now();
     }
+
+    debugPrint('  - Final result: $result');
+    return result;
   }
 
   // Helper to safely unlock a tab with delay

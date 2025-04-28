@@ -75,6 +75,9 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
   Stream<List<MarketItem>>? _soldItemsStream;
   Stream<Map<String, dynamic>>? _dailySalesStream;
 
+  // Current time period for sales chart
+  TimePeriod _currentTimePeriod = TimePeriod.week;
+
   // Seller ratings
   double _averageRating = 0.0;
   int _totalRatings = 0;
@@ -150,11 +153,46 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
       _rejectedItemsStream =
           _marketService.getSellerItemsByStatusStream('rejected');
       _soldItemsStream = _marketService.getSellerSoldItemsStream();
-      _dailySalesStream = _marketService.getDailySalesDataStream();
+      _updateDailySalesStream();
     } catch (e) {
       // Log error
       debugPrint('Error initializing streams: $e');
     }
+  }
+
+  // Update the daily sales stream based on the current time period
+  void _updateDailySalesStream() {
+    final now = DateTime.now();
+    DateTime? startDate;
+
+    // Calculate start date based on time period
+    switch (_currentTimePeriod) {
+      case TimePeriod.week:
+        startDate = now.subtract(const Duration(days: 6)); // Last 7 days
+        break;
+      case TimePeriod.month:
+        startDate = now.subtract(const Duration(days: 29)); // Last 30 days
+        break;
+      case TimePeriod.threeMonths:
+        startDate = DateTime(now.year, now.month - 3, now.day); // Last 3 months
+        break;
+      case TimePeriod.sixMonths:
+        startDate = DateTime(now.year, now.month - 6, now.day); // Last 6 months
+        break;
+      case TimePeriod.year:
+        startDate = DateTime(now.year - 1, now.month, now.day); // Last year
+        break;
+    }
+
+    // Get the number of days in the selected period
+    final daysDifference = now.difference(startDate).inDays + 1;
+
+    // Initialize the stream with the calculated date range
+    _dailySalesStream = _marketService.getDailySalesDataStream(
+      customStartDate: startDate,
+      customEndDate: now,
+      defaultDays: daysDifference,
+    );
   }
 
   @override
@@ -719,15 +757,29 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  Text(
-                                    DateFormat('MMM d, yyyy').format(
-                                        DashboardUtils.getDateTime(
-                                            item.createdAt,
-                                            item: item)),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: textSecondaryColor,
-                                    ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        DateFormat('MMM d, yyyy').format(
+                                            DashboardUtils.getDateTime(
+                                                item.createdAt,
+                                                item: item)),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: textSecondaryColor,
+                                        ),
+                                      ),
+                                      // Add debug info for dates
+                                      if (item.isSold && item.soldAt != null)
+                                        Text(
+                                          'Sold: ${DateFormat('MMM d, yyyy').format(item.soldAt!)}',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -825,6 +877,13 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
           textSecondaryColor,
           cardBackgroundColor,
           cardShadow,
+          defaultTimePeriod: _currentTimePeriod,
+          onTimePeriodChanged: (TimePeriod period) {
+            setState(() {
+              _currentTimePeriod = period;
+              _updateDailySalesStream();
+            });
+          },
         );
       },
     );
