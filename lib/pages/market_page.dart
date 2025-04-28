@@ -505,10 +505,11 @@ class _MarketPageState extends State<MarketPage>
           ),
           // Chat Button with Notification Badge
           Padding(
-            padding: const EdgeInsets.only(right: 16.0), // Add right padding
+            padding: const EdgeInsets.only(right: 16.0),
             child: Stack(
               clipBehavior: Clip.none,
               children: [
+                // Make the icon button open the chat page
                 IconButton(
                   icon: const Icon(Icons.chat),
                   onPressed: () {
@@ -521,18 +522,28 @@ class _MarketPageState extends State<MarketPage>
                   },
                   tooltip: 'My Chats',
                 ),
-                // Always create the badge widget, but make it visible only when count > 0
+                // Make the badge also open the chat page
                 Positioned(
-                  right: 8, // Adjust position to be more inward
+                  right: 8,
                   top: 8,
-                  child: Visibility(
-                    visible: _unreadChats > 0,
-                    maintainState: true,
-                    maintainAnimation: true,
-                    maintainSize: true,
-                    child: _NotificationBadge(
-                      count: _unreadChats,
-                      color: Colors.red,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ChatListPage(),
+                        ),
+                      );
+                    },
+                    child: Visibility(
+                      visible: _unreadChats > 0,
+                      maintainState: true,
+                      maintainAnimation: true,
+                      maintainSize: true,
+                      child: _NotificationBadge(
+                        count: _unreadChats,
+                        color: Colors.red,
+                      ),
                     ),
                   ),
                 ),
