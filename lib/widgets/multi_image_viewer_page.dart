@@ -149,6 +149,24 @@ class _MultiImageViewerPageState extends State<MultiImageViewerPage> {
                 minScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.covered * 2,
                 heroAttributes: PhotoViewHeroAttributes(tag: '${widget.imageUrls[index]}_$index'),
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.black,
+                    child: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.broken_image_outlined, color: Colors.white70, size: 64),
+                          SizedBox(height: 16),
+                          Text(
+                            'Image could not be loaded',
+                            style: TextStyle(color: Colors.white70, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               );
             },
             itemCount: widget.imageUrls.length,
