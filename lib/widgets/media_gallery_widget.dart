@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'image_gallery_viewer.dart';
@@ -49,28 +50,45 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
           VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl!));
       await _videoPlayerController.initialize();
 
-      // Get a safe aspect ratio (some videos might have extreme aspect ratios)
+      // Get the video's natural aspect ratio
       double aspectRatio = _videoPlayerController.value.aspectRatio;
 
       // If aspect ratio is too extreme, use a more reasonable default
       if (aspectRatio < 0.5 || aspectRatio > 2.0) {
-        aspectRatio = 16 / 9; // Default to standard video aspect ratio
+        final bool isPortrait = aspectRatio < 1.0;
+        aspectRatio = isPortrait ? 9 / 16 : 16 / 9;
       }
+
+      // For portrait videos, we'll let the layout builder handle the aspect ratio
+      // to prevent overflow issues. For landscape, we'll use the natural aspect ratio.
+      final bool isPortrait = aspectRatio < 1.0;
 
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController,
-        aspectRatio: aspectRatio,
+        // For portrait videos, use null to let the layout builder handle sizing
+        // For landscape videos, use the natural aspect ratio
+        aspectRatio: isPortrait ? null : aspectRatio,
         autoPlay: false, // Don't auto-play - let user decide when to play
         looping: true, // Loop the video for better user experience
         allowFullScreen: true, // Enable built-in fullscreen functionality
         allowMuting: true, // Allow muting
         showControls: true, // Show built-in controls
-        showControlsOnInitialize: true, // Show controls immediately
-        // Keep playing when navigating away
-        routePageBuilder: null, // This ensures video continues playing in background
+        showControlsOnInitialize: true, // Show controls immediately for better discoverability
+        hideControlsTimer: const Duration(seconds: 5), // Hide controls after 5 seconds of inactivity
+        deviceOrientationsAfterFullScreen: [DeviceOrientation.portraitUp], // Return to portrait after fullscreen
+        materialProgressColors: ChewieProgressColors(
+          playedColor: const Color(0xFF00C49A),
+          handleColor: const Color(0xFF00C49A),
+          backgroundColor: Colors.grey.shade300,
+          bufferedColor: Colors.grey.shade500,
+        ),
         placeholder: Container(
           color: Colors.grey[200],
-          child: const Center(child: CircularProgressIndicator()),
+          child: const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+            ),
+          ),
         ),
         errorBuilder: (context, errorMessage) {
           return Center(
@@ -180,19 +198,20 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
 
     return Container(
       constraints: const BoxConstraints(
-        maxHeight: 550, // Further increased maximum height for portrait media
-        minHeight: 200,
+        maxHeight: 500, // Reduced maximum height for more compact appearance
+        minHeight: 180, // Reduced minimum height
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min, // Use minimum space needed
         children: [
-          // Tab bar with improved styling
+          // Modern, minimalist tab bar
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 4.0),
+            height: 36, // Reduced height for more compact appearance
             decoration: BoxDecoration(
               color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[300]!, width: 1),
+              borderRadius: BorderRadius.circular(20), // More rounded corners
+              border: Border.all(color: Colors.grey[200]!, width: 0.5), // Thinner border
             ),
             child: TabBar(
               controller: _tabController,
@@ -201,9 +220,9 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.image, size: 18),
-                      SizedBox(width: 6),
-                      Text('Photos', style: TextStyle(fontWeight: FontWeight.w500)),
+                      Icon(Icons.image, size: 14), // Smaller icon
+                      SizedBox(width: 4), // Reduced spacing
+                      Text('Photos', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)), // Smaller text
                     ],
                   ),
                 ),
@@ -211,36 +230,46 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.videocam, size: 18),
-                      SizedBox(width: 6),
-                      Text('Video', style: TextStyle(fontWeight: FontWeight.w500)),
+                      Icon(Icons.videocam, size: 14), // Smaller icon
+                      SizedBox(width: 4), // Reduced spacing
+                      Text('Video', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)), // Smaller text
                     ],
                   ),
                 ),
               ],
               labelColor: const Color(0xFF00C49A),
-              unselectedLabelColor: Colors.grey[600],
+              unselectedLabelColor: Colors.grey[500],
               indicatorColor: const Color(0xFF00C49A),
-              indicatorSize: TabBarIndicatorSize.tab,
+              indicatorSize: TabBarIndicatorSize.label, // Smaller indicator
+              indicatorWeight: 2, // Thinner indicator
               dividerColor: Colors.transparent,
-              labelPadding: const EdgeInsets.symmetric(vertical: 10.0),
+              labelPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8), // Reduced padding
+              padding: EdgeInsets.zero, // Remove default padding
             ),
           ),
-          const SizedBox(height: 8), // Slightly more spacing
+          const SizedBox(height: 4), // Minimal spacing for compact design
           // Tab content (remaining height)
           Flexible(
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 4.0),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[300]!, width: 1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey[200]!, width: 0.5), // Thinner, lighter border
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 6,
+                    spreadRadius: 0,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(11), // Slightly smaller to account for border
+                borderRadius: BorderRadius.circular(15.5), // Slightly smaller to account for border
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: 400, // Reduced max height for mixed media
-                    minHeight: 150, // Reduced minimum height for small images
+                  constraints: const BoxConstraints(
+                    maxHeight: 380, // Slightly reduced max height for mixed media
+                    minHeight: 140, // Slightly reduced minimum height for small images
                   ),
                   child: TabBarView(
                     controller: _tabController,
@@ -252,7 +281,7 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
                               child: ImageGalleryViewer(
                                 imageUrls: widget.imageUrls!,
                                 height: tabHeight,
-                                fit: BoxFit.contain,
+                                fit: BoxFit.cover, // Changed to cover to fill container
                                 maxHeight: 400, // Consistent with container constraints
                                 minHeight: 150, // Reduced minimum height for small images
                                 maintainAspectRatio: true,
@@ -282,7 +311,7 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
   }
 
   Widget _buildVideoPlayer() {
-    // Build video player with consistent height constraints
+    // Build video player with consistent height constraints and improved styling
 
     if (_hasVideoError) {
       return GestureDetector(
@@ -300,23 +329,57 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
         child: Container(
           width: double.infinity,
           height: 250, // Fixed height for error state
-          color: Colors.grey[200],
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 10,
+                spreadRadius: 1,
+                offset: const Offset(0, 3),
+              ),
+            ],
+            border: Border.all(
+              color: Colors.black,
+              width: 2,
+            ),
+          ),
           child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error, color: Colors.red, size: 30),
-                const SizedBox(height: 8),
-                Text(
-                  'Error loading video',
-                  style: TextStyle(color: Colors.grey[700]),
+                const Icon(Icons.error_outline, color: Colors.red, size: 36),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Error loading video',
+                    style: TextStyle(
+                      color: Colors.grey[800],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Tap to try again',
-                  style: TextStyle(
-                      color: Colors.blue[700], fontWeight: FontWeight.bold),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    'Tap to try again',
+                    style: TextStyle(
+                      color: Colors.blue[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -329,35 +392,195 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
       return Container(
         width: double.infinity,
         height: 250, // Fixed height for loading state
-        color: Colors.grey[200],
-        child: const Center(child: CircularProgressIndicator()),
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 10,
+              spreadRadius: 1,
+              offset: const Offset(0, 3),
+            ),
+          ],
+          border: Border.all(
+            color: Colors.black,
+            width: 2,
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                  strokeWidth: 3,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00C49A).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Text(
+                  'Loading video...',
+                  style: TextStyle(
+                    color: Color(0xFF00C49A),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
-    // Calculate height based on aspect ratio but constrained
-    final aspectRatio = _videoPlayerController.value.aspectRatio;
+    // For community notices, we want videos to be prominent with consistent appearance
+    // Use a height that works well for all video orientations
+    double safeHeight = 350.0; // Default height for videos
 
-    // Determine if this is a portrait video
-    final bool isPortrait = aspectRatio < 1.0;
-
-    // Calculate appropriate height based on orientation
-    double calculatedHeight;
-
-    if (isPortrait) {
-      // For portrait videos, use a taller height
-      calculatedHeight = MediaQuery.of(context).size.width * 1.2; // Taller for portrait
-    } else {
-      // For landscape videos, calculate based on aspect ratio
-      calculatedHeight = MediaQuery.of(context).size.width / aspectRatio;
+    // Adjust height for portrait videos to provide more vertical space
+    if (_videoPlayerController.value.isInitialized) {
+      final aspectRatio = _videoPlayerController.value.aspectRatio;
+      if (aspectRatio < 1.0) {
+        // For portrait videos, use a taller container
+        safeHeight = 400.0;
+      }
     }
 
-    // Clamp height to reasonable values
-    final safeHeight = calculatedHeight.clamp(200.0, 400.0);
-
-    return SizedBox(
+    return Container(
       width: double.infinity,
       height: safeHeight,
-      child: Chewie(controller: _chewieController!),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+            spreadRadius: 1,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border.all(
+          color: Colors.black,
+          width: 2,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14), // Slightly smaller to account for border
+        child: Stack(
+          children: [
+            // Video player with proper sizing that fills container without stretching
+            Container(
+              width: double.infinity,
+              height: double.infinity,
+              color: Colors.black,
+              child: Center(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Get video aspect ratio
+                    final aspectRatio = _videoPlayerController.value.aspectRatio;
+
+                    // Calculate the size that maintains aspect ratio within constraints
+                    double targetWidth, targetHeight;
+
+                    // Check if this is a small video (width or height less than 400px)
+                    final bool isSmallVideo = _videoPlayerController.value.size.width < 400 ||
+                                             _videoPlayerController.value.size.height < 400;
+
+                    if (aspectRatio < 1.0) {
+                      // Portrait video - constrain by width first to prevent horizontal overflow
+                      // Add a small buffer (4px) to ensure it never overflows
+                      targetWidth = constraints.maxWidth - 4;
+                      targetHeight = targetWidth / aspectRatio;
+                    } else {
+                      // Landscape video - constrain by width
+                      targetWidth = constraints.maxWidth;
+                      targetHeight = targetWidth / aspectRatio;
+
+                      // For small landscape videos, ensure they fill more of the available space
+                      if (isSmallVideo && targetHeight < constraints.maxHeight * 0.7) {
+                        // Scale up small videos to at least 70% of container height
+                        targetHeight = constraints.maxHeight * 0.7;
+                        targetWidth = targetHeight * aspectRatio;
+                      }
+                    }
+
+                    // Ensure we don't exceed container bounds
+                    if (targetHeight > constraints.maxHeight) {
+                      targetHeight = constraints.maxHeight;
+                      targetWidth = targetHeight * aspectRatio;
+
+                      // Double-check width doesn't exceed constraints after height adjustment
+                      if (targetWidth > constraints.maxWidth - 4) {
+                        targetWidth = constraints.maxWidth - 4;
+                      }
+                    }
+
+                    return Center(
+                      child: Container(
+                        width: targetWidth,
+                        height: targetHeight,
+                        color: Colors.black, // Add black background to ensure no white letterboxing
+                        child: Chewie(controller: _chewieController!),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            // Gradient overlay for better control visibility
+            if (!_videoPlayerController.value.isPlaying)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.0),
+                        Colors.black.withOpacity(0.3),
+                      ],
+                      stops: const [0.7, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+
+            // Custom play button overlay when paused
+            if (!_videoPlayerController.value.isPlaying)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () {
+                    _videoPlayerController.play();
+                  },
+                  child: Center(
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow,
+                        color: Colors.white,
+                        size: 36,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

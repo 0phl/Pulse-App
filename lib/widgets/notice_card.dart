@@ -1494,9 +1494,37 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: AspectRatio(
-          aspectRatio: _videoPlayerController.value.aspectRatio,
-          child: Chewie(controller: _chewieController!),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Get video aspect ratio
+            final aspectRatio = _videoPlayerController.value.aspectRatio;
+
+            // Calculate the size that maintains aspect ratio within constraints
+            double targetWidth, targetHeight;
+
+            if (aspectRatio < 1.0) {
+              // Portrait video - use a more reasonable height
+              targetHeight = constraints.maxWidth * 1.5;
+              targetWidth = targetHeight * aspectRatio;
+
+              // Ensure height doesn't get too extreme
+              if (targetHeight > 400) {
+                targetHeight = 400;
+                targetWidth = targetHeight * aspectRatio;
+              }
+            } else {
+              // Landscape video - constrain by width
+              targetWidth = constraints.maxWidth;
+              targetHeight = targetWidth / aspectRatio;
+            }
+
+            return Container(
+              width: targetWidth,
+              height: targetHeight,
+              color: Colors.black, // Add black background to ensure no white letterboxing
+              child: Chewie(controller: _chewieController!),
+            );
+          },
         ),
       ),
     );

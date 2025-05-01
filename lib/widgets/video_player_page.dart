@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
+import 'package:chewie/src/cupertino/cupertino_controls.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/media_saver_service.dart';
@@ -172,22 +174,59 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       looping: false,
       aspectRatio: _videoPlayerController.value.aspectRatio,
       errorBuilder: (context, errorMessage) {
-        return Center(
+        return Container(
+          margin: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.grey[900],
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 15,
+                spreadRadius: 2,
+                offset: const Offset(0, 5),
+              ),
+            ],
+            border: Border.all(
+              color: Colors.red.withOpacity(0.3),
+              width: 2,
+            ),
+          ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 50,
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.error_outline,
+                  color: Colors.red,
+                  size: 40,
+                ),
               ),
               const SizedBox(height: 16),
-              Text(
-                'Error playing video: $errorMessage',
-                style: const TextStyle(color: Colors.white),
-                textAlign: TextAlign.center,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Error playing video: $errorMessage',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).pop();
@@ -195,16 +234,59 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00C49A),
                   foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 4,
                 ),
-                child: const Text('Go Back'),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.arrow_back, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Go Back',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         );
       },
-      placeholder: const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+      placeholder: Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.grey[900]?.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                  strokeWidth: 3,
+                ),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Loading video...',
+                style: TextStyle(
+                  color: Color(0xFF00C49A),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       materialProgressColors: ChewieProgressColors(
@@ -218,7 +300,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       showControls: true, // Use built-in controls
       showControlsOnInitialize: true,
       hideControlsTimer: const Duration(seconds: 3),
-
+      customControls: const CupertinoControls(
+        backgroundColor: Color.fromRGBO(41, 41, 41, 0.7),
+        iconColor: Colors.white,
+      ),
     );
 
     // Restore position and playback speed if needed
@@ -255,7 +340,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           'Video Player',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
         ),
         actions: [
           if (!_isDownloading)
@@ -273,32 +358,204 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
               ? _buildErrorWidget()
               : _isInitialized
                   ? Center(
-                      child: Chewie(controller: _chewieController!),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 15,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 2,
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18), // Slightly smaller to account for border
+                          child: Stack(
+                            children: [
+                              // Video player with proper sizing for portrait videos
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  // Get video aspect ratio
+                                  final aspectRatio = _videoPlayerController.value.aspectRatio;
+
+                                  // For fullscreen player, we'll use the video's natural aspect ratio
+                                  // but ensure it fits within the container
+                                  return Container(
+                                    width: constraints.maxWidth,
+                                    height: aspectRatio < 1.0
+                                        ? constraints.maxWidth / aspectRatio // Portrait: height is greater
+                                        : constraints.maxWidth / aspectRatio, // Landscape: width is greater
+                                    color: Colors.black, // Add black background to ensure no white letterboxing
+                                    child: Chewie(controller: _chewieController!),
+                                  );
+                                },
+                              ),
+
+                              // Gradient overlay for better control visibility when paused
+                              if (!_videoPlayerController.value.isPlaying)
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Colors.black.withOpacity(0.0),
+                                          Colors.black.withOpacity(0.4),
+                                        ],
+                                        stops: const [0.7, 1.0],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                              // Custom play button overlay when paused
+                              if (!_videoPlayerController.value.isPlaying)
+                                Positioned.fill(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      _videoPlayerController.play();
+                                    },
+                                    child: Center(
+                                      child: Container(
+                                        width: 70,
+                                        height: 70,
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.5),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.play_arrow,
+                                          color: Colors.white,
+                                          size: 42,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
                     )
-                  : const Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                  : Center(
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[900],
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 15,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(
+                              width: 50,
+                              height: 50,
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                                strokeWidth: 3,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00C49A).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                'Loading video...',
+                                style: TextStyle(
+                                  color: Color(0xFF00C49A),
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
 
           // Download progress overlay
           if (_isDownloading)
             Container(
-              color: Colors.black.withAlpha(179),
+              color: Colors.black.withOpacity(0.8),
               child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(
-                      value: _downloadProgress,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Downloading video... ${(_downloadProgress * 100).toStringAsFixed(0)}%',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ],
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900],
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 15,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 80,
+                        height: 80,
+                        child: Stack(
+                          children: [
+                            CircularProgressIndicator(
+                              value: _downloadProgress,
+                              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                              strokeWidth: 6,
+                            ),
+                            Center(
+                              child: Text(
+                                '${(_downloadProgress * 100).toStringAsFixed(0)}%',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00C49A).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Downloading video...',
+                          style: TextStyle(
+                            color: Color(0xFF00C49A),
+                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -309,57 +566,136 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   Widget _buildErrorWidget() {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.grey[900],
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 15,
+              spreadRadius: 2,
+              offset: const Offset(0, 5),
+            ),
+          ],
+          border: Border.all(
+            color: Colors.red.withOpacity(0.3),
+            width: 2,
+          ),
+        ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.error_outline,
-              color: Colors.red,
-              size: 60,
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.error_outline,
+                color: Colors.red,
+                size: 50,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             const Text(
               'Error loading video',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage,
-              style: const TextStyle(color: Colors.white70),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _hasError = false;
-                  _isInitialized = false;
-                });
-                _initializePlayer();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00C49A),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              child: const Text('Try Again'),
-            ),
             const SizedBox(height: 12),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.white,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text('Go Back'),
+              child: Text(
+                _errorMessage.isNotEmpty ? _errorMessage : 'Unable to play this video',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 30),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _hasError = false;
+                      _isInitialized = false;
+                    });
+                    _initializePlayer();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00C49A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 4,
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh, size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        'Try Again',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: Colors.white.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.arrow_back, size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        'Go Back',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

@@ -116,7 +116,17 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       borderRadius: BorderRadius.circular(12),
       child: AspectRatio(
         aspectRatio: _videoPlayerController.value.aspectRatio,
-        child: Chewie(controller: _chewieController!),
+        child: Container(
+          color: Colors.black,
+          child: FittedBox(
+            fit: BoxFit.cover, // Make the video cover the container
+            child: SizedBox( // Constrain the Chewie widget to the video's size
+              width: _videoPlayerController.value.size.width,
+              height: _videoPlayerController.value.size.height,
+              child: Chewie(controller: _chewieController!),
+            ),
+          ),
+        ),
       ),
     );
   }

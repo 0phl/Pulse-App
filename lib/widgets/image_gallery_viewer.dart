@@ -168,19 +168,12 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
         // Special handling for different image types
         final bool isInMixedMediaPost = widget.width != null && widget.width == double.infinity;
 
-        // Use appropriate fit based on image size and context
+        // Always use cover for images in tabbed view to eliminate white space
         if (widget.isInTabbedView) {
-          if (isTinyImage || isVerySmallImage) {
-            imageFit = BoxFit.cover; // Use cover to minimize whitespace for very small images
-          } else if (isSmallImage) {
-            imageFit = isPortrait ? BoxFit.cover : BoxFit.contain;
-          } else if (isPortrait) {
-            imageFit = BoxFit.cover;
-          } else {
-            imageFit = BoxFit.contain;
-          }
-        } else if (isPortrait) {
-          // Use cover for portrait images to reduce white space
+          // Always use cover for all images in tabbed view to fill container completely
+          imageFit = BoxFit.cover;
+        } else if (isPortrait || isSmallImage || isVerySmallImage || isTinyImage) {
+          // Use cover for portrait and small images to reduce white space
           imageFit = BoxFit.cover;
         }
       }
@@ -217,7 +210,7 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
               child: Hero(
                 tag: imageUrl,
                 child: Container(
-                  color: Colors.grey[100], // Background color for small images
+                  color: const Color(0xFF00C49A).withOpacity(0.05), // Light teal background to match app theme
                   width: double.infinity,
                   height: double.infinity,
                   child: Image.network(
@@ -241,7 +234,7 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: Colors.grey[100],
+                                  color: const Color(0xFF00C49A).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Text(
@@ -262,7 +255,7 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
                     return Container(
-                      color: Colors.grey[100],
+                      color: const Color(0xFF00C49A).withOpacity(0.05),
                       child: Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -476,7 +469,7 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
     Widget gridItemContent = Container(
       decoration: BoxDecoration(
         borderRadius: widget.borderRadius,
-        border: Border.all(color: Colors.white, width: 2.5),
+        // Removed white border to eliminate white space
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -485,16 +478,14 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
             offset: const Offset(0, 1),
           ),
         ],
-        // Add a background color to prevent transparent areas
-        color: Colors.grey[100],
+        // Add a background color to match the app theme
+        color: const Color(0xFF00C49A).withOpacity(0.05),
       ),
       // Ensure the container fills its parent completely
       width: double.infinity,
       height: double.infinity,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(
-          widget.borderRadius.topLeft.y - 2
-        ),
+        borderRadius: widget.borderRadius, // Use exact same border radius as container
         child: showHero
             ? Hero(
                 tag: '${imageUrl}_$index',
@@ -532,23 +523,21 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
     final dimensions = _imageDimensions[imageUrl];
     BoxFit imageFit = BoxFit.cover; // Default to cover
 
-    // If we have dimensions and this is a small image, use contain to avoid stretching
+    // Always use cover or fill to eliminate white space
     if (dimensions != null) {
       final bool isSmallImage = dimensions.width < 500 && dimensions.height < 500;
       final bool isVerySmallImage = dimensions.width < 300 && dimensions.height < 300;
       final bool isTinyImage = dimensions.width < 200 && dimensions.height < 200;
 
-      // For tabbed view (community notices), use fill for small images to avoid white space
-      if (widget.isInTabbedView && (isSmallImage || isVerySmallImage || isTinyImage)) {
-        // Use fill for all small images in tabbed view to avoid white space
+      // For tabbed view (community notices), always use cover to fill the container
+      if (widget.isInTabbedView) {
+        // Use cover for all images in tabbed view to eliminate white space
+        imageFit = BoxFit.cover;
+      } else if (isTinyImage || isVerySmallImage) {
+        // For very small images, use fill to avoid white space
         imageFit = BoxFit.fill;
-      } else if (isTinyImage) {
-        // For extremely small images, use fill to avoid too much white space
-        imageFit = BoxFit.fill;
-      } else if (isVerySmallImage) {
-        imageFit = BoxFit.contain;
       } else if (isSmallImage) {
-        // For moderately small images, still use cover but with center alignment
+        // For small images, use cover
         imageFit = BoxFit.cover;
       }
     }
@@ -559,7 +548,7 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
       // Ensure the image container fills all available space
       width: double.infinity,
       height: double.infinity,
-      color: Colors.grey[100], // Light background for consistency with app theme
+      color: const Color(0xFF00C49A).withOpacity(0.05), // Light teal background to match app theme
       child: Image.network(
         imageUrl,
         fit: imageFit, // Use the determined fit based on image size
@@ -569,10 +558,8 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
         errorBuilder: (context, error, stackTrace) {
           return Container(
             decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(
-                widget.borderRadius.topLeft.y - 2
-              ),
+              color: const Color(0xFF00C49A).withOpacity(0.05),
+              borderRadius: widget.borderRadius, // Use exact same border radius as container
               border: Border.all(color: Colors.grey[300]!, width: 1),
             ),
             width: double.infinity,
@@ -586,8 +573,8 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(12),
+                      color: const Color(0xFF00C49A).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
                       'Image not available',
@@ -608,10 +595,8 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
           if (loadingProgress == null) return child;
           return Container(
             decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(
-                widget.borderRadius.topLeft.y - 2
-              ),
+              color: const Color(0xFF00C49A).withOpacity(0.05),
+              borderRadius: widget.borderRadius, // Use exact same border radius as container
             ),
             width: double.infinity,
             height: double.infinity,
