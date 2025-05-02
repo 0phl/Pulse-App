@@ -154,7 +154,7 @@ class _MainScreenState extends State<MainScreen> {
 
   // Pages with the MarketPage having the callback
   late final List<Widget> _pages = <Widget>[
-    const HomePage(),
+    HomePage(),
     MarketPage(
         key: UniqueKey(), // Add a unique key to force rebuild
         onUnreadChatsChanged: _updateUnreadChats),
@@ -163,6 +163,13 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   void _onItemTapped(int index) {
+    // If already on the home tab and pressing home again, scroll to top
+    if (index == 0 && _selectedIndex == 0) {
+      // Call the static method to scroll to top
+      HomePage.scrollToTop();
+      return;
+    }
+
     // If selecting the Market tab
     if (index == 1) {
       // Force refresh of the unread count

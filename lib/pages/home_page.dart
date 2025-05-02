@@ -11,26 +11,53 @@ import 'login_page.dart';
 import 'profile_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  // Use a global key that can be accessed from outside
+  static final GlobalKey<HomePageState> homeKey = GlobalKey<HomePageState>();
+
+  // Constructor without const keyword
+  HomePage({Key? key}) : super(key: key ?? homeKey);
+
+  // Static method to scroll to top that can be called from outside
+  static void scrollToTop() {
+    homeKey.currentState?.scrollToTop();
+  }
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomePage> createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> {
   final _auth = FirebaseAuth.instance;
   final _communityService = CommunityService();
   final _noticeService = CommunityNoticeService();
   final _adminService = AdminService();
+  final ScrollController _scrollController = ScrollController();
   String? _currentUserCommunityId;
   bool _isAdmin = false;
   bool _isLoading = true;
   String _communityName = '';
 
+  // Method to scroll to top with animation
+  void scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Stream<Map<String, dynamic>> _getUserData() {
@@ -498,6 +525,7 @@ class _HomePageState extends State<HomePage> {
                 return RefreshIndicator(
                   onRefresh: _refreshNotices,
                   child: ListView.builder(
+                    controller: _scrollController,
                     padding: const EdgeInsets.all(16),
                     itemCount: notices.length,
                     itemBuilder: (context, index) {
