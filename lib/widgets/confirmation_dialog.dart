@@ -20,7 +20,7 @@ class ConfirmationDialog extends StatelessWidget {
     this.iconBackgroundColor = Colors.red,
   });
 
-  static Future<bool?> show({
+  static Future<bool> show({
     required BuildContext context,
     required String title,
     required String message,
@@ -29,19 +29,42 @@ class ConfirmationDialog extends StatelessWidget {
     Color confirmColor = Colors.red,
     IconData icon = Icons.warning_rounded,
     Color iconBackgroundColor = Colors.red,
-  }) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => ConfirmationDialog(
-        title: title,
-        message: message,
-        confirmText: confirmText,
-        cancelText: cancelText,
-        confirmColor: confirmColor,
-        icon: icon,
-        iconBackgroundColor: iconBackgroundColor,
-      ),
-    );
+  }) async {
+    debugPrint('ConfirmationDialog: Showing dialog');
+
+    // Use completer to ensure we always get a response
+    bool dialogResult = false;
+
+    try {
+      // Use await to ensure we get a proper response
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false, // Prevent dismissing by tapping outside
+        builder: (context) => PopScope(
+          // Prevent dismissing by back button
+          canPop: false,
+          child: ConfirmationDialog(
+            title: title,
+            message: message,
+            confirmText: confirmText,
+            cancelText: cancelText,
+            confirmColor: confirmColor,
+            icon: icon,
+            iconBackgroundColor: iconBackgroundColor,
+          ),
+        ),
+      );
+
+      // Set the result, defaulting to false if null
+      dialogResult = result ?? false;
+      debugPrint('ConfirmationDialog: Dialog closed with result: $dialogResult');
+    } catch (e) {
+      debugPrint('ConfirmationDialog: Error showing dialog: $e');
+      dialogResult = false;
+    }
+
+    // Return explicit result
+    return dialogResult;
   }
 
   @override
@@ -108,12 +131,18 @@ class ConfirmationDialog extends StatelessWidget {
               children: [
                 // Cancel button
                 Expanded(
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    style: TextButton.styleFrom(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      debugPrint('Confirmation dialog: Cancel button pressed');
+                      // Explicitly return false and close the dialog
+                      Navigator.of(context).pop(false);
+                      debugPrint('Confirmation dialog: Dialog popped with false');
+                    },
+                    style: ElevatedButton.styleFrom(
                       foregroundColor: Colors.grey[800],
                       backgroundColor: Colors.grey[200],
                       padding: const EdgeInsets.symmetric(vertical: 15),
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -130,12 +159,18 @@ class ConfirmationDialog extends StatelessWidget {
                 const SizedBox(width: 15),
                 // Confirm button
                 Expanded(
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: TextButton.styleFrom(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      debugPrint('Confirmation dialog: Delete button pressed');
+                      // Explicitly return true and close the dialog immediately
+                      Navigator.of(context).pop(true);
+                      debugPrint('Confirmation dialog: Dialog popped with true');
+                    },
+                    style: ElevatedButton.styleFrom(
                       foregroundColor: Colors.white,
                       backgroundColor: confirmColor,
                       padding: const EdgeInsets.symmetric(vertical: 15),
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

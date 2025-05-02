@@ -210,11 +210,82 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _refreshNotices() async {
+    debugPrint('HomePage: Refreshing notices');
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
+
     await _loadUserData();
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+    debugPrint('HomePage: Notices refreshed');
   }
 
   void _handleNoticeAdded(String noticeId) {
     _refreshNotices();
+  }
+
+  // Method to handle notice deletion with proper context management
+  Future<void> _deleteNotice(String noticeId, BuildContext contextFromCaller) async {
+    // Store the context locally to avoid issues with async gaps
+    final BuildContext context = contextFromCaller;
+
+    // Show a loading dialog
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => const PopScope(
+          canPop: false,
+          child: Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+            ),
+          ),
+        ),
+      );
+    }
+
+    try {
+      // Delete the notice
+      debugPrint('Deleting notice: $noticeId');
+      await _noticeService.deleteNotice(noticeId);
+      debugPrint('Notice deleted successfully');
+
+      // Close the loading dialog
+      if (context.mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      // Show success message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notice deleted successfully'),
+            backgroundColor: Color(0xFF00C49A),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error deleting notice: $e');
+
+      // Close the loading dialog
+      if (context.mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      // Show error message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting notice: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -432,12 +503,16 @@ class _HomePageState extends State<HomePage> {
                     itemBuilder: (context, index) {
                       final notice = notices[index];
                       return CommunityNoticeCard(
+                        key: ValueKey('notice_${notice.id}'), // Add key to help Flutter identify this widget uniquely
                         notice: notice,
                         isAdmin: _isAdmin,
-                        onDelete: () async {
-                          await _noticeService.deleteNotice(notice.id);
-                          _refreshNotices();
-                        },
+                        onDelete: _isAdmin ? () {
+                          debugPrint('HomePage: Delete function called for notice ${notice.id}');
+
+                          // Use a more direct approach to delete the notice
+                          // This avoids issues with the stream refreshing during deletion
+                          _deleteNotice(notice.id, context);
+                        } : null,
                       );
                     },
                   ),

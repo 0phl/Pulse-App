@@ -6,6 +6,7 @@ import '../../models/community_notice.dart';
 import '../../widgets/create_notice_sheet.dart';
 import '../../widgets/notice_card.dart';
 import '../../widgets/admin_scaffold.dart';
+import '../../widgets/confirmation_dialog.dart';
 
 
 class AdminCommunityNoticesPage extends StatefulWidget {
@@ -204,6 +205,21 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
   }
 
   Future<void> _deleteNotice(String noticeId) async {
+    // Show confirmation dialog
+    final shouldDelete = await ConfirmationDialog.show(
+      context: context,
+      title: 'Delete Notice',
+      message: 'Are you sure you want to delete this community notice? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      confirmColor: Colors.red,
+      icon: Icons.delete_outline,
+      iconBackgroundColor: Colors.red,
+    );
+
+    // If user cancels or dismisses the dialog
+    if (shouldDelete != true) return;
+
     try {
       await _adminService.deleteNotice(noticeId);
       _loadNotices();

@@ -10,10 +10,12 @@ import 'comment_text.dart';
 
 class CommentsSheet extends StatefulWidget {
   final CommunityNotice notice;
+  final VoidCallback? onCommentAdded;
 
   const CommentsSheet({
     Key? key,
     required this.notice,
+    this.onCommentAdded,
   }) : super(key: key);
 
   @override
@@ -203,6 +205,9 @@ class _CommentsSheetState extends State<CommentsSheet> {
         setState(() {
           _isRefreshing = false;
         });
+
+        // Notify parent widget that comments were refreshed
+        widget.onCommentAdded?.call();
       }
     }
   }
@@ -329,6 +334,9 @@ class _CommentsSheetState extends State<CommentsSheet> {
             }
           }
         }
+
+        // Notify parent widget that a comment was liked/unliked
+        widget.onCommentAdded?.call();
       });
     } catch (e) {
       if (mounted) {
@@ -467,6 +475,9 @@ class _CommentsSheetState extends State<CommentsSheet> {
           }
           _commentController.clear();
         });
+
+        // Notify parent widget that a comment was added
+        widget.onCommentAdded?.call();
       }
     } catch (e) {
       if (mounted) {

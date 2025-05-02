@@ -8,11 +8,15 @@ import '../multi_image_viewer_page.dart';
 import 'comments_page.dart';
 import 'poll_widget.dart';
 import 'attachment_widget.dart';
+import '../confirmation_dialog.dart';
 
 class CommunityNoticeCard extends StatelessWidget {
   final CommunityNotice notice;
   final bool isAdmin;
   final Function()? onDelete;
+
+  // Static variable to prevent multiple deletion attempts
+  static bool _isProcessingDeletion = false;
 
   const CommunityNoticeCard({
     super.key,
@@ -96,7 +100,55 @@ class CommunityNoticeCard extends StatelessWidget {
             trailing: isAdmin
                 ? IconButton(
                     icon: const Icon(Icons.delete_outline),
-                    onPressed: onDelete,
+                    onPressed: () async {
+                      // Use a static variable to prevent multiple clicks
+                      // This ensures we don't trigger multiple deletion attempts
+                      if (_isProcessingDeletion) return;
+
+                      try {
+                        _isProcessingDeletion = true;
+
+                        // Show confirmation dialog before deleting
+                        final shouldDelete = await ConfirmationDialog.show(
+                          context: context,
+                          title: 'Delete Notice',
+                          message: 'Are you sure you want to delete this community notice? This action cannot be undone.',
+                          confirmText: 'Delete',
+                          cancelText: 'Cancel',
+                          confirmColor: Colors.red,
+                          icon: Icons.delete_outline,
+                          iconBackgroundColor: Colors.red,
+                        );
+
+                        // Only proceed with deletion if confirmed
+                        if (shouldDelete == true && context.mounted) {
+                          // Show deletion in progress
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Deleting notice...'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+
+                          // Call the delete function directly and ensure it executes
+                          if (onDelete != null) {
+                            debugPrint('CommunityNoticeCard: Directly calling delete function');
+
+                            // Call the delete function directly - no need for delays
+                            onDelete!();
+                            debugPrint('CommunityNoticeCard: Delete function called');
+                          }
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error deleting notice: $e')),
+                          );
+                        }
+                      } finally {
+                        _isProcessingDeletion = false;
+                      }
+                    },
                     color: Colors.red[400],
                   )
                 : null,

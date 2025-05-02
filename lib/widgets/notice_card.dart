@@ -16,8 +16,9 @@ import 'file_download_progress.dart';
 import 'image_viewer_page.dart';
 import 'pdf_viewer_page.dart';
 import 'docx_viewer_page.dart';
+import 'confirmation_dialog.dart';
 
-class NoticeCard extends StatelessWidget {
+class NoticeCard extends StatefulWidget {
   final CommunityNotice notice;
   final Function()? onEdit;
   final Function()? onDelete;
@@ -31,72 +32,108 @@ class NoticeCard extends StatelessWidget {
     this.onRefresh,
   });
 
-  // Helper methods for file attachments
-  IconData _getIconForFileType(String type) {
-    switch (type.toLowerCase()) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
-        return Icons.description;
-      case 'xls':
-      case 'xlsx':
-        return Icons.table_chart;
-      case 'ppt':
-      case 'pptx':
-        return Icons.slideshow;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-        return Icons.image;
-      case 'mp4':
-      case 'mov':
-      case 'avi':
-        return Icons.video_file;
-      default:
-        return Icons.insert_drive_file;
+  @override
+  State<NoticeCard> createState() => _NoticeCardState();
+}
+
+class _NoticeCardState extends State<NoticeCard> {
+  late CommunityNotice _notice;
+  final AdminService _adminService = AdminService();
+
+  @override
+  void initState() {
+    super.initState();
+    _notice = widget.notice;
+  }
+
+  @override
+  void didUpdateWidget(NoticeCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.notice != widget.notice) {
+      setState(() {
+        _notice = widget.notice;
+      });
     }
   }
 
-  Color _getColorForFileType(String type) {
-    switch (type.toLowerCase()) {
-      case 'pdf':
-        return Colors.red;
-      case 'doc':
-      case 'docx':
-        return Colors.blue;
-      case 'xls':
-      case 'xlsx':
-        return Colors.green;
-      case 'ppt':
-      case 'pptx':
-        return Colors.orange;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-        return Colors.purple;
-      case 'mp4':
-      case 'mov':
-      case 'avi':
-        return Colors.red[700]!;
-      default:
-        return Colors.grey;
-    }
-  }
+  // Method to update like status locally
+  void _toggleLike() {
+    final currentUserId = _adminService.currentUserId ?? '';
+    final isLiked = _notice.isLikedBy(currentUserId);
 
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) {
-      return '$bytes B';
-    } else if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    // Create a local copy of the notice with updated like status
+    List<String> updatedLikedBy = List.from(_notice.likedBy);
+    if (isLiked) {
+      updatedLikedBy.remove(currentUserId);
     } else {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+      updatedLikedBy.add(currentUserId);
+    }
+
+    // Update the local notice object
+    setState(() {
+      _notice = _notice.copyWith(likedBy: updatedLikedBy);
+    });
+
+    // Perform the actual API call in the background
+    _adminService.toggleNoticeLike(_notice.id);
+  }
+
+  // Method to refresh notice data after comments are added/liked
+  Future<void> _refreshNoticeData() async {
+    try {
+      // Get the latest notice data from the service
+      final updatedNotices = await _adminService.getNotices();
+
+      // Find the current notice in the updated list
+      final updatedNotice = updatedNotices.firstWhere(
+        (n) => n.id == _notice.id,
+        orElse: () => _notice, // Keep the current notice if not found
+      );
+
+      // Update the state with the refreshed notice
+      if (mounted) {
+        setState(() {
+          _notice = updatedNotice;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error refreshing notice data: $e');
+    }
+  }
+
+  // Helper method to format dates
+  String _formatDate(DateTime date) {
+    return DateFormat('MMM d, y h:mm a').format(date);
+  }
+
+  // Helper method to format poll expiry dates
+  String _formatExpiryDate(DateTime expiryDate) {
+    final now = DateTime.now();
+    final difference = expiryDate.difference(now);
+
+    if (difference.isNegative) {
+      return 'Poll ended';
+    }
+
+    if (difference.inDays > 7) {
+      final weeks = (difference.inDays / 7).floor();
+      return 'Ends in ${weeks == 1 ? '1 week' : '$weeks weeks'}';
+    } else if (difference.inDays > 0) {
+      return 'Ends in ${difference.inDays == 1 ? '1 day' : '${difference.inDays} days'}';
+    } else if (difference.inHours > 0) {
+      return 'Ends in ${difference.inHours == 1 ? '1 hour' : '${difference.inHours} hours'}';
+    } else if (difference.inMinutes > 0) {
+      return 'Ends in ${difference.inMinutes == 1 ? '1 minute' : '${difference.inMinutes} minutes'}';
+    } else {
+      return 'Ends in ${difference.inSeconds == 1 ? '1 second' : '${difference.inSeconds} seconds'}';
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final adminService = AdminService();
+    // Use local variables for clarity
+    final notice = _notice;
+    final adminService = _adminService;
 
     return Card(
       elevation: 0,
@@ -143,7 +180,7 @@ class NoticeCard extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
-            trailing: onEdit != null && onDelete != null
+            trailing: widget.onEdit != null && widget.onDelete != null
                 ? PopupMenuButton(
                     icon: const Icon(Icons.more_vert),
                     itemBuilder: (context) => [
@@ -159,11 +196,26 @@ class NoticeCard extends StatelessWidget {
                         ),
                       ),
                     ],
-                    onSelected: (value) {
+                    onSelected: (value) async {
                       if (value == 'edit') {
-                        onEdit?.call();
+                        widget.onEdit?.call();
                       } else if (value == 'delete') {
-                        onDelete?.call();
+                        // Show confirmation dialog before deleting
+                        final shouldDelete = await ConfirmationDialog.show(
+                          context: context,
+                          title: 'Delete Notice',
+                          message: 'Are you sure you want to delete this community notice? This action cannot be undone.',
+                          confirmText: 'Delete',
+                          cancelText: 'Cancel',
+                          confirmColor: Colors.red,
+                          icon: Icons.delete_outline,
+                          iconBackgroundColor: Colors.red,
+                        );
+
+                        // Only proceed with deletion if confirmed
+                        if (shouldDelete == true) {
+                          widget.onDelete?.call();
+                        }
                       }
                     },
                   )
@@ -963,8 +1015,8 @@ class NoticeCard extends StatelessWidget {
                         child: InkWell(
                           onTap: () async {
                             try {
-                              await adminService.toggleNoticeLike(notice.id);
-                              onRefresh?.call();
+                              // Call the method to update like status locally
+                              _toggleLike();
                             } catch (e) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1013,9 +1065,15 @@ class NoticeCard extends StatelessWidget {
                               isScrollControlled: true,
                               backgroundColor: Colors.transparent,
                               builder: (context) =>
-                                  CommentsSheet(notice: notice),
+                                  CommentsSheet(
+                                    notice: notice,
+                                    onCommentAdded: () {
+                                      // Refresh the notice data to get updated comments count
+                                      _refreshNoticeData();
+                                    },
+                                  ),
                             );
-                            onRefresh?.call();
+                            // Don't call onRefresh to avoid full page reload
                           },
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -1078,31 +1136,7 @@ class NoticeCard extends StatelessWidget {
     );
   }
 
-  String _formatExpiryDate(DateTime expiryDate) {
-    final now = DateTime.now();
-    final difference = expiryDate.difference(now);
 
-    if (difference.isNegative) {
-      return 'Poll ended';
-    }
-
-    if (difference.inDays > 7) {
-      final weeks = (difference.inDays / 7).floor();
-      return 'Ends in ${weeks == 1 ? '1 week' : '$weeks weeks'}';
-    } else if (difference.inDays > 0) {
-      return 'Ends in ${difference.inDays == 1 ? '1 day' : '${difference.inDays} days'}';
-    } else if (difference.inHours > 0) {
-      return 'Ends in ${difference.inHours == 1 ? '1 hour' : '${difference.inHours} hours'}';
-    } else if (difference.inMinutes > 0) {
-      return 'Ends in ${difference.inMinutes == 1 ? '1 minute' : '${difference.inMinutes} minutes'}';
-    } else {
-      return 'Ends in ${difference.inSeconds == 1 ? '1 second' : '${difference.inSeconds} seconds'}';
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    return DateFormat('MMM d, y h:mm a').format(date);
-  }
 }
 
 class _AttachmentItem extends StatefulWidget {

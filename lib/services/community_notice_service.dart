@@ -356,7 +356,61 @@ class CommunityNoticeService {
 
   // Delete a notice (only by author or admin)
   Future<void> deleteNotice(String noticeId) async {
-    await _database.child('community_notices').child(noticeId).remove();
+    try {
+      debugPrint('Starting deletion of notice: $noticeId');
+
+      // First check if the notice exists
+      final noticeSnapshot = await _database.child('community_notices').child(noticeId).get();
+      if (!noticeSnapshot.exists) {
+        debugPrint('Notice not found: $noticeId');
+        throw Exception('Notice not found');
+      }
+
+      debugPrint('Notice found, proceeding with deletion');
+
+      // Use a direct reference to the notice
+      final noticeRef = _database.child('community_notices').child(noticeId);
+
+      // We'll use direct deletion since Firebase RTDB transactions are complex
+      bool deleteSuccess = false;
+
+      // If transaction failed or wasn't supported, try direct deletion
+      if (!deleteSuccess) {
+        // Try set(null) first
+        await noticeRef.set(null);
+        debugPrint('Notice removal command sent using set(null)');
+
+        // Add a small delay to ensure the deletion is processed
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Verify deletion was successful
+        final verifySnapshot = await noticeRef.get();
+        if (verifySnapshot.exists) {
+          debugPrint('Notice still exists after set(null), trying remove()...');
+          // If set(null) wasn't successful, try with remove() method
+          await noticeRef.remove();
+          await Future.delayed(const Duration(milliseconds: 500));
+
+          // Final verification
+          final finalVerifySnapshot = await noticeRef.get();
+          if (finalVerifySnapshot.exists) {
+            debugPrint('Notice still exists after remove() attempt');
+            throw Exception('Failed to delete notice after multiple attempts');
+          } else {
+            debugPrint('Notice successfully deleted using remove()');
+          }
+        } else {
+          debugPrint('Notice successfully deleted using set(null)');
+        }
+      }
+
+      // Final success message
+      debugPrint('Notice $noticeId successfully deleted');
+
+    } catch (e) {
+      debugPrint('Error deleting notice: $e');
+      rethrow; // Rethrow to allow proper error handling by caller
+    }
   }
 
   // Update all comments by a user when their profile changes
