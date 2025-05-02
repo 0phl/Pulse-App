@@ -609,39 +609,46 @@ class CommunityNoticeCard extends StatelessWidget {
                   child: Row(
                     children: [
                       Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (user != null) {
-                              await noticeService.likeNotice(
-                                  notice.id, user.uid);
-                            }
-                          },
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                notice.isLikedBy(FirebaseAuth
-                                            .instance.currentUser?.uid ??
-                                        '')
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                size: 20,
-                                color: notice.isLikedBy(FirebaseAuth
-                                            .instance.currentUser?.uid ??
-                                        '')
-                                    ? const Color(0xFF00C49A)
-                                    : Colors.grey[600],
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () async {
+                              final user = FirebaseAuth.instance.currentUser;
+                              if (user != null) {
+                                await noticeService.likeNotice(
+                                    notice.id, user.uid);
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    notice.isLikedBy(FirebaseAuth
+                                                .instance.currentUser?.uid ??
+                                            '')
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    size: 20,
+                                    color: notice.isLikedBy(FirebaseAuth
+                                                .instance.currentUser?.uid ??
+                                            '')
+                                        ? const Color(0xFF00C49A)
+                                        : Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    notice.likesCount.toString(),
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                notice.likesCount.toString(),
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
@@ -651,33 +658,40 @@ class CommunityNoticeCard extends StatelessWidget {
                         color: Colors.grey.shade200,
                       ),
                       Expanded(
-                        child: InkWell(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    CommentsPage(notice: notice),
-                              ),
-                            );
-                          },
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.chat_bubble_outline,
-                                size: 20,
-                                color: Colors.grey[600],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                notice.commentsCount.toString(),
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      CommentsPage(notice: notice),
                                 ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.chat_bubble_outline,
+                                    size: 20,
+                                    color: Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    notice.commentsCount.toString(),
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
@@ -687,27 +701,34 @@ class CommunityNoticeCard extends StatelessWidget {
                         color: Colors.grey.shade200,
                       ),
                       Expanded(
-                        child: InkWell(
-                          onTap: () {
-                            // Implement share functionality
-                          },
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.share_outlined,
-                                size: 20,
-                                color: Colors.grey[600],
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              // Implement share functionality
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.share_outlined,
+                                    size: 20,
+                                    color: Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Share',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Share',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),

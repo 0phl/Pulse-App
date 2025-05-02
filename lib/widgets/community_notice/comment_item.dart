@@ -111,69 +111,90 @@ class CommentItem extends StatelessWidget {
                     Row(
                       children: [
                         // Like button
-                        InkWell(
-                          onTap: onLike,
-                          child: Row(
-                            children: [
-                              Icon(
-                                isLiked ? Icons.favorite : Icons.favorite_border,
-                                size: 16,
-                                color: isLiked ? const Color(0xFF00C49A) : Colors.grey[600],
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: onLike,
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isLiked ? Icons.favorite : Icons.favorite_border,
+                                    size: 16,
+                                    color: isLiked ? const Color(0xFF00C49A) : Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    comment.likesCount.toString(),
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                comment.likesCount.toString(),
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
                         // Reply button
-                        InkWell(
-                          onTap: onReply,
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.reply,
-                                size: 16,
-                                color: Colors.grey[600],
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: onReply,
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.reply,
+                                    size: 16,
+                                    color: Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Reply',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Reply',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                         if (hasReplies) ...[
                           const SizedBox(width: 16),
                           // Show/hide replies button
-                          InkWell(
-                            onTap: onToggleExpanded,
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isExpanded ? Icons.expand_less : Icons.expand_more,
-                                  size: 16,
-                                  color: Colors.grey[600],
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: onToggleExpanded,
+                              borderRadius: BorderRadius.circular(20),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      isExpanded ? Icons.expand_less : Icons.expand_more,
+                                      size: 16,
+                                      color: Colors.grey[600],
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      isExpanded ? 'Hide replies' : 'Show ${comment.repliesCount} ${comment.repliesCount == 1 ? 'reply' : 'replies'}',
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  isExpanded ? 'Hide replies' : 'Show ${comment.repliesCount} ${comment.repliesCount == 1 ? 'reply' : 'replies'}',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
                         ],
@@ -268,46 +289,60 @@ class CommentItem extends StatelessWidget {
                               Row(
                                 children: [
                                   // Like button
-                                  InkWell(
-                                    onTap: () => onLikeReply(reply),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          isReplyLiked ? Icons.favorite : Icons.favorite_border,
-                                          size: 14,
-                                          color: isReplyLiked ? const Color(0xFF00C49A) : Colors.grey[600],
+                                  Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: () => onLikeReply(reply),
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              isReplyLiked ? Icons.favorite : Icons.favorite_border,
+                                              size: 14,
+                                              color: isReplyLiked ? const Color(0xFF00C49A) : Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 2),
+                                            Text(
+                                              reply.likesCount.toString(),
+                                              style: TextStyle(
+                                                color: Colors.grey[600],
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        const SizedBox(width: 2),
-                                        Text(
-                                          reply.likesCount.toString(),
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
                                   // Reply button
-                                  InkWell(
-                                    onTap: () => onReplyToReply(reply),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.reply,
-                                          size: 14,
-                                          color: Colors.grey[600],
+                                  Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: () => onReplyToReply(reply),
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.reply,
+                                              size: 14,
+                                              color: Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 2),
+                                            Text(
+                                              'Reply',
+                                              style: TextStyle(
+                                                color: Colors.grey[600],
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        const SizedBox(width: 2),
-                                        Text(
-                                          'Reply',
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
+                                      ),
                                     ),
                                   ),
                                 ],

@@ -69,7 +69,7 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
         // For landscape videos, use the natural aspect ratio
         aspectRatio: isPortrait ? null : aspectRatio,
         autoPlay: false, // Don't auto-play - let user decide when to play
-        looping: false, // Don't loop the video - stop when it finishes
+        looping: true, // Loop the video for better user experience
         allowFullScreen: true, // Enable built-in fullscreen functionality
         allowMuting: true, // Allow muting
         showControls: true, // Show built-in controls

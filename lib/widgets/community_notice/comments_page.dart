@@ -388,6 +388,7 @@ class _CommentsPageState extends State<CommentsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text('Comments', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF00C49A),
@@ -514,7 +515,8 @@ class _CommentsPageState extends State<CommentsPage> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: EdgeInsets.only(
                         top: 8,
-                        bottom: MediaQuery.of(context).padding.bottom,
+                        // Add extra padding at the bottom to ensure content isn't hidden behind the keyboard
+                        bottom: MediaQuery.of(context).viewInsets.bottom + 120,
                       ),
                       itemCount: _comments.length,
                       separatorBuilder: (context, index) => Divider(
@@ -613,9 +615,14 @@ class _CommentsPageState extends State<CommentsPage> {
                                       color: Colors.grey[400],
                                       fontSize: 14,
                                     ),
-                                    border: InputBorder.none,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                      borderSide: BorderSide.none,
+                                    ),
                                     isDense: true,
-                                    contentPadding: EdgeInsets.zero,
+                                    contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                    filled: true,
+                                    fillColor: Colors.grey[100],
                                     prefixIcon: _replyingTo != null
                                         ? Padding(
                                             padding: const EdgeInsets.only(right: 8.0),

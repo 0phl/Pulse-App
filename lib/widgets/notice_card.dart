@@ -998,87 +998,51 @@ class _NoticeCardState extends State<NoticeCard> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            try {
-                              // Call the method to update like status locally
-                              _toggleLike();
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                      content: Text('Error updating like: $e')),
-                                );
-                              }
-                            }
-                          },
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                notice.isLikedBy(
-                                        adminService.currentUserId ?? '')
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                size: 20,
-                                color: notice.isLikedBy(
-                                        adminService.currentUserId ?? '')
-                                    ? const Color(0xFF00C49A)
-                                    : Colors.grey[600],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                notice.likesCount.toString(),
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Container(
-                        height: 24,
-                        width: 1,
-                        color: Colors.grey.shade200,
-                      ),
-                      Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            await showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (context) =>
-                                  CommentsSheet(
-                                    notice: notice,
-                                    onCommentAdded: () {
-                                      // Refresh the notice data to get updated comments count
-                                      _refreshNoticeData();
-                                    },
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () async {
+                                  try {
+                                    // Call the method to update like status locally
+                                    _toggleLike();
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                            content: Text('Error updating like: $e')),
+                                      );
+                                    }
+                                  }
+                                },
+                                customBorder: const CircleBorder(),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Icon(
+                                    notice.isLikedBy(
+                                            adminService.currentUserId ?? '')
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    size: 20,
+                                    color: notice.isLikedBy(
+                                            adminService.currentUserId ?? '')
+                                        ? const Color(0xFF00C49A)
+                                        : Colors.grey[600],
                                   ),
-                            );
-                            // Don't call onRefresh to avoid full page reload
-                          },
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.chat_bubble_outline,
-                                size: 20,
-                                color: Colors.grey[600],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                notice.commentsCount.toString(),
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              notice.likesCount.toString(),
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       Container(
@@ -1087,28 +1051,85 @@ class _NoticeCardState extends State<NoticeCard> {
                         color: Colors.grey.shade200,
                       ),
                       Expanded(
-                        child: InkWell(
-                          onTap: () {
-                            // Implement share functionality
-                          },
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.share_outlined,
-                                size: 20,
-                                color: Colors.grey[600],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Share',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () async {
+                                  await showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    backgroundColor: Colors.transparent,
+                                    builder: (context) =>
+                                        CommentsSheet(
+                                          notice: notice,
+                                          onCommentAdded: () {
+                                            // Refresh the notice data to get updated comments count
+                                            _refreshNoticeData();
+                                          },
+                                        ),
+                                  );
+                                  // Don't call onRefresh to avoid full page reload
+                                },
+                                customBorder: const CircleBorder(),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Icon(
+                                    Icons.chat_bubble_outline,
+                                    size: 20,
+                                    color: Colors.grey[600],
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              notice.commentsCount.toString(),
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        height: 24,
+                        width: 1,
+                        color: Colors.grey.shade200,
+                      ),
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  // Implement share functionality
+                                },
+                                customBorder: const CircleBorder(),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Icon(
+                                    Icons.share_outlined,
+                                    size: 20,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Share',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
