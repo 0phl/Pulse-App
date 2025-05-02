@@ -220,19 +220,39 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
     // If user cancels or dismisses the dialog
     if (shouldDelete != true) return;
 
+    // Show loading indicator
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
+
     try {
+      // Delete the notice
       await _adminService.deleteNotice(noticeId);
-      _loadNotices();
+
+      // Add a small delay to ensure Firebase has time to process the deletion
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Reload the notices list
+      await _loadNotices();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Notice deleted successfully')),
         );
       }
     } catch (e) {
+      // In case of error, still reload the notices to ensure UI is in sync
+      await _loadNotices();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error deleting notice: $e')),
         );
+      }
+    } finally {
+      // Ensure loading state is reset
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }

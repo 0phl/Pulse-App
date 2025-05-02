@@ -16,7 +16,6 @@ import 'file_download_progress.dart';
 import 'image_viewer_page.dart';
 import 'pdf_viewer_page.dart';
 import 'docx_viewer_page.dart';
-import 'confirmation_dialog.dart';
 
 class NoticeCard extends StatefulWidget {
   final CommunityNotice notice;
@@ -200,22 +199,9 @@ class _NoticeCardState extends State<NoticeCard> {
                       if (value == 'edit') {
                         widget.onEdit?.call();
                       } else if (value == 'delete') {
-                        // Show confirmation dialog before deleting
-                        final shouldDelete = await ConfirmationDialog.show(
-                          context: context,
-                          title: 'Delete Notice',
-                          message: 'Are you sure you want to delete this community notice? This action cannot be undone.',
-                          confirmText: 'Delete',
-                          cancelText: 'Cancel',
-                          confirmColor: Colors.red,
-                          icon: Icons.delete_outline,
-                          iconBackgroundColor: Colors.red,
-                        );
-
-                        // Only proceed with deletion if confirmed
-                        if (shouldDelete == true) {
-                          widget.onDelete?.call();
-                        }
+                        // Call the delete function directly
+                        // The parent widget will handle confirmation and loading state
+                        widget.onDelete?.call();
                       }
                     },
                   )

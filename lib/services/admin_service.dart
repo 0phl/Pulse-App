@@ -1468,20 +1468,65 @@ class AdminService {
 
   // Delete a notice
   Future<void> deleteNotice(String noticeId) async {
+    debugPrint('AdminService: Starting deletion of notice: $noticeId');
+
     final community = await getCurrentAdminCommunity();
     if (community == null) {
       throw Exception('No community found for current admin');
     }
 
-    // Delete the notice image if it exists
-    try {
-      await _storage.ref().child('community_notices/$noticeId').delete();
-    } catch (_) {
-      // Ignore if image doesn't exist
+    // First check if the notice exists
+    final noticeSnapshot = await _database.child('community_notices').child(noticeId).get();
+    if (!noticeSnapshot.exists) {
+      debugPrint('AdminService: Notice not found: $noticeId');
+      throw Exception('Notice not found');
     }
 
-    // Delete the notice from RTDB
-    await _database.child('community_notices').child(noticeId).remove();
+    debugPrint('AdminService: Notice found, proceeding with deletion');
+
+    // Try to delete the notice image if it exists (but don't block on this)
+    try {
+      await _storage.ref().child('community_notices/$noticeId').delete();
+      debugPrint('AdminService: Notice image deleted successfully');
+    } catch (e) {
+      // Just log the error but continue with notice deletion
+      debugPrint('AdminService: Notice image deletion error (continuing): $e');
+    }
+
+    // Use a direct reference to the notice
+    final noticeRef = _database.child('community_notices').child(noticeId);
+
+    try {
+      // Try set(null) first as it's more reliable in some Firebase versions
+      await noticeRef.set(null);
+      debugPrint('AdminService: Notice removal command sent using set(null)');
+
+      // Add a small delay to ensure the deletion is processed
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // Verify deletion was successful
+      final verifySnapshot = await noticeRef.get();
+      if (verifySnapshot.exists) {
+        debugPrint('AdminService: Notice still exists after set(null), trying remove()...');
+        // If set(null) wasn't successful, try with remove() method
+        await noticeRef.remove();
+        await Future.delayed(const Duration(milliseconds: 300));
+
+        // Final verification
+        final finalVerifySnapshot = await noticeRef.get();
+        if (finalVerifySnapshot.exists) {
+          debugPrint('AdminService: Notice still exists after remove() attempt');
+          throw Exception('Failed to delete notice after multiple attempts');
+        } else {
+          debugPrint('AdminService: Notice successfully deleted using remove()');
+        }
+      } else {
+        debugPrint('AdminService: Notice successfully deleted using set(null)');
+      }
+    } catch (e) {
+      debugPrint('AdminService: Error deleting notice: $e');
+      throw Exception('Error deleting notice: $e');
+    }
   }
 
   // Toggle notice like
