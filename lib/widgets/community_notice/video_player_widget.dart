@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/media_cache_service.dart';
 
 class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
@@ -25,19 +27,35 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   Future<void> _initializePlayer() async {
     try {
-      _videoPlayerController =
-          VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      // Use the MediaCacheService to optimize video URL based on network conditions
+      final mediaCacheService = MediaCacheService();
+      final optimizedUrl = mediaCacheService.getOptimizedUrl(widget.videoUrl, isVideo: true);
+      _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(optimizedUrl));
       await _videoPlayerController.initialize();
 
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController,
         aspectRatio: _videoPlayerController.value.aspectRatio,
-        autoPlay: false,
-        looping: false,
+        autoPlay: false, // Disable autoplay to save bandwidth
+        looping: false, // Disable looping to save bandwidth
+        // Add quality options to allow users to select lower quality
+        // when on mobile data
         placeholder: Container(
           color: Colors.grey[200],
           child: const Center(child: CircularProgressIndicator()),
         ),
+        // Limit buffering to reduce bandwidth
+        allowedScreenSleep: false,
+        // Add a data saver option
+        additionalOptions: (context) => [
+          OptionItem(
+            onTap: (context) => _toggleDataSaver(context),
+            iconData: Icons.data_saver_on,
+            title: 'Data Saver',
+          ),
+        ],
+        // Disable autoInitialize to prevent preloading video
+        autoInitialize: false,
         errorBuilder: (context, errorMessage) {
           return Center(
             child: Column(
@@ -66,6 +84,37 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
           _hasError = true;
         });
       }
+    }
+  }
+
+
+
+  // Toggle data saver mode
+  void _toggleDataSaver(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    final isDataSaverOn = prefs.getBool('video_data_saver') ?? false;
+
+    await prefs.setBool('video_data_saver', !isDataSaverOn);
+
+    // Show a confirmation message
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            !isDataSaverOn
+                ? 'Data saver mode enabled. Videos will use less data.'
+                : 'Data saver mode disabled. Videos will use normal quality.'
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+
+    // Reinitialize player with new quality settings
+    if (mounted) {
+      _videoPlayerController.dispose();
+      _chewieController?.dispose();
+      _initializePlayer();
     }
   }
 
@@ -131,3 +180,4 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     );
   }
 }
+

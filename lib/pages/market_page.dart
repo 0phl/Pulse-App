@@ -751,37 +751,100 @@ class _MarketPageState extends State<MarketPage>
           items.any((item) => item.status == 'pending');
 
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              isMyItemsTab
-                  ? hasPendingItems
-                      ? 'No active items to display'
-                      : 'You haven\'t added any items yet'
-                  : 'No items to display',
-              style: const TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            if (hasPendingItems) ...[
-              const SizedBox(height: 16),
-              const Text(
-                'You have items pending approval',
-                style: TextStyle(fontSize: 14, color: Colors.orange),
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/seller/dashboard', arguments: {'initialTabIndex': 1});
-                },
-                icon: const Icon(Icons.dashboard),
-                label: const Text('View in Seller Dashboard'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00C49A),
-                  foregroundColor: Colors.white,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Container with icon
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5F0),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Icon(
+                  isMyItemsTab ? Icons.shopping_bag_outlined : Icons.store_outlined,
+                  size: 64,
+                  color: const Color(0xFF00C49A),
                 ),
               ),
+              const SizedBox(height: 24),
+              // Main message
+              Text(
+                isMyItemsTab
+                    ? hasPendingItems
+                        ? 'No active items to display'
+                        : 'You haven\'t added any items yet'
+                    : 'No marketplace items yet',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2D3748),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              // Subtitle message
+              Text(
+                isMyItemsTab
+                    ? hasPendingItems
+                        ? 'Your items are awaiting approval'
+                        : 'Tap the + button to add your first item'
+                    : 'Be the first to add something to the community marketplace',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              // Action button for My Items tab with pending items
+              if (hasPendingItems) ...[
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/seller/dashboard', arguments: {'initialTabIndex': 1});
+                  },
+                  icon: const Icon(Icons.dashboard),
+                  label: const Text('View in Seller Dashboard'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00C49A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+              // Action button for All Items tab
+              if (!isMyItemsTab) ...[
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AddItemPage(
+                          onItemAdded: _handleNewItem,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add First Item'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00C49A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       );
     }

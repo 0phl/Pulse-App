@@ -59,6 +59,7 @@ dependencies:
   video_thumbnail: ^0.5.3
   shimmer: ^3.0.0
   fl_chart: ^0.66.0
+  connectivity_plus: ^6.1.4
 
 dev_dependencies:
   flutter_test:

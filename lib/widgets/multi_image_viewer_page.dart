@@ -5,6 +5,7 @@ import 'package:photo_view/photo_view_gallery.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/media_saver_service.dart';
+import '../services/cloudinary_service.dart';
 
 class MultiImageViewerPage extends StatefulWidget {
   final List<String> imageUrls;
@@ -39,7 +40,12 @@ class _MultiImageViewerPageState extends State<MultiImageViewerPage> {
 
   // Download the current image
   Future<void> _downloadCurrentImage() async {
+    // Get original URL for downloading (high quality)
     final imageUrl = widget.imageUrls[_currentIndex];
+    // Use CloudinaryService to get a high-quality version for download
+    final cloudinaryService = CloudinaryService();
+    final downloadUrl = cloudinaryService.getOptimizedImageUrl(imageUrl, isListView: false);
+
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final fileName = 'PULSE_temp_$timestamp.jpg';
 
@@ -63,7 +69,7 @@ class _MultiImageViewerPageState extends State<MultiImageViewerPage> {
 
       // Download the image
       await Dio().download(
-        imageUrl,
+        downloadUrl,
         filePath,
       );
 
@@ -143,8 +149,12 @@ class _MultiImageViewerPageState extends State<MultiImageViewerPage> {
           PhotoViewGallery.builder(
             scrollPhysics: const BouncingScrollPhysics(),
             builder: (BuildContext context, int index) {
+              // Get optimized URL for better performance and bandwidth savings
+              final cloudinaryService = CloudinaryService();
+              final optimizedUrl = cloudinaryService.getOptimizedImageUrl(widget.imageUrls[index], isListView: false);
+
               return PhotoViewGalleryPageOptions(
-                imageProvider: NetworkImage(widget.imageUrls[index]),
+                imageProvider: NetworkImage(optimizedUrl),
                 initialScale: PhotoViewComputedScale.contained,
                 minScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.covered * 2,

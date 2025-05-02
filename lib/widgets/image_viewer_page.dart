@@ -4,6 +4,7 @@ import 'package:photo_view/photo_view.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/media_saver_service.dart';
+import '../services/cloudinary_service.dart';
 
 class ImageViewerPage extends StatefulWidget {
   final String imageUrl;
@@ -40,9 +41,13 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
       final fileName = 'PULSE_temp_$timestamp.jpg';
       final filePath = '${tempDir.path}/$fileName';
 
+      // Get high-quality version for download
+      final cloudinaryService = CloudinaryService();
+      final downloadUrl = cloudinaryService.getOptimizedImageUrl(widget.imageUrl, isListView: false);
+
       // Download the image
       await Dio().download(
-        widget.imageUrl,
+        downloadUrl,
         filePath,
       );
 
@@ -92,7 +97,10 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
       body: Stack(
         children: [
           PhotoView(
-            imageProvider: NetworkImage(widget.imageUrl),
+            imageProvider: NetworkImage(
+              // Use optimized URL for better performance and bandwidth savings
+              CloudinaryService().getOptimizedImageUrl(widget.imageUrl, isListView: false)
+            ),
             minScale: PhotoViewComputedScale.contained,
             maxScale: PhotoViewComputedScale.covered * 2,
             initialScale: PhotoViewComputedScale.contained,

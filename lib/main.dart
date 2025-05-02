@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'firebase_options.dart';
 import 'widgets/delayed_auth_wrapper.dart';
 import 'pages/admin/change_password_page.dart';
@@ -27,6 +27,7 @@ import 'pages/admin/show_create_notice_sheet.dart';
 import 'pages/admin/profile_page.dart';
 import 'services/user_session_service.dart';
 import 'services/global_state.dart';
+import 'services/media_cache_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +64,15 @@ void main() async {
   // Only sign out if there's no saved session
   if (!isLoggedIn) {
     await FirebaseAuth.instance.signOut();
+  }
+
+  // Initialize media cache service for optimized Cloudinary usage
+  try {
+    final mediaCacheService = MediaCacheService();
+    await mediaCacheService.initConnectivityMonitoring();
+    debugPrint('MediaCacheService initialized successfully');
+  } catch (e) {
+    debugPrint('Error initializing MediaCacheService: $e');
   }
 
   runApp(const MyApp());

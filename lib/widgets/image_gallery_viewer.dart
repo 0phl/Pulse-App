@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'multi_image_viewer_page.dart';
+import '../services/cloudinary_service.dart';
 
 class ImageGalleryViewer extends StatefulWidget {
   final List<String> imageUrls;
@@ -44,7 +45,11 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
   }
 
   void _preloadImageDimensions(String imageUrl) {
-    final image = Image.network(imageUrl);
+    // Get optimized URL for preloading
+    final cloudinaryService = CloudinaryService();
+    final optimizedUrl = cloudinaryService.getOptimizedImageUrl(imageUrl);
+
+    final image = Image.network(optimizedUrl);
     image.image.resolve(const ImageConfiguration()).addListener(
       ImageStreamListener((info, _) {
         if (mounted) {
@@ -214,7 +219,8 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
                   width: double.infinity,
                   height: double.infinity,
                   child: Image.network(
-                    imageUrl,
+                    // Use optimized URL for better performance and bandwidth savings
+                    CloudinaryService().getOptimizedImageUrl(imageUrl, isListView: false),
                     fit: imageFit,
                     width: double.infinity,
                     height: double.infinity,
@@ -550,7 +556,8 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
       height: double.infinity,
       color: const Color(0xFF00C49A).withOpacity(0.05), // Light teal background to match app theme
       child: Image.network(
-        imageUrl,
+        // Use optimized URL for better performance and bandwidth savings
+        CloudinaryService().getOptimizedImageUrl(imageUrl, isListView: true),
         fit: imageFit, // Use the determined fit based on image size
         width: double.infinity, // Force image to take full width
         height: double.infinity, // Force image to take full height
