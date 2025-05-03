@@ -609,23 +609,24 @@ class CommunityNoticeCard extends StatelessWidget {
                   child: Row(
                     children: [
                       Expanded(
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () async {
-                              final user = FirebaseAuth.instance.currentUser;
-                              if (user != null) {
-                                await noticeService.likeNotice(
-                                    notice.id, user.uid);
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(20),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Heart icon with its own hitbox
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () async {
+                                  final user = FirebaseAuth.instance.currentUser;
+                                  if (user != null) {
+                                    await noticeService.likeNotice(
+                                        notice.id, user.uid);
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(50),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Icon(
                                     notice.isLikedBy(FirebaseAuth
                                                 .instance.currentUser?.uid ??
                                             '')
@@ -638,18 +639,18 @@ class CommunityNoticeCard extends StatelessWidget {
                                         ? const Color(0xFF00C49A)
                                         : Colors.grey[600],
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    notice.likesCount.toString(),
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
+                            // Count text with no hitbox
+                            Text(
+                              notice.likesCount.toString(),
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       Container(
