@@ -79,10 +79,30 @@ class _ReportPageState extends State<ReportPage>
         }
       }
     });
+
+    // Add listeners to text controllers to update state immediately when text changes
+    _descriptionController.addListener(_updateState);
+    _addressController.addListener(_updateState);
+    _addressDetailsController.addListener(_updateState);
+  }
+
+  // Update state when text changes to enable buttons immediately
+  void _updateState() {
+    if (mounted) {
+      setState(() {
+        // This empty setState will trigger a rebuild with the updated text values
+      });
+    }
   }
 
   @override
   void dispose() {
+    // Remove listeners before disposing controllers
+    _descriptionController.removeListener(_updateState);
+    _addressController.removeListener(_updateState);
+    _addressDetailsController.removeListener(_updateState);
+
+    // Dispose controllers
     _issueTypeController.dispose();
     _addressController.dispose();
     _addressDetailsController.dispose();
@@ -467,7 +487,7 @@ class _ReportPageState extends State<ReportPage>
         // Loading Overlay
         if (_isUploading || _isVideoUploading)
           Container(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withAlpha(77), // 0.3 opacity
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -655,7 +675,7 @@ class _ReportPageState extends State<ReportPage>
                               child: Container(
                                 padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.5),
+                                  color: Colors.black.withAlpha(128), // 0.5 opacity
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
@@ -714,7 +734,7 @@ class _ReportPageState extends State<ReportPage>
                               child: Container(
                                 padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.5),
+                                  color: Colors.black.withAlpha(128), // 0.5 opacity
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
