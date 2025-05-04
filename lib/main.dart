@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'firebase_options.dart';
 import 'widgets/delayed_auth_wrapper.dart';
@@ -12,6 +13,9 @@ import 'pages/admin/marketplace_page.dart';
 import 'pages/admin/reports_page.dart';
 import 'pages/admin/users_page.dart';
 import 'pages/admin/volunteer_posts_page.dart';
+import 'services/notification_service.dart';
+import 'pages/notifications/notifications_page.dart';
+import 'pages/notifications/notification_settings_page.dart';
 // User verification page import removed - functionality consolidated into Manage Users
 import 'pages/home_page.dart';
 import 'pages/market_page.dart';
@@ -25,9 +29,28 @@ import 'pages/seller_dashboard_page.dart';
 import 'pages/admin/add_volunteer_post_page.dart';
 import 'pages/admin/show_create_notice_sheet.dart';
 import 'pages/admin/profile_page.dart';
+import 'pages/admin/notifications_page.dart';
+import 'pages/admin/notification_settings_page.dart';
 import 'services/user_session_service.dart';
 import 'services/global_state.dart';
 import 'services/media_cache_service.dart';
+
+// Top-level function to handle background messages
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Ensure Firebase is initialized
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Log the message for debugging
+  debugPrint("Handling a background message: ${message.messageId}");
+  debugPrint("Message data: ${message.data}");
+  if (message.notification != null) {
+    debugPrint("Message notification: ${message.notification!.title} - ${message.notification!.body}");
+  }
+
+  // Call the handler from notification service
+  await firebaseMessagingBackgroundHandler(message);
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +63,7 @@ void main() async {
       // Set persistence to SESSION for web
       await FirebaseAuth.instance.setPersistence(Persistence.SESSION);
     } catch (e) {
-      print('Firebase initialization error: $e');
+      debugPrint('Firebase initialization error: $e');
     }
   } else {
     try {
@@ -49,8 +72,11 @@ void main() async {
       );
       // Set persistence to LOCAL for mobile
       await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+
+      // Set up background message handler for FCM
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
     } catch (e) {
-      print('Firebase initialization error: $e');
+      debugPrint('Firebase initialization error: $e');
     }
   }
 
@@ -74,6 +100,10 @@ void main() async {
   } catch (e) {
     debugPrint('Error initializing MediaCacheService: $e');
   }
+
+  // Initialize notification service for mobile devices
+  // We'll initialize it after login in DelayedAuthWrapper instead
+  // to avoid the duplicate Firebase initialization error
 
   runApp(const MyApp());
 }
@@ -126,6 +156,8 @@ class MyApp extends StatelessWidget {
                   const AddVolunteerPostPage(),
               '/admin/reports': (context) => const AdminReportsPage(),
               '/admin/profile': (context) => const AdminProfilePage(),
+              '/admin/notifications': (context) => const AdminNotificationsPage(),
+              '/admin/notification-settings': (context) => const AdminNotificationSettingsPage(),
               // User verification functionality consolidated into Manage Users page
 
               // Main app routes
@@ -133,7 +165,22 @@ class MyApp extends StatelessWidget {
               '/market': (context) => const MarketPage(),
               '/volunteer': (context) => const VolunteerPage(),
               '/report': (context) => const ReportPage(),
-              '/seller/dashboard': (context) => const SellerDashboardPage(),
+              '/seller/dashboard': (context) {
+                final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+                final initialTabIndex = args != null && args.containsKey('initialTabIndex')
+                    ? args['initialTabIndex'] as int
+                    : 0;
+                return SellerDashboardPage(initialTabIndex: initialTabIndex);
+              },
+              '/add_item': (context) => AddItemPage(
+                onItemAdded: (item) {
+                  Navigator.pop(context);
+                },
+              ),
+
+              // Notification routes
+              '/notifications': (context) => const NotificationsPage(),
+              '/notification-settings': (context) => const NotificationSettingsPage(),
             },
     );
   }

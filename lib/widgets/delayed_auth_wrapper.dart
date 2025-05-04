@@ -12,6 +12,7 @@ import '../pages/pending_verification_page.dart';
 import '../pages/rejected_verification_page.dart';
 import 'loading_screen.dart';
 import '../services/user_session_service.dart';
+import '../services/notification_service.dart';
 
 
 class DelayedAuthWrapper extends StatefulWidget {
@@ -130,10 +131,26 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
   // Helper method to navigate to a screen
   void _navigateTo(Widget screen) {
     if (mounted) {
+      // Initialize notification service if user is authenticated
+      if (screen is! LoginPage) {
+        _initializeNotificationService();
+      }
+
       setState(() {
         _nextScreen = screen;
         _isAuthenticating = false;
       });
+    }
+  }
+
+  // Initialize notification service
+  Future<void> _initializeNotificationService() async {
+    try {
+      final notificationService = NotificationService();
+      await notificationService.initialize();
+      debugPrint('NotificationService initialized after authentication');
+    } catch (e) {
+      debugPrint('Error initializing NotificationService after authentication: $e');
     }
   }
 

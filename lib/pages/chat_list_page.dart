@@ -649,7 +649,7 @@ class _ChatListPageState extends State<ChatListPage> {
                   top: 2,
                   child: _NotificationBadge(
                     count: chat.unreadCount,
-                    color: const Color(0xFF00C49A),
+                    color: Colors.red,
                   ),
                 ),
             ],

@@ -218,6 +218,46 @@ service cloud.firestore {
       allow read: if canAccessStats();
     }
 
+    // Old Notifications collection (for backward compatibility)
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // New Notification Status collection
+    match /notification_status/{statusId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // User Notifications collection
+    match /user_notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false; // Notifications should not be updated
+      allow delete: if false; // Notifications should not be deleted
+    }
+
+    // Community Notifications collection
+    match /community_notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false; // Notifications should not be updated
+      allow delete: if false; // Notifications should not be deleted
+    }
+
+    // User tokens collection
+    match /user_tokens/{userId} {
+      allow read: if isSignedIn() && userId == request.auth.uid;
+      allow create: if isSignedIn() && userId == request.auth.uid;
+      allow update: if isSignedIn() && userId == request.auth.uid;
+      allow delete: if isSignedIn() && userId == request.auth.uid;
+    }
+
     // Deny access to other collections by default
     match /{document=**} {
       allow read, write: if false;

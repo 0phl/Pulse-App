@@ -60,6 +60,8 @@ dependencies:
   shimmer: ^3.0.0
   fl_chart: ^0.66.0
   connectivity_plus: ^6.1.4
+  firebase_messaging: ^14.7.10
+  flutter_local_notifications: ^19.1.0
 
 dev_dependencies:
   flutter_test:

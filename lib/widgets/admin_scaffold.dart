@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../pages/admin/admin_drawer.dart';
+import 'admin/admin_notification_badge.dart';
 
 /// A base scaffold for all admin pages that includes the back button confirmation.
 /// This ensures consistent back button behavior across the admin section.
@@ -53,10 +54,23 @@ class _AdminScaffoldState extends State<AdminScaffold> {
         return true;
       },
       child: Scaffold(
-        appBar: widget.appBar ?? 
+        appBar: widget.appBar ??
           AppBar(
             title: Text(widget.title),
-            actions: widget.actions,
+            actions: [
+              // Add notification badge
+              AdminNotificationBadge(
+                child: IconButton(
+                  icon: const Icon(Icons.notifications),
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/admin/notifications');
+                  },
+                  tooltip: 'Notifications',
+                ),
+              ),
+              // Add other actions if provided
+              if (widget.actions != null) ...widget.actions!,
+            ],
           ),
         drawer: const AdminDrawer(),
         body: widget.body,

@@ -6,6 +6,7 @@ import '../services/community_service.dart';
 import '../services/admin_service.dart';
 import '../models/community_notice.dart';
 import '../widgets/community_notice_card.dart';
+import '../widgets/notifications/notification_badge.dart';
 import 'add_community_notice_page.dart';
 import 'login_page.dart';
 import 'profile_page.dart';
@@ -353,11 +354,13 @@ class HomePageState extends State<HomePage> {
         ),
         backgroundColor: const Color(0xFF00C49A),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications, color: Colors.white),
-            onPressed: () {
-              // Navigate to notifications page
-            },
+          NotificationBadge(
+            child: IconButton(
+              icon: const Icon(Icons.notifications, color: Colors.white),
+              onPressed: () {
+                Navigator.pushNamed(context, '/notifications');
+              },
+            ),
           ),
           const SizedBox(width: 8),
           PopupMenuButton(
@@ -434,9 +437,14 @@ class HomePageState extends State<HomePage> {
                 },
               ),
               PopupMenuItem(
-                child: const Text('Settings'),
+                child: const Text('Notification Settings'),
                 onTap: () {
-                  // Navigate to settings
+                  // We need to use a post-frame callback to avoid BuildContext issues
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      Navigator.pushNamed(context, '/notification-settings');
+                    }
+                  });
                 },
               ),
               PopupMenuItem(

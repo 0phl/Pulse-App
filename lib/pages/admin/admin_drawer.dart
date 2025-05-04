@@ -282,6 +282,12 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
                           isActive: currentRoute == '/admin/reports',
                           onTap: () => _navigateTo('/admin/reports'),
                         ),
+                        _buildMenuItem(
+                          icon: Icons.notifications_outlined,
+                          title: 'Notifications',
+                          isActive: currentRoute == '/admin/notifications',
+                          onTap: () => _navigateTo('/admin/notifications'),
+                        ),
                       ],
                     ),
                   ),
