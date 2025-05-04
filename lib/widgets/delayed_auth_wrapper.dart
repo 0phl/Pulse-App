@@ -145,6 +145,18 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
 
   // Initialize notification service
   Future<void> _initializeNotificationService() async {
+    // Wait for the auth state to confirm a user is logged in
+    await _auth.authStateChanges().firstWhere((user) => user != null);
+
+    // Double-check currentUser after waiting for the stream
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      debugPrint('Error: User became null unexpectedly after authStateChanges.');
+      return; // Don't proceed if user is somehow null again
+    }
+
+    debugPrint('User confirmed by authStateChanges: ${currentUser.uid}. Initializing NotificationService...');
+
     try {
       final notificationService = NotificationService();
       await notificationService.initialize();

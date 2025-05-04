@@ -250,11 +250,11 @@ class NotificationService {
     debugPrint('Local notifications setup complete');
   }
 
-  // Configure foreground message handler
+  // Configure foreground message handler with optimized handling
   void _configureForegroundMessageHandler() {
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       debugPrint('==========================================');
-      debugPrint('RECEIVED FOREGROUND MESSAGE!');
+      debugPrint('RECEIVED FOREGROUND MESSAGE! ${DateTime.now().toIso8601String()}');
       debugPrint('Message data: ${message.data}');
 
       if (message.notification != null) {
@@ -264,15 +264,37 @@ class NotificationService {
         debugPrint('Apple: ${message.notification!.apple?.toString()}');
         debugPrint('==========================================');
 
-        // Show a local notification (this also stores in Firestore)
-        _showLocalNotification(message);
+        // Process high-priority notifications immediately
+        if (message.data['priority'] == 'high' ||
+            message.data['type'] == 'chat' ||
+            message.data['type'] == 'communityNotices') {
+          // Show notification immediately for high-priority messages
+          await _showLocalNotification(message);
+        } else {
+          // For normal priority, still show quickly but allow for batching
+          _showLocalNotification(message);
+        }
       } else {
         debugPrint('No notification payload in the message');
         debugPrint('==========================================');
+
+        // Even without notification payload, we should process data messages
+        _processDataMessage(message);
       }
     });
 
-    debugPrint('Foreground message handler configured');
+    debugPrint('Optimized foreground message handler configured');
+  }
+
+  // Process data-only messages
+  void _processDataMessage(RemoteMessage message) {
+    // Handle data-only messages (no visible notification)
+    if (message.data.isNotEmpty) {
+      debugPrint('Processing data-only message: ${message.data}');
+
+      // Store in Firestore if needed
+      _storeNotificationInFirestore(message);
+    }
   }
 
   // Configure background message handler
@@ -312,63 +334,119 @@ class NotificationService {
     });
   }
 
-  // Show a local notification
-  Future<void> _showLocalNotification(RemoteMessage message) async {
-    debugPrint('Attempting to show local notification...');
+  // Store notification in Firestore
+  Future<void> _storeNotificationInFirestore(RemoteMessage message) async {
+    debugPrint('Storing notification in Firestore...');
 
-    // Store the notification in Firestore using the new structure
     try {
       final user = _auth.currentUser;
-      if (user != null && message.notification != null) {
-        // Check if this notification already exists in Firestore
-        // This prevents duplicate notifications when the server sends the same notification
-        bool isDuplicate = false;
+      if (user == null) {
+        debugPrint('Cannot store notification: User not logged in');
+        return;
+      }
 
-        // Check if the message contains a notificationId from the server
-        if (message.data.containsKey('notificationId')) {
-          final String notificationId = message.data['notificationId'];
-          debugPrint('Message contains notificationId: $notificationId');
+      // Check if this notification already exists in Firestore
+      // This prevents duplicate notifications when the server sends the same notification
+      bool isDuplicate = false;
 
-          // Check if a notification status already exists for this notification
-          final existingStatus = await _firestore
-              .collection('notification_status')
-              .where('userId', isEqualTo: user.uid)
-              .where('notificationId', isEqualTo: notificationId)
-              .limit(1)
-              .get();
+      // Check if the message contains a notificationId from the server
+      if (message.data.containsKey('notificationId')) {
+        final String notificationId = message.data['notificationId'];
+        debugPrint('Message contains notificationId: $notificationId');
 
-          if (existingStatus.docs.isNotEmpty) {
-            debugPrint('Notification already exists in Firestore, skipping creation');
-            isDuplicate = true;
-          }
+        // Check if a notification status already exists for this notification
+        final existingStatus = await _firestore
+            .collection('notification_status')
+            .where('userId', isEqualTo: user.uid)
+            .where('notificationId', isEqualTo: notificationId)
+            .limit(1)
+            .get();
+
+        if (existingStatus.docs.isNotEmpty) {
+          debugPrint('Notification already exists in Firestore, skipping creation');
+          isDuplicate = true;
         }
+      }
 
-        // If not a duplicate, create the notification
-        if (!isDuplicate) {
-          // Create a single notification record
-          final notificationRef = await _firestore.collection('user_notifications').add({
-            'title': message.notification?.title,
-            'body': message.notification?.body,
+      // If not a duplicate, create the notification
+      if (!isDuplicate) {
+        // Determine if this is a community notification
+        final bool isCommunityNotification = message.data.containsKey('communityId');
+        final String? communityId = message.data['communityId'];
+
+        // Create notification record in the appropriate collection
+        DocumentReference notificationRef;
+
+        if (isCommunityNotification && communityId != null) {
+          // Check if the notification already exists in community_notifications
+          if (message.data.containsKey('notificationId')) {
+            final String notificationId = message.data['notificationId'];
+            final existingDoc = await _firestore.collection('community_notifications').doc(notificationId).get();
+
+            if (existingDoc.exists) {
+              notificationRef = existingDoc.reference;
+              debugPrint('Using existing community notification: ${notificationRef.id}');
+            } else {
+              // Create a new community notification
+              notificationRef = await _firestore.collection('community_notifications').add({
+                'title': message.notification?.title ?? message.data['title'],
+                'body': message.notification?.body ?? message.data['body'],
+                'type': message.data['type'] ?? 'communityNotices',
+                'data': message.data,
+                'communityId': communityId,
+                'createdAt': FieldValue.serverTimestamp(),
+                'createdBy': message.data['authorId'] ?? 'system',
+              });
+              debugPrint('Created new community notification: ${notificationRef.id}');
+            }
+          } else {
+            // Create a new community notification without an existing ID
+            notificationRef = await _firestore.collection('community_notifications').add({
+              'title': message.notification?.title ?? message.data['title'],
+              'body': message.notification?.body ?? message.data['body'],
+              'type': message.data['type'] ?? 'communityNotices',
+              'data': message.data,
+              'communityId': communityId,
+              'createdAt': FieldValue.serverTimestamp(),
+              'createdBy': message.data['authorId'] ?? 'system',
+            });
+            debugPrint('Created new community notification: ${notificationRef.id}');
+          }
+        } else {
+          // Create a user notification
+          notificationRef = await _firestore.collection('user_notifications').add({
+            'title': message.notification?.title ?? message.data['title'],
+            'body': message.notification?.body ?? message.data['body'],
             'type': message.data['type'] ?? 'general',
             'data': message.data,
             'createdAt': FieldValue.serverTimestamp(),
             'createdBy': 'system',
           });
-
-          // Create a status record for this user
-          await _firestore.collection('notification_status').add({
-            'userId': user.uid,
-            'notificationId': notificationRef.id,
-            'read': false,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-
-          debugPrint('Notification stored in Firestore using new structure');
+          debugPrint('Created user notification: ${notificationRef.id}');
         }
+
+        // Create a status record for this user
+        await _firestore.collection('notification_status').add({
+          'userId': user.uid,
+          'notificationId': notificationRef.id,
+          'communityId': isCommunityNotification ? communityId : null,
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        debugPrint('Notification status created for user ${user.uid}');
       }
     } catch (e) {
       debugPrint('Error storing notification in Firestore: $e');
     }
+  }
+
+  // Show a local notification
+  Future<void> _showLocalNotification(RemoteMessage message) async {
+    debugPrint('Attempting to show local notification...');
+
+    // Store the notification in Firestore
+    await _storeNotificationInFirestore(message);
 
     // Skip local notification if plugins aren't available
     if (_localNotifications == null || _androidChannel == null) {
@@ -530,7 +608,7 @@ class NotificationService {
     }
   }
 
-  // Update token in Firestore
+  // Update token in Firestore with optimized handling for real-time notifications
   Future<void> _updateToken(String token) async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -539,7 +617,7 @@ class NotificationService {
     }
 
     try {
-      debugPrint('Updating FCM token for user: ${user.uid}');
+      debugPrint('Updating FCM token for user: ${user.uid} at ${DateTime.now().toIso8601String()}');
       debugPrint('Token to save: $token');
 
       // Use current timestamp instead of FieldValue.serverTimestamp() for array items
@@ -549,6 +627,11 @@ class NotificationService {
         'platform': Platform.isAndroid ? 'android' : 'ios',
         'createdAt': now,
         'lastActive': now,
+        'appVersion': '1.0.0', // Add app version for better tracking
+        'deviceInfo': {
+          'platform': Platform.operatingSystem,
+          'version': Platform.operatingSystemVersion,
+        },
       };
 
       // Get existing tokens
@@ -557,40 +640,43 @@ class NotificationService {
       if (userTokenDoc.exists) {
         debugPrint('User token document exists, updating...');
         final data = userTokenDoc.data();
-        debugPrint('Current data: ${data.toString()}');
 
         // Check if tokens field exists and is a List
         final tokens = data?['tokens'] as List<dynamic>? ?? [];
         debugPrint('Current tokens count: ${tokens.length}');
 
-        // Check if token already exists
-        bool tokenExists = false;
-        for (int i = 0; i < tokens.length; i++) {
-          if (tokens[i]['token'] == token) {
-            debugPrint('Token already exists, updating existing entry');
-            tokens[i] = tokenData;
-            tokenExists = true;
-            break;
-          }
+        // Remove any expired or duplicate tokens (keep only the most recent 3)
+        List<dynamic> updatedTokens = [...tokens];
+
+        // Remove the current token if it exists (we'll add it back as the most recent)
+        updatedTokens.removeWhere((t) => t['token'] == token);
+
+        // Add the new token at the beginning (most recent)
+        updatedTokens.insert(0, tokenData);
+
+        // Keep only the 3 most recent tokens to avoid accumulating old tokens
+        if (updatedTokens.length > 3) {
+          updatedTokens = updatedTokens.sublist(0, 3);
         }
 
-        if (!tokenExists) {
-          debugPrint('Token does not exist, adding new entry');
-          tokens.add(tokenData);
-        }
-
-        // Update document
-        debugPrint('Updating document with ${tokens.length} tokens');
+        // Update document with optimized settings
+        debugPrint('Updating document with ${updatedTokens.length} tokens');
         await _firestore.collection('user_tokens').doc(user.uid).update({
-          'tokens': tokens,
+          'tokens': updatedTokens,
           'lastActive': FieldValue.serverTimestamp(),
+          'lastTokenUpdate': now,
+          'deviceInfo': {
+            'platform': Platform.operatingSystem,
+            'version': Platform.operatingSystemVersion,
+            'lastActive': now,
+          },
         });
 
         debugPrint('FCM token updated in Firestore successfully');
       } else {
         debugPrint('User token document does not exist, creating new document');
 
-        // Create new token document
+        // Create new token document with optimized settings
         await _firestore.collection('user_tokens').doc(user.uid).set({
           'tokens': [tokenData],
           'notificationPreferences': {
@@ -602,13 +688,61 @@ class NotificationService {
             'volunteer': true,
           },
           'createdAt': FieldValue.serverTimestamp(),
+          'lastActive': now,
+          'lastTokenUpdate': now,
+          'deviceInfo': {
+            'platform': Platform.operatingSystem,
+            'version': Platform.operatingSystemVersion,
+            'lastActive': now,
+          },
         });
 
         debugPrint('New FCM token document created in Firestore');
       }
+
+      // Verify token was saved by reading it back
+      final verifyDoc = await _firestore.collection('user_tokens').doc(user.uid).get();
+      if (verifyDoc.exists) {
+        final data = verifyDoc.data();
+        final tokens = data?['tokens'] as List<dynamic>? ?? [];
+        bool tokenFound = false;
+
+        for (final t in tokens) {
+          if (t['token'] == token) {
+            tokenFound = true;
+            break;
+          }
+        }
+
+        if (tokenFound) {
+          debugPrint('Token verified in Firestore');
+        } else {
+          debugPrint('WARNING: Token not found in Firestore after update!');
+        }
+      }
     } catch (e) {
       debugPrint('Error updating FCM token: $e');
       debugPrint(e.toString());
+
+      // Fallback to simple update if the detailed update fails
+      try {
+        // Create a simple token object
+        final simpleTokenData = {
+          'token': token,
+          'platform': Platform.isAndroid ? 'android' : 'ios',
+          'createdAt': Timestamp.now(),
+        };
+
+        // Update with minimal data
+        await _firestore.collection('user_tokens').doc(user.uid).update({
+          'tokens': FieldValue.arrayUnion([simpleTokenData]),
+          'lastActive': FieldValue.serverTimestamp(),
+        });
+
+        debugPrint('Token updated with fallback method');
+      } catch (fallbackError) {
+        debugPrint('Fallback token update also failed: $fallbackError');
+      }
     }
   }
 
@@ -1029,7 +1163,7 @@ class NotificationService {
     final user = _auth.currentUser;
     if (user == null) {
       // Return an empty stream if no user is logged in
-      return Stream.empty();
+      return const Stream.empty();
     }
 
     // Get notifications for the current user

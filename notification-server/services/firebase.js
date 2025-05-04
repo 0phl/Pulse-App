@@ -18,11 +18,14 @@ const initializeApp = () => {
     // Load service account
     const serviceAccount = require(path.resolve(serviceAccountPath));
 
-    // Configure HTTP agent with longer timeout
+    // Configure HTTP agent with optimized settings for real-time notifications
     const httpAgent = new https.Agent({
       keepAlive: true,
-      timeout: 30000, // 30 seconds
-      maxSockets: 10
+      timeout: 10000, // 10 seconds - shorter timeout for faster failure detection
+      maxSockets: 25, // Increased concurrent connections
+      keepAliveMsecs: 3000, // Keep connections alive for 3 seconds
+      scheduling: 'fifo', // First-in-first-out scheduling for more predictable delivery
+      rejectUnauthorized: true // Enforce secure connections
     });
 
     // Initialize Firebase Admin SDK with custom HTTP agent

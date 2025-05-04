@@ -131,7 +131,7 @@ const sendNotificationToUser = async (userId, title, body, data = {}) => {
 
     for (const token of validTokens) {
       try {
-        // Create notification message for a single token
+        // Create notification message for a single token with optimized delivery settings
         const message = {
           notification: {
             title,
@@ -141,18 +141,29 @@ const sendNotificationToUser = async (userId, title, body, data = {}) => {
           token: token, // Send to a single token
           android: {
             priority: 'high',
+            ttl: 60 * 1000, // 1 minute expiration for better real-time delivery
             notification: {
               channelId: 'high_importance_channel',
               priority: 'high',
               defaultSound: true,
               defaultVibrateTimings: true,
+              visibility: 'public',
+              // Removed 'importance' field as it's not supported by FCM API
             },
+            directBootOk: true, // Allow delivery during direct boot mode
           },
           apns: {
+            headers: {
+              'apns-priority': '10', // Immediate delivery (10) instead of default (5)
+              'apns-push-type': 'alert',
+            },
             payload: {
               aps: {
                 sound: 'default',
                 badge: 1,
+                'content-available': 1, // Wakes up the app for processing
+                'mutable-content': 1,   // Allows notification service extension to modify content
+                'interruption-level': 'time-sensitive', // iOS 15+ priority
               },
             },
           },
@@ -303,7 +314,7 @@ const sendNotificationToCommunity = async (communityId, title, body, data = {}, 
 
         for (const token of validTokens) {
           try {
-            // Create notification message for a single token
+            // Create notification message for a single token with optimized delivery settings
             const message = {
               notification: {
                 title,
@@ -313,18 +324,29 @@ const sendNotificationToCommunity = async (communityId, title, body, data = {}, 
               token: token,
               android: {
                 priority: 'high',
+                ttl: 60 * 1000, // 1 minute expiration for better real-time delivery
                 notification: {
                   channelId: 'high_importance_channel',
                   priority: 'high',
                   defaultSound: true,
                   defaultVibrateTimings: true,
+                  visibility: 'public',
+                  // Removed 'importance' field as it's not supported by FCM API
                 },
+                directBootOk: true, // Allow delivery during direct boot mode
               },
               apns: {
+                headers: {
+                  'apns-priority': '10', // Immediate delivery (10) instead of default (5)
+                  'apns-push-type': 'alert',
+                },
                 payload: {
                   aps: {
                     sound: 'default',
                     badge: 1,
+                    'content-available': 1, // Wakes up the app for processing
+                    'mutable-content': 1,   // Allows notification service extension to modify content
+                    'interruption-level': 'time-sensitive', // iOS 15+ priority
                   },
                 },
               },
@@ -368,8 +390,8 @@ const sendNotificationToCommunity = async (communityId, title, body, data = {}, 
           successCount++;
         }
 
-        // Add a longer delay between requests to avoid rate limiting and reduce duplicates
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Use a shorter delay to improve real-time delivery while still avoiding rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
       } catch (userError) {
         console.error(`Error sending notification to user ${userId}:`, userError);
         results.push({ success: false, error: userError.message, userId });

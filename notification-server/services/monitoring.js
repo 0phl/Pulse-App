@@ -20,13 +20,12 @@ const monitorCommunityNotices = () => {
         return;
       }
 
-      // Check if notice was created recently (within the last 30 seconds)
-      // Reduced from 5 minutes to 30 seconds to minimize delay
+      // Check if notice was created recently (within the last 2 seconds)
       const now = Date.now();
       const createdAt = noticeData.createdAt || 0;
 
-      if (now - createdAt > 30 * 1000) {
-        // Skip notices older than 30 seconds
+      if (now - createdAt > 2000) {
+        // Skip notices older than 2 seconds
         console.log(`Skipping notice ${noticeId} - too old (${Math.floor((now - createdAt)/1000)} seconds)`);
         return;
       }
@@ -98,9 +97,9 @@ const monitorCommunityNoticeComments = () => {
 
       const latestComment = commentsArray[0];
 
-      // Check if the comment was just added (within the last 10 seconds)
+      // Check if the comment was just added (within the last 2 seconds)
       const now = Date.now();
-      if (now - latestComment.createdAt > 10000) {
+      if (now - latestComment.createdAt > 2000) {
         return;
       }
 
@@ -156,20 +155,27 @@ const monitorCommunityNoticeLikes = () => {
 
       // Get all likes
       const likes = noticeData.likes || {};
-      const likeKeys = Object.keys(likes);
+      
+      // Find likes added in the last 2 seconds
+      const now = Date.now();
+      const recentLikes = Object.entries(likes)
+        .filter(([_, likeData]) => {
+          const createdAt = likeData.createdAt || 0;
+          return (now - createdAt) < 2000; // 2 seconds
+        })
+        .map(([userId, _]) => userId);
 
-      if (likeKeys.length === 0) {
+      if (recentLikes.length === 0) {
         return;
       }
 
-      // Get the latest like (this is a simplification - in reality, we'd need to track which likes are new)
-      // For a production system, you might want to store a timestamp with each like
-      const latestLikerId = likeKeys[likeKeys.length - 1];
+      // Process each recent like
+      for (const latestLikerId of recentLikes) {
 
-      // Don't send notification if the liker is the same as the notice author
-      if (latestLikerId === noticeData.authorId) {
-        return;
-      }
+        // Don't send notification if the liker is the same as the notice author
+        if (latestLikerId === noticeData.authorId) {
+          continue;
+        }
 
       console.log(`New like detected on notice ${noticeId} by user ${latestLikerId}`);
 
@@ -191,6 +197,7 @@ const monitorCommunityNoticeLikes = () => {
           likerId: latestLikerId,
         }
       );
+      }
     } catch (error) {
       console.error('Error processing new like:', error);
     }
@@ -224,7 +231,7 @@ const monitorMarketplaceItems = () => {
 
         // Get current time
         const now = Date.now();
-        // Only process active items created in the last 5 minutes
+        // Only process active items created in the last 2 seconds
         const recentItems = addedDocs.filter(item => {
           // Check if item is active
           if (item.status !== 'active') return false;
@@ -237,8 +244,8 @@ const monitorMarketplaceItems = () => {
             item.createdAt.toMillis() :
             (item.createdAt._seconds ? item.createdAt._seconds * 1000 : 0);
 
-          // Check if item was created in the last 5 minutes
-          return (now - createdAtMs) < 5 * 60 * 1000;
+          // Check if item was created in the last 2 seconds
+          return (now - createdAtMs) < 2000;
         });
 
         if (recentItems.length === 0) {
@@ -303,7 +310,7 @@ const monitorChatMessages = () => {
 
       // Check if the message was just added (within the last 10 seconds)
       const now = Date.now();
-      if (latestMessage.timestamp && now - latestMessage.timestamp > 10000) {
+      if (latestMessage.timestamp && now - latestMessage.timestamp > 2000) {
         return;
       }
 
@@ -434,7 +441,7 @@ const monitorVolunteerPosts = () => {
 
         // Get current time
         const now = Date.now();
-        // Only process active posts created in the last 5 minutes
+        // Only process active posts created in the last 2 seconds
         const recentPosts = addedDocs.filter(post => {
           // Check if post has createdAt timestamp
           if (!post.createdAt) return false;
@@ -444,8 +451,8 @@ const monitorVolunteerPosts = () => {
             post.createdAt.toMillis() :
             (post.createdAt._seconds ? post.createdAt._seconds * 1000 : 0);
 
-          // Check if post was created in the last 5 minutes
-          if ((now - createdAtMs) >= 5 * 60 * 1000) return false;
+          // Check if post was created in the last 2 seconds
+          if ((now - createdAtMs) >= 2000) return false;
 
           // Check if the event date is in the future
           if (post.eventDate) {
