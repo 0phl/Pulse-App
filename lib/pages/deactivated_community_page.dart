@@ -1,235 +1,524 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 
-class DeactivatedCommunityPage extends StatelessWidget {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+class DeactivatedCommunityPage extends StatefulWidget {
+  const DeactivatedCommunityPage({super.key});
 
-  DeactivatedCommunityPage({Key? key}) : super(key: key);
+  @override
+  State<DeactivatedCommunityPage> createState() =>
+      _DeactivatedCommunityPageState();
+}
+
+class _DeactivatedCommunityPageState extends State<DeactivatedCommunityPage> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseDatabase _database = FirebaseDatabase.instance;
+
+  String? _userName;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        final userSnapshot = await _database.ref('users/${user.uid}').get();
+        if (userSnapshot.exists) {
+          final userData = userSnapshot.value as Map<dynamic, dynamic>;
+
+          // Try to get the full name using different approaches
+          String? fullName;
+
+          // First check if we have firstName and lastName
+          if (userData['firstName'] != null && userData['lastName'] != null) {
+            if (userData['middleName'] != null &&
+                userData['middleName'].toString().isNotEmpty) {
+              fullName =
+                  '${userData['firstName']} ${userData['middleName']} ${userData['lastName']}';
+            } else {
+              fullName = '${userData['firstName']} ${userData['lastName']}';
+            }
+          }
+          // Then check if we have fullName directly
+          else if (userData['fullName'] != null) {
+            fullName = userData['fullName'] as String;
+          }
+          // Finally check username
+          else if (userData['username'] != null) {
+            fullName = userData['username'] as String;
+          }
+
+          if (mounted) {
+            setState(() {
+              _userName = fullName;
+              _isLoading = false;
+            });
+          }
+        } else {
+          if (mounted) {
+            setState(() => _isLoading = false);
+          }
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false, // Prevent back navigation
+    return PopScope(
+      canPop: false, // Prevent back navigation
       child: Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Top section with lock icon and title
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEE2E2),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: const EdgeInsets.only(
-                          top: 40, bottom: 24, left: 20, right: 20),
-                      child: Column(
-                        children: [
-                          // Lock icon
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.red.withOpacity(0.1),
-                                  blurRadius: 10,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.lock_outline,
-                              size: 40,
-                              color: Color(0xFFEF4444),
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header section
+                Container(
+                  color: const Color(0xFFFFFAFA),
+                  height: MediaQuery.of(context).size.height * 0.4,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Background design
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Container(
+                          height: 180,
+                          width: 180,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEE2E2).withOpacity(0.7),
+                            borderRadius: const BorderRadius.only(
+                              bottomLeft: Radius.circular(180),
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Community Deactivated',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFFEF4444),
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 32),
-                    
-                    // User info and deactivation message
-                    Card(
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(
-                          color: Colors.grey.shade200,
-                          width: 1,
                         ),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // User info
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: Colors.grey.shade200,
-                                  radius: 20,
-                                  child: Text(
-                                    _auth.currentUser?.displayName?.isNotEmpty == true
-                                        ? _auth.currentUser!.displayName![0].toUpperCase()
-                                        : 'U',
-                                    style: const TextStyle(
-                                      color: Color(0xFF64748B),
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _auth.currentUser?.displayName ?? 'User',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      Text(
-                                        _auth.currentUser?.email ?? '',
-                                        style: TextStyle(
-                                          color: Colors.grey.shade600,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        child: Container(
+                          height: 120,
+                          width: 120,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEE2E2).withOpacity(0.4),
+                            borderRadius: const BorderRadius.only(
+                              topRight: Radius.circular(120),
                             ),
-                            
-                            const SizedBox(height: 16),
+                          ),
+                        ),
+                      ),
 
-                            // Deactivation message
-                            const Text(
-                              'Your community has been deactivated.',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF334155),
+                      // Content
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Lock icon
+                            Container(
+                              height: 110,
+                              width: 110,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFEF4444)
+                                        .withOpacity(0.15),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.lock_outline_rounded,
+                                  size: 48,
+                                  color: Color(0xFFEF4444),
+                                ),
                               ),
                             ),
-                            
-                            const SizedBox(height: 8),
-                            
-                            Text(
-                              'Deactivated on: ${DateFormat('MM/dd/yyyy h:mm a').format(DateTime.now())}',
+                            const SizedBox(height: 24),
+                            const Text(
+                              'Account Restricted',
                               style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey.shade600,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1F2937),
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Your community access has been temporarily suspended',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Color(0xFF6B7280),
+                                height: 1.5,
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // What to do section
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF5),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    ],
+                  ),
+                ),
+
+                // Card Section
+                Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // User information
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.info_outline,
-                                color: Color(0xFF059669),
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'What should I do?',
-                                style: TextStyle(
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.08),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: CircleAvatar(
+                              backgroundColor: const Color(0xFF4B5563),
+                              radius: 28,
+                              child: Text(
+                                _userName != null && _userName!.isNotEmpty
+                                    ? _userName![0].toUpperCase()
+                                    : 'U',
+                                style: const TextStyle(
+                                  color: Colors.white,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: Color(0xFF059669),
+                                  fontSize: 20,
                                 ),
                               ),
-                            ],
+                            ),
                           ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'For more information, please contact your Barangay Hall.',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF065F46),
-                              height: 1.5,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _isLoading
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 120,
+                                        child: LinearProgressIndicator(
+                                          backgroundColor: Color(0xFFE2E8F0),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            Color(0xFF64748B),
+                                          ),
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(8)),
+                                        ),
+                                      )
+                                    : Text(
+                                        _userName ??
+                                            _auth.currentUser?.email
+                                                ?.split('@')
+                                                .first ??
+                                            'User',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 18,
+                                        ),
+                                      ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _auth.currentUser?.email ?? '',
+                                  style: const TextStyle(
+                                    color: Color(0xFF6B7280),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    
-                    const SizedBox(height: 32),
-                    
-                    // Sign out button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          await _auth.signOut();
-                          if (context.mounted) {
-                            Navigator.of(context).pushNamedAndRemoveUntil(
-                              '/login',
-                              (route) => false,
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.logout),
-                        label: const Text('Sign Out'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFEF4444),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+
+                      const SizedBox(height: 32),
+
+                      // Status message
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFE5E7EB),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.03),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFEF2F2),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.error_outline_rounded,
+                                    color: Color(0xFFEF4444),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Community Status',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: Color(0xFF1F2937),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Your access is currently restricted because the community you were part of has been temporarily deactivated. This is not due to any action on your part. If the community administrators resolve any pending issues, access may be restored soon.',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Color(0xFF4B5563),
+                                height: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF9FAFB),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.calendar_today_outlined,
+                                    size: 16,
+                                    color: Color(0xFF6B7280),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    DateFormat('MM/dd/yyyy h:mm a')
+                                        .format(DateTime.now()),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF6B7280),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // What to do section
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFE5E7EB),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.03),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF0FDF4),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.lightbulb_outline,
+                                    color: Color(0xFF16A34A),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'What You Can Do',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: Color(0xFF1F2937),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            // Action items
+                            _buildActionItem(
+                              icon: Icons.location_on_outlined,
+                              title: 'Contact Your Barangay Hall',
+                              description:
+                                  'To inquire about community status and next steps.',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildActionItem(
+                              icon: Icons.email_outlined,
+                              title: 'Check Back Later',
+                              description:
+                                  'The community may be reactivated after administrative review.',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildActionItem(
+                              icon: Icons.update_outlined,
+                              title: 'Wait for Updates',
+                              description:
+                                  'Community access will be automatically restored when available.',
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Sign out button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            await _auth.signOut();
+                            if (context.mounted) {
+                              Navigator.of(context).pushNamedAndRemoveUntil(
+                                '/login',
+                                (route) => false,
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF111827),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Sign Out',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.3,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildActionItem({
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF9FAFB),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 18,
+            color: const Color(0xFF4B5563),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                  color: Color(0xFF1F2937),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                description,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF6B7280),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

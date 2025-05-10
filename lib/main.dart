@@ -234,7 +234,7 @@ class _MainScreenState extends State<MainScreen> {
           // Navigate to the deactivated community page
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
-              builder: (context) => DeactivatedCommunityPage(),
+              builder: (context) => const DeactivatedCommunityPage(),
             ),
             (route) => false, // Remove all previous routes
           );

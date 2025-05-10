@@ -122,7 +122,7 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
           final communityStatus = await _checkCommunityStatusWithTimeout();
           if (communityStatus.isDeactivated) {
             // Community is deactivated, show deactivated community page
-            _navigateTo(DeactivatedCommunityPage());
+            _navigateTo(const DeactivatedCommunityPage());
           } else {
             // Community is active, show regular user interface
             _navigateTo(const MainScreen());

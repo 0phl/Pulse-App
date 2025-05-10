@@ -188,7 +188,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                           // If community is deactivated, show deactivated community page
                           if (communitySnapshot.data?.isDeactivated == true) {
                             print('AuthWrapper: Community is deactivated');
-                            return DeactivatedCommunityPage();
+                            return const DeactivatedCommunityPage();
                           }
 
                           // Community is active, show regular user interface
