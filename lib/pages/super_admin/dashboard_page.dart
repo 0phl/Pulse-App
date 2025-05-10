@@ -51,42 +51,16 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         toolbarHeight: 64,
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Image.asset(
-                'assets/icon/pulse_logo.png',
-                width: 24,
-                height: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                isSmallScreen ? 'Super Admin' : 'Super Admin Dashboard',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                  fontSize: 18,
-                  color: Color(0xFF2D3748),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        title: Text(
+          isSmallScreen ? 'Super Admin' : 'Super Admin Dashboard',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+            fontSize: 18,
+            color: Color(0xFF2D3748),
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         backgroundColor: Colors.white,
         elevation: 0,
@@ -103,27 +77,55 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                   children: [
                     DrawerHeader(
                       margin: EdgeInsets.zero,
-                      padding: const EdgeInsets.all(16),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF00C49A),
+                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00C49A),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            offset: const Offset(0, 2),
+                            blurRadius: 6,
+                          ),
+                        ],
                       ),
                       child: Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Image.asset(
-                              'assets/icon/pulse_logo.png',
-                              width: 48,
-                              height: 48,
-                              color: Colors.white,
+                            Container(
+                              width: 72,
+                              height: 72,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 3,
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(10.0),
+                                child: Image.asset(
+                                  'assets/icon/pulse_logo.png',
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 16),
                             const Text(
                               'PULSE Admin',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 18,
+                                fontSize: 20,
                                 fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ],
@@ -159,12 +161,24 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                         ],
                       ),
                     ),
-                    const Divider(),
                     Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Divider(
+                        color: Colors.grey.withOpacity(0.2),
+                        thickness: 1.5,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
                       child: OutlinedButton.icon(
-                        icon: const Icon(Icons.logout),
-                        label: const Text('Sign Out'),
+                        icon: const Icon(Icons.logout, size: 20),
+                        label: const Text(
+                          'Sign Out',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 15,
+                          ),
+                        ),
                         onPressed: () async {
                           try {
                             final shouldLogout = await showDialog<bool>(
@@ -211,11 +225,14 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                         },
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF64748B),
-                          minimumSize: const Size(double.infinity, 44),
+                          minimumSize: const Size(double.infinity, 48),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                          elevation: 0,
+                          backgroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                     ),
@@ -249,19 +266,33 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                       decoration: BoxDecoration(
                         color: const Color(0xFFE6F7F2),
                         borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF00C49A).withOpacity(0.1),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
                       ),
                       child: Row(
                         children: [
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF00C49A),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.shield_rounded,
                               color: Colors.white,
-                              size: 20,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            child: Image.asset(
+                              'assets/icon/pulse_logo.png',
+                              width: 24,
+                              height: 24,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -272,6 +303,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
                                 color: Color(0xFF00A580),
+                                letterSpacing: 0.3,
                               ),
                             ),
                           ),
@@ -292,7 +324,13 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                       onTap: () => setState(() => _selectedIndex = 1),
                     ),
                     const Spacer(),
-                    const Divider(),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Divider(
+                        color: Colors.grey.withOpacity(0.2),
+                        thickness: 1.5,
+                      ),
+                    ),
                     Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: OutlinedButton.icon(
@@ -352,11 +390,14 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                         },
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF64748B),
-                          minimumSize: const Size(double.infinity, 44),
+                          minimumSize: const Size(double.infinity, 48),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                          elevation: 0,
+                          backgroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                     ),
@@ -436,24 +477,37 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: isSelected ? const Color(0xFF00C49A) : const Color(0xFF64748B),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: isSelected ? const Color(0xFF00C49A) : const Color(0xFF64748B),
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFFE6F7F2) : Colors.grey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            color: isSelected ? const Color(0xFF00C49A) : const Color(0xFF64748B),
+            size: 20,
+          ),
         ),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: isSelected ? const Color(0xFF00C49A) : const Color(0xFF64748B),
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            fontSize: 15,
+          ),
+        ),
+        selected: isSelected,
+        selectedTileColor: const Color(0xFFE6F7F2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        onTap: onTap,
       ),
-      selected: isSelected,
-      selectedTileColor: const Color(0xFFE6F7F2),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      onTap: onTap,
     );
   }
 }
