@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/admin_service.dart';
+import '../services/user_service.dart';
 import '../pages/login_page.dart';
 import '../main.dart';
 import '../pages/admin/dashboard_page.dart';
@@ -10,6 +11,7 @@ import '../pages/admin/change_password_page.dart';
 import '../models/admin_user.dart';
 import '../pages/pending_verification_page.dart';
 import '../pages/rejected_verification_page.dart';
+import '../pages/deactivated_community_page.dart';
 import 'loading_screen.dart';
 import '../services/user_session_service.dart';
 import '../services/notification_service.dart';
@@ -32,6 +34,7 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
   final _adminService = AdminService();
+  final _userService = UserService();
 
   // State variables
   bool _isAuthenticating = true;
@@ -115,7 +118,15 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
             rejectionReason: userData['rejectionReason'] as String?,
           ));
         } else if (verificationStatus == 'verified') {
-          _navigateTo(const MainScreen());
+          // Check if user's community is active
+          final communityStatus = await _checkCommunityStatusWithTimeout();
+          if (communityStatus.isDeactivated) {
+            // Community is deactivated, show deactivated community page
+            _navigateTo(DeactivatedCommunityPage());
+          } else {
+            // Community is active, show regular user interface
+            _navigateTo(const MainScreen());
+          }
         } else {
           // Unknown verification status, go to login page
           _auth.signOut();
@@ -212,6 +223,21 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
       });
     } catch (e) {
       return null;
+    }
+  }
+
+  // Check if user's community is active with timeout
+  Future<CommunityDeactivationStatus> _checkCommunityStatusWithTimeout() async {
+    try {
+      return await _userService
+          .checkCommunityStatus()
+          .timeout(_timeoutDuration, onTimeout: () {
+        // On timeout, assume community is active to prevent false positives
+        return CommunityDeactivationStatus.active();
+      });
+    } catch (e) {
+      // On error, assume community is active to prevent false positives
+      return CommunityDeactivationStatus.active();
     }
   }
 

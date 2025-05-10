@@ -4,8 +4,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'dart:async';
 import 'firebase_options.dart';
 import 'widgets/delayed_auth_wrapper.dart';
+import 'services/user_service.dart';
+import 'pages/deactivated_community_page.dart';
 import 'pages/admin/change_password_page.dart';
 import 'pages/admin/community_notices_page.dart';
 import 'pages/admin/dashboard_page.dart';
@@ -205,6 +208,43 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   DateTime? _lastPressedAt;
   final GlobalState _globalState = GlobalState();
+  final UserService _userService = UserService();
+  StreamSubscription? _communityStatusSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start monitoring community status
+    _startCommunityStatusMonitoring();
+  }
+
+  @override
+  void dispose() {
+    // Cancel the subscription when the widget is disposed
+    _communityStatusSubscription?.cancel();
+    super.dispose();
+  }
+
+  // Start monitoring community status
+  void _startCommunityStatusMonitoring() {
+    _communityStatusSubscription = _userService.streamCommunityStatus().listen(
+      (status) {
+        if (status.isDeactivated && mounted) {
+          debugPrint('Community has been deactivated, redirecting user...');
+          // Navigate to the deactivated community page
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => DeactivatedCommunityPage(),
+            ),
+            (route) => false, // Remove all previous routes
+          );
+        }
+      },
+      onError: (error) {
+        debugPrint('Error monitoring community status: $error');
+      },
+    );
+  }
 
   // Pages with the MarketPage having the callback
   late final List<Widget> _pages = <Widget>[

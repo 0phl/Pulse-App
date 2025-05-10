@@ -4,12 +4,14 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/admin_service.dart';
+import '../services/user_service.dart';
 import '../pages/login_page.dart';
 import '../pages/admin/dashboard_page.dart';
 import '../pages/admin/change_password_page.dart';
 import '../models/admin_user.dart';
 import '../pages/pending_verification_page.dart';
 import '../pages/rejected_verification_page.dart';
+import '../pages/deactivated_community_page.dart';
 import '../services/user_session_service.dart';
 import '../widgets/loading_screen.dart';
 import '../pages/admin/deactivated_account_page.dart';
@@ -26,6 +28,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
   // Add timeout duration
   static const Duration _timeoutDuration = Duration(seconds: 15);
   final _adminService = AdminService();
+  final _userService = UserService();
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
   final _sessionService = UserSessionService();
@@ -172,9 +175,27 @@ class _AuthWrapperState extends State<AuthWrapper> {
                       );
                     } else if (verificationStatus == 'verified') {
                       print(
-                          'AuthWrapper: User is verified, showing regular UI');
-                      // User is verified, show regular user interface
-                      return const MainScreen();
+                          'AuthWrapper: User is verified, checking community status');
+
+                      // Check if user's community is active
+                      return FutureBuilder<CommunityDeactivationStatus>(
+                        future: _checkCommunityStatusWithTimeout(),
+                        builder: (context, communitySnapshot) {
+                          if (communitySnapshot.connectionState == ConnectionState.waiting) {
+                            return const LoadingScreen(message: '');
+                          }
+
+                          // If community is deactivated, show deactivated community page
+                          if (communitySnapshot.data?.isDeactivated == true) {
+                            print('AuthWrapper: Community is deactivated');
+                            return DeactivatedCommunityPage();
+                          }
+
+                          // Community is active, show regular user interface
+                          print('AuthWrapper: Community is active, showing regular UI');
+                          return const MainScreen();
+                        },
+                      );
                     } else {
                       print(
                           'AuthWrapper: Unknown verification status: $verificationStatus');
@@ -278,5 +299,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
   }
 
-  // Removed unused method
+  // Check if user's community is active with timeout
+  Future<CommunityDeactivationStatus> _checkCommunityStatusWithTimeout() async {
+    try {
+      return await _userService
+          .checkCommunityStatus()
+          .timeout(_timeoutDuration, onTimeout: () {
+        print('Community status check timed out');
+        // On timeout, assume community is active to prevent false positives
+        return CommunityDeactivationStatus.active();
+      });
+    } catch (e) {
+      print('Error checking community status: $e');
+      // On error, assume community is active to prevent false positives
+      return CommunityDeactivationStatus.active();
+    }
+  }
 }
