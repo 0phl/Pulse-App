@@ -45,7 +45,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint("Handling a background message: ${message.messageId}");
   debugPrint("Message data: ${message.data}");
   if (message.notification != null) {
-    debugPrint("Message notification: ${message.notification!.title} - ${message.notification!.body}");
+    debugPrint(
+        "Message notification: ${message.notification!.title} - ${message.notification!.body}");
   }
 
   // Call the handler from notification service
@@ -74,7 +75,8 @@ void main() async {
       await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
 
       // Set up background message handler for FCM
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onBackgroundMessage(
+          _firebaseMessagingBackgroundHandler);
     } catch (e) {
       debugPrint('Firebase initialization error: $e');
     }
@@ -156,8 +158,10 @@ class MyApp extends StatelessWidget {
                   const AddVolunteerPostPage(),
               '/admin/reports': (context) => const AdminReportsPage(),
               '/admin/profile': (context) => const AdminProfilePage(),
-              '/admin/notifications': (context) => const AdminNotificationsPage(),
-              '/admin/notification-settings': (context) => const AdminNotificationSettingsPage(),
+              '/admin/notifications': (context) =>
+                  const AdminNotificationsPage(),
+              '/admin/notification-settings': (context) =>
+                  const AdminNotificationSettingsPage(),
               // User verification functionality consolidated into Manage Users page
 
               // Main app routes
@@ -166,21 +170,24 @@ class MyApp extends StatelessWidget {
               '/volunteer': (context) => const VolunteerPage(),
               '/report': (context) => const ReportPage(),
               '/seller/dashboard': (context) {
-                final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-                final initialTabIndex = args != null && args.containsKey('initialTabIndex')
-                    ? args['initialTabIndex'] as int
-                    : 0;
+                final args = ModalRoute.of(context)?.settings.arguments
+                    as Map<String, dynamic>?;
+                final initialTabIndex =
+                    args != null && args.containsKey('initialTabIndex')
+                        ? args['initialTabIndex'] as int
+                        : 0;
                 return SellerDashboardPage(initialTabIndex: initialTabIndex);
               },
               '/add_item': (context) => AddItemPage(
-                onItemAdded: (item) {
-                  Navigator.pop(context);
-                },
-              ),
+                    onItemAdded: (item) {
+                      Navigator.pop(context);
+                    },
+                  ),
 
               // Notification routes
               '/notifications': (context) => const NotificationsPage(),
-              '/notification-settings': (context) => const NotificationSettingsPage(),
+              '/notification-settings': (context) =>
+                  const NotificationSettingsPage(),
             },
     );
   }

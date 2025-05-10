@@ -24,7 +24,8 @@ class SuperAdminService {
       if (!userDoc.exists) return false;
 
       final userData = userDoc.data()!;
-      return userData['role'] == 'super_admin' && userData['status'] == 'active';
+      return userData['role'] == 'super_admin' &&
+          userData['status'] == 'active';
     } catch (e) {
       print('Error checking super admin status: $e');
       return false;
@@ -38,7 +39,11 @@ class SuperAdminService {
       return Stream.error('User not logged in');
     }
 
-    return _database.child('admin_applications').orderByChild('createdAt').onValue.map((event) {
+    return _database
+        .child('admin_applications')
+        .orderByChild('createdAt')
+        .onValue
+        .map((event) {
       final data = event.snapshot.value as Map<dynamic, dynamic>?;
       if (data == null) return [];
 
@@ -46,7 +51,8 @@ class SuperAdminService {
           .map((e) => AdminApplication.fromJson(
               Map<String, dynamic>.from(e.value), e.key))
           .toList()
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt)); // Sort in descending order
+        ..sort((a, b) =>
+            b.createdAt.compareTo(a.createdAt)); // Sort in descending order
     });
   }
 
@@ -114,6 +120,7 @@ class SuperAdminService {
         Map<String, dynamic> updates = {
           'status': 'active',
           'adminId': userCredential.user!.uid,
+          'adminName': application.fullName,
           // Use a timestamp from Dart instead of ServerValue
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
         };
@@ -124,20 +131,20 @@ class SuperAdminService {
 
         final communityData = communitySnapshot.value as Map<dynamic, dynamic>;
         final locationStatusId = Community.createLocationStatusId(
-          communityData['regionCode'] as String,
-          communityData['provinceCode'] as String,
-          communityData['municipalityCode'] as String,
-          communityData['barangayCode'] as String,
-          'active'
-        );
+            communityData['regionCode'] as String,
+            communityData['provinceCode'] as String,
+            communityData['municipalityCode'] as String,
+            communityData['barangayCode'] as String,
+            'active');
 
         updates['locationStatusId'] = locationStatusId;
 
         // Third fix: Await the update operation and add error handling
         await communityRef.update(updates).timeout(
-          const Duration(seconds: 10),
-          onTimeout: () => throw TimeoutException('Community update timed out'),
-        );
+              const Duration(seconds: 10),
+              onTimeout: () =>
+                  throw TimeoutException('Community update timed out'),
+            );
 
         // Add a small delay to ensure Firebase has processed the update
         await Future.delayed(const Duration(milliseconds: 500));
@@ -148,11 +155,13 @@ class SuperAdminService {
           throw Exception('Community no longer exists after update');
         }
 
-        final verifiedData = Map<String, dynamic>.from(verifySnapshot.value as Map);
+        final verifiedData =
+            Map<String, dynamic>.from(verifySnapshot.value as Map);
         print('New community status: ${verifiedData['status']}');
 
         if (verifiedData['status'] != 'active') {
-          print('Status verification failed. Current status: ${verifiedData['status']}');
+          print(
+              'Status verification failed. Current status: ${verifiedData['status']}');
           throw Exception('Community status was not updated correctly');
         }
 
@@ -165,17 +174,20 @@ class SuperAdminService {
           // Fourth fix: Try direct set operation for fields
           final communitySnapshot = await communityRef.get();
           if (communitySnapshot.exists) {
-            final communityData = communitySnapshot.value as Map<dynamic, dynamic>;
+            final communityData =
+                communitySnapshot.value as Map<dynamic, dynamic>;
             final locationStatusId = Community.createLocationStatusId(
-              communityData['regionCode'] as String,
-              communityData['provinceCode'] as String,
-              communityData['municipalityCode'] as String,
-              communityData['barangayCode'] as String,
-              'active'
-            );
+                communityData['regionCode'] as String,
+                communityData['provinceCode'] as String,
+                communityData['municipalityCode'] as String,
+                communityData['barangayCode'] as String,
+                'active');
             await communityRef.child('status').set('active');
             await communityRef.child('adminId').set(userCredential.user!.uid);
-            await communityRef.child('updatedAt').set(DateTime.now().millisecondsSinceEpoch);
+            await communityRef.child('adminName').set(application.fullName);
+            await communityRef
+                .child('updatedAt')
+                .set(DateTime.now().millisecondsSinceEpoch);
             await communityRef.child('locationStatusId').set(locationStatusId);
           }
 
@@ -282,10 +294,14 @@ class SuperAdminService {
       if (currentUser == null) throw 'Not authenticated';
 
       // Get the application details first to get communityId
-      final applicationSnapshot = await _database.child('admin_applications').child(applicationId).get();
+      final applicationSnapshot = await _database
+          .child('admin_applications')
+          .child(applicationId)
+          .get();
       if (!applicationSnapshot.exists) throw 'Application not found';
 
-      final applicationData = Map<String, dynamic>.from(applicationSnapshot.value as Map);
+      final applicationData =
+          Map<String, dynamic>.from(applicationSnapshot.value as Map);
       final communityId = applicationData['communityId'] as String?;
 
       print('Updating application status...');
@@ -311,14 +327,14 @@ class SuperAdminService {
         final communityRef = _database.child('communities').child(communityId);
         final communitySnapshot = await communityRef.get();
         if (communitySnapshot.exists) {
-          final communityData = communitySnapshot.value as Map<dynamic, dynamic>;
+          final communityData =
+              communitySnapshot.value as Map<dynamic, dynamic>;
           final locationStatusId = Community.createLocationStatusId(
-            communityData['regionCode'] as String,
-            communityData['provinceCode'] as String,
-            communityData['municipalityCode'] as String,
-            communityData['barangayCode'] as String,
-            'rejected'
-          );
+              communityData['regionCode'] as String,
+              communityData['provinceCode'] as String,
+              communityData['municipalityCode'] as String,
+              communityData['barangayCode'] as String,
+              'rejected');
 
           await communityRef.update({
             'status': 'rejected',
@@ -351,19 +367,412 @@ class SuperAdminService {
         .child('communities')
         .orderByChild('name')
         .onValue
-        .map((event) {
+        .asyncMap((event) async {
       final Map<dynamic, dynamic>? data =
           event.snapshot.value as Map<dynamic, dynamic>?;
 
       if (data == null) return [];
 
-      return data.entries
+      // Convert raw data to a list of maps with admin information
+      final communities = data.entries
           .map((e) => {
                 'id': e.key,
                 ...Map<String, dynamic>.from(e.value),
               })
           .toList();
+
+      // Get all pending admin applications to filter out communities with pending applications
+      final pendingApplicationsSnapshot = await _database
+          .child('admin_applications')
+          .orderByChild('status')
+          .equalTo('pending')
+          .get();
+
+      Set<String> pendingCommunityIds = {};
+      if (pendingApplicationsSnapshot.exists) {
+        final pendingApps =
+            pendingApplicationsSnapshot.value as Map<dynamic, dynamic>;
+        for (var entry in pendingApps.entries) {
+          final appData = entry.value as Map<dynamic, dynamic>;
+          if (appData.containsKey('communityId') &&
+              appData['communityId'] != null) {
+            pendingCommunityIds.add(appData['communityId'].toString());
+          }
+        }
+      }
+
+      // Filter communities:
+      // 1. Keep communities that have an adminId (already assigned admin)
+      // 2. Remove communities that have pending applications and no admin
+      final filteredCommunities = communities.where((community) {
+        final hasAdmin = community['adminId'] != null &&
+            community['adminId'].toString().isNotEmpty;
+        final communityId = community['id'].toString();
+
+        // If community has an admin, always show it regardless of pending status
+        if (hasAdmin) return true;
+
+        // If community has no admin AND is in pending applications, don't show it
+        if (!hasAdmin && pendingCommunityIds.contains(communityId))
+          return false;
+
+        // Otherwise show it (no admin but not pending)
+        return true;
+      }).toList();
+
+      // Fetch admin data for communities with adminId
+      for (final community in filteredCommunities) {
+        final adminId = community['adminId'];
+        if (adminId != null && adminId.toString().isNotEmpty) {
+          try {
+            // Get admin user document from Firestore
+            final userDoc =
+                await _firestore.collection('users').doc(adminId).get();
+            if (userDoc.exists) {
+              final userData = userDoc.data()!;
+              // Add admin name if available
+              community['adminName'] = userData['fullName'] ?? 'Unknown Admin';
+            } else {
+              print('Admin user document not found for ID: $adminId');
+            }
+          } catch (e) {
+            print('Error fetching admin data: $e');
+            // Set a default admin name if there's an error
+            community['adminName'] = 'Admin (Error Loading)';
+          }
+        }
+      }
+
+      return filteredCommunities;
     });
+  }
+
+  // Get admin applications as a one-time snapshot (not a stream)
+  Future<List<AdminApplication>> getAdminApplicationsSnapshot() async {
+    try {
+      final snapshot = await _database.child('admin_applications').get();
+
+      if (!snapshot.exists || snapshot.value == null) {
+        return [];
+      }
+
+      final data = snapshot.value as Map<dynamic, dynamic>;
+
+      return data.entries
+          .map((e) => AdminApplication.fromJson(
+              Map<String, dynamic>.from(e.value), e.key))
+          .toList()
+        ..sort((a, b) =>
+            b.createdAt.compareTo(a.createdAt)); // Sort in descending order
+    } catch (e) {
+      print('Error getting admin applications snapshot: $e');
+      return [];
+    }
+  }
+
+  // Get communities as a one-time snapshot (not a stream)
+  Future<List<Map<String, dynamic>>> getCommunitiesSnapshot() async {
+    try {
+      final snapshot = await _database.child('communities').get();
+
+      if (!snapshot.exists || snapshot.value == null) {
+        return [];
+      }
+
+      final data = snapshot.value as Map<dynamic, dynamic>;
+
+      // Convert raw data to list of maps
+      final communities = data.entries
+          .map((e) => {
+                'id': e.key,
+                ...Map<String, dynamic>.from(e.value),
+              })
+          .toList();
+
+      // Get all pending admin applications to filter out communities with pending applications
+      final pendingApplicationsSnapshot = await _database
+          .child('admin_applications')
+          .orderByChild('status')
+          .equalTo('pending')
+          .get();
+
+      Set<String> pendingCommunityIds = {};
+      if (pendingApplicationsSnapshot.exists) {
+        final pendingApps =
+            pendingApplicationsSnapshot.value as Map<dynamic, dynamic>;
+        for (var entry in pendingApps.entries) {
+          final appData = entry.value as Map<dynamic, dynamic>;
+          if (appData.containsKey('communityId') &&
+              appData['communityId'] != null) {
+            pendingCommunityIds.add(appData['communityId'].toString());
+          }
+        }
+      }
+
+      // Filter communities:
+      // 1. Keep communities that have an adminId (already assigned admin)
+      // 2. Remove communities that have pending applications and no admin
+      final filteredCommunities = communities.where((community) {
+        final hasAdmin = community['adminId'] != null &&
+            community['adminId'].toString().isNotEmpty;
+        final communityId = community['id'].toString();
+
+        // If community has an admin, always show it regardless of pending status
+        if (hasAdmin) return true;
+
+        // If community has no admin AND is in pending applications, don't show it
+        if (!hasAdmin && pendingCommunityIds.contains(communityId))
+          return false;
+
+        // Otherwise show it (no admin but not pending)
+        return true;
+      }).toList();
+
+      // Fetch admin data for communities with adminId
+      for (final community in filteredCommunities) {
+        final adminId = community['adminId'];
+        if (adminId != null && adminId.toString().isNotEmpty) {
+          try {
+            // Get admin user document from Firestore
+            final userDoc =
+                await _firestore.collection('users').doc(adminId).get();
+            if (userDoc.exists) {
+              final userData = userDoc.data()!;
+              // Add admin name if available
+              community['adminName'] = userData['fullName'] ?? 'Unknown Admin';
+            } else {
+              print('Admin user document not found for ID: $adminId');
+            }
+          } catch (e) {
+            print('Error fetching admin data: $e');
+            // Set a default admin name if there's an error
+            community['adminName'] = 'Admin (Error Loading)';
+          }
+        }
+      }
+
+      return filteredCommunities;
+    } catch (e) {
+      print('Error getting communities snapshot: $e');
+      return [];
+    }
+  }
+
+  // Update admin application status
+  Future<void> updateApplicationStatus(
+      String applicationId, String status) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw 'Not authenticated';
+
+      // First get the application to ensure it exists
+      final snapshot = await _database
+          .child('admin_applications')
+          .child(applicationId)
+          .get();
+      if (!snapshot.exists) throw 'Application not found';
+
+      // Update the status
+      await _database.child('admin_applications').child(applicationId).update({
+        'status': status,
+        'updatedAt': ServerValue.timestamp,
+        'updatedBy': user.uid,
+      });
+
+      // If status is 'approved', call the full approval process
+      if (status == 'approved') {
+        final applicationData =
+            Map<String, dynamic>.from(snapshot.value as Map);
+        final application =
+            AdminApplication.fromJson(applicationData, applicationId);
+        await approveAdminApplication(application);
+      }
+
+      // If status is 'rejected', set rejection with default reason
+      if (status == 'rejected') {
+        final applicationData =
+            Map<String, dynamic>.from(snapshot.value as Map);
+        final email = applicationData['email'] as String;
+        await _database
+            .child('admin_applications')
+            .child(applicationId)
+            .update({
+          'rejectionReason': 'Application rejected by super admin',
+          'rejectedAt': ServerValue.timestamp,
+          'rejectedBy': user.uid,
+        });
+
+        // Send rejection email
+        try {
+          await _emailService.sendRejectionNotification(email,
+              'Your application has been reviewed and was not approved. For more information, please contact support.');
+        } catch (e) {
+          print('Error sending rejection email: $e');
+          // Continue even if email fails
+        }
+      }
+    } catch (e) {
+      print('Error updating application status: $e');
+      throw 'Failed to update application status: $e';
+    }
+  }
+
+  // Update community status
+  Future<void> updateCommunityStatus(String communityId, String status,
+      {String? deactivationReason}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw 'Not authenticated';
+
+      // First get the community to ensure it exists
+      final communityRef = _database.child('communities').child(communityId);
+      final snapshot = await communityRef.get();
+      if (!snapshot.exists) throw 'Community not found';
+
+      final communityData = snapshot.value as Map<dynamic, dynamic>;
+
+      // Create location status ID if possible
+      String? locationStatusId;
+      try {
+        locationStatusId = Community.createLocationStatusId(
+            communityData['regionCode'] as String,
+            communityData['provinceCode'] as String,
+            communityData['municipalityCode'] as String,
+            communityData['barangayCode'] as String,
+            status);
+      } catch (e) {
+        print('Error creating locationStatusId: $e');
+        // Continue without locationStatusId if it fails
+      }
+
+      // Update the status
+      final updates = <String, dynamic>{
+        'status': status,
+        'updatedAt': ServerValue.timestamp,
+        'updatedBy': user.uid,
+      };
+
+      if (locationStatusId != null) {
+        updates['locationStatusId'] = locationStatusId;
+      }
+
+      // Add deactivation reason if provided and status is inactive
+      if (status == 'inactive' &&
+          deactivationReason != null &&
+          deactivationReason.isNotEmpty) {
+        updates['deactivationReason'] = deactivationReason;
+        updates['deactivatedAt'] = ServerValue.timestamp;
+        updates['deactivatedBy'] = user.uid;
+      }
+
+      await communityRef.update(updates);
+
+      // If deactivating, also update the admin user to indicate their account is deactivated
+      if (status == 'inactive' &&
+          communityData.containsKey('adminId') &&
+          communityData['adminId'] != null) {
+        final adminId = communityData['adminId'];
+
+        // Update admin document in Firestore
+        await _firestore.collection('users').doc(adminId).update({
+          'status': 'inactive',
+          'deactivationReason':
+              deactivationReason ?? 'Community deactivated by super admin',
+          'deactivatedAt': FieldValue.serverTimestamp(),
+          'deactivatedBy': user.uid,
+        });
+      }
+
+      // If activating, also update the admin user to reactivate their account if it was deactivated
+      if (status == 'active' &&
+          communityData.containsKey('adminId') &&
+          communityData['adminId'] != null) {
+        final adminId = communityData['adminId'];
+
+        // First check if the admin account is inactive
+        final adminDoc =
+            await _firestore.collection('users').doc(adminId).get();
+        if (adminDoc.exists) {
+          final adminData = adminDoc.data()!;
+          if (adminData['status'] == 'inactive') {
+            print('Reactivating admin account: $adminId');
+            // Update admin document in Firestore to reactivate
+            await _firestore.collection('users').doc(adminId).update({
+              'status': 'active',
+              'updatedAt': FieldValue.serverTimestamp(),
+              'updatedBy': user.uid,
+              // Remove deactivation fields
+              'deactivationReason': FieldValue.delete(),
+              'deactivatedAt': FieldValue.delete(),
+              'deactivatedBy': FieldValue.delete(),
+            });
+            print('Admin account reactivated successfully');
+          }
+        }
+      }
+    } catch (e) {
+      print('Error updating community status: $e');
+      throw 'Failed to update community status: $e';
+    }
+  }
+
+  // Manually reset an admin account's status to active
+  Future<void> resetAdminStatus(String adminId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw 'Not authenticated';
+
+      print('Starting admin account reset for: $adminId');
+
+      // Check if admin exists in Firestore
+      final adminDoc = await _firestore.collection('users').doc(adminId).get();
+      if (!adminDoc.exists) {
+        throw 'Admin account not found in Firestore';
+      }
+
+      final adminData = adminDoc.data()!;
+      if (adminData['status'] != 'inactive') {
+        print('Admin account is already active, no reset needed');
+        return;
+      }
+
+      // Reset admin in Firestore
+      await _firestore.collection('users').doc(adminId).update({
+        'status': 'active',
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
+        // Remove deactivation fields
+        'deactivationReason': FieldValue.delete(),
+        'deactivatedAt': FieldValue.delete(),
+        'deactivatedBy': FieldValue.delete(),
+      });
+      print('Admin account reset in Firestore');
+
+      // Check and reset in RTDB if needed
+      try {
+        final rtdbSnapshot =
+            await _database.child('users').child(adminId).get();
+        if (rtdbSnapshot.exists) {
+          final rtdbData = rtdbSnapshot.value as Map<dynamic, dynamic>;
+          if (rtdbData['status'] == 'inactive') {
+            await _database.child('users').child(adminId).update({
+              'status': 'active',
+              'updatedAt': ServerValue.timestamp,
+              'updatedBy': user.uid,
+            });
+            print('Admin account reset in RTDB');
+          }
+        }
+      } catch (rtdbError) {
+        // Log but continue since Firestore is the primary source
+        print('Error updating RTDB admin status: $rtdbError');
+      }
+
+      print('Admin account reset completed successfully');
+    } catch (e) {
+      print('Error resetting admin status: $e');
+      throw 'Failed to reset admin account: $e';
+    }
   }
 }
 

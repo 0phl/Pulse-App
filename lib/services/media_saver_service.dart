@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:gal/gal.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
@@ -27,6 +28,34 @@ class MediaSaverService {
     required BuildContext context,
     String? album,
   }) async {
+    // For web, redirect to download URL instead
+    if (kIsWeb) {
+      try {
+        final url = Uri.parse(filePath);
+        if (await launchUrl(url, mode: LaunchMode.externalApplication)) {
+          return true;
+        } else {
+          if (context.mounted) {
+            _showSnackBar(
+              context,
+              'Could not open download URL',
+              isError: true,
+            );
+          }
+          return false;
+        }
+      } catch (e) {
+        if (context.mounted) {
+          _showSnackBar(
+            context,
+            'Error: ${e.toString()}',
+            isError: true,
+          );
+        }
+        return false;
+      }
+    }
+
     try {
       // Check and request permissions
       if (!await _checkPermission(context)) {
@@ -92,6 +121,34 @@ class MediaSaverService {
     required BuildContext context,
     String? album,
   }) async {
+    // For web, redirect to download URL instead
+    if (kIsWeb) {
+      try {
+        final url = Uri.parse(filePath);
+        if (await launchUrl(url, mode: LaunchMode.externalApplication)) {
+          return true;
+        } else {
+          if (context.mounted) {
+            _showSnackBar(
+              context,
+              'Could not open download URL',
+              isError: true,
+            );
+          }
+          return false;
+        }
+      } catch (e) {
+        if (context.mounted) {
+          _showSnackBar(
+            context,
+            'Error: ${e.toString()}',
+            isError: true,
+          );
+        }
+        return false;
+      }
+    }
+
     try {
       // Check and request permissions
       if (!await _checkPermission(context)) {
@@ -134,7 +191,8 @@ class MediaSaverService {
       // Verify the new file exists
       final newFile = File(newFilePath);
       if (!await newFile.exists()) {
-        debugPrint('MediaSaverService: New video file was not created properly');
+        debugPrint(
+            'MediaSaverService: New video file was not created properly');
         if (context.mounted) {
           _showSnackBar(
             context,
@@ -157,11 +215,13 @@ class MediaSaverService {
             await Gal.putVideo(newFilePath);
           }
         } catch (galError) {
-          debugPrint('MediaSaverService: Gal error: $galError, trying fallback method');
+          debugPrint(
+              'MediaSaverService: Gal error: $galError, trying fallback method');
 
           // Fallback: Try using MediaStore API directly for Android 10+
           if (await _isAndroid10OrHigher()) {
-            debugPrint('MediaSaverService: Using MediaStore fallback for Android 10+');
+            debugPrint(
+                'MediaSaverService: Using MediaStore fallback for Android 10+');
             final result = await _saveVideoUsingMediaStore(newFilePath, album);
             if (!result) {
               throw Exception('Failed to save video using MediaStore API');
@@ -381,14 +441,12 @@ class MediaSaverService {
 
   /// Checks and requests storage permission
   Future<bool> _checkPermission(BuildContext context) async {
-    // First check if we already have access using Gal's built-in method
-    final hasAccess = await Gal.hasAccess();
-    if (hasAccess) return true;
+    // For web, no permissions needed
+    if (kIsWeb) {
+      return true;
+    }
 
-    // If not, request access using Gal's method first
-    final requestResult = await Gal.requestAccess();
-    if (requestResult) return true;
-
+    // For native platforms, check appropriate permissions
     // If Gal's method fails, try using permission_handler as a fallback
     if (Platform.isAndroid) {
       // For Android, check if we're on Android 11+ (API 30+)
@@ -445,7 +503,13 @@ class MediaSaverService {
 
   /// Creates a new file with the current timestamp in the filename and metadata
   /// to ensure it appears as the newest file in the gallery
-  Future<String> _createFileWithCurrentTimestamp(String originalFilePath) async {
+  Future<String> _createFileWithCurrentTimestamp(
+      String originalFilePath) async {
+    // For web, return the original path as we don't access files directly
+    if (kIsWeb) {
+      return originalFilePath;
+    }
+
     try {
       // Get the original file extension
       final extension = path.extension(originalFilePath).toLowerCase();
@@ -459,7 +523,8 @@ class MediaSaverService {
       final tempDir = await getTemporaryDirectory();
       final newFilePath = path.join(tempDir.path, newFileName);
 
-      debugPrint('MediaSaverService: Creating new file with timestamp: $newFilePath');
+      debugPrint(
+          'MediaSaverService: Creating new file with timestamp: $newFilePath');
 
       // For images, we'll decode and re-encode to reset metadata
       if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].contains(extension)) {
@@ -481,19 +546,23 @@ class MediaSaverService {
             } else if (extension == '.gif') {
               encodedImage = img.encodeGif(image);
             } else {
-              encodedImage = img.encodePng(image); // Default to PNG for other formats
+              encodedImage =
+                  img.encodePng(image); // Default to PNG for other formats
             }
 
             // Write the new image to file
             await File(newFilePath).writeAsBytes(encodedImage);
-            debugPrint('MediaSaverService: Image processed and saved to $newFilePath');
+            debugPrint(
+                'MediaSaverService: Image processed and saved to $newFilePath');
             return newFilePath;
           }
         } catch (imageError) {
           // If image processing fails, fall back to simple copy
-          debugPrint('MediaSaverService: Error processing image: $imageError, falling back to copy');
+          debugPrint(
+              'MediaSaverService: Error processing image: $imageError, falling back to copy');
         }
-      } else if (['.mp4', '.mov', '.avi', '.mkv', '.webm'].contains(extension)) {
+      } else if (['.mp4', '.mov', '.avi', '.mkv', '.webm']
+          .contains(extension)) {
         // For video files, use a more reliable copy method
         debugPrint('MediaSaverService: Processing video file');
         try {
@@ -504,10 +573,12 @@ class MediaSaverService {
           // Scan the file to make it visible in the gallery
           await _scanFile(newFilePath);
 
-          debugPrint('MediaSaverService: Video processed and saved to $newFilePath');
+          debugPrint(
+              'MediaSaverService: Video processed and saved to $newFilePath');
           return newFilePath;
         } catch (videoError) {
-          debugPrint('MediaSaverService: Error processing video: $videoError, falling back to copy');
+          debugPrint(
+              'MediaSaverService: Error processing video: $videoError, falling back to copy');
         }
       }
 
@@ -525,7 +596,8 @@ class MediaSaverService {
           await _scanFile(newFilePath);
         }
       } catch (timeError) {
-        debugPrint('MediaSaverService: Error updating file timestamp: $timeError');
+        debugPrint(
+            'MediaSaverService: Error updating file timestamp: $timeError');
       }
 
       return newFilePath;

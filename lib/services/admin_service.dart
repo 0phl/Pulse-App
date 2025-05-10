@@ -11,6 +11,52 @@ import '../models/report.dart';
 import '../services/community_service.dart';
 import 'engagement_service.dart';
 import 'community_notice_service.dart';
+import 'package:flutter/material.dart';
+import '../pages/admin/deactivated_account_page.dart';
+import '../main.dart'; // Import this to access the global navigatorKey
+import 'package:rxdart/rxdart.dart';
+
+// Define an enum for admin authentication status
+enum AdminAuthStatus {
+  authenticated,
+  notAdmin,
+  deactivated,
+}
+
+class AdminAuthResult {
+  final AdminAuthStatus status;
+  final String? deactivationReason;
+
+  AdminAuthResult({
+    required this.status,
+    this.deactivationReason,
+  });
+}
+
+// Class to represent admin deactivation status
+class DeactivationStatus {
+  final bool isDeactivated;
+  final String? reason;
+  final dynamic deactivatedAt;
+
+  DeactivationStatus({
+    required this.isDeactivated,
+    this.reason,
+    this.deactivatedAt,
+  });
+
+  // Convenience constructor for active status
+  DeactivationStatus.active()
+      : isDeactivated = false,
+        reason = null,
+        deactivatedAt = null;
+
+  // Convenience constructor for inactive status
+  DeactivationStatus.inactive({String? reason, dynamic timestamp})
+      : isDeactivated = true,
+        reason = reason,
+        deactivatedAt = timestamp;
+}
 
 class AdminService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -126,7 +172,8 @@ class AdminService {
             communityUsers[userIndex]['isActive'] = isActive;
 
             // Update profile image URL if it exists in Firestore but not in our local list
-            if (profileImageUrl != null && communityUsers[userIndex]['profileImageUrl'] == null) {
+            if (profileImageUrl != null &&
+                communityUsers[userIndex]['profileImageUrl'] == null) {
               communityUsers[userIndex]['profileImageUrl'] = profileImageUrl;
             }
 
@@ -134,15 +181,16 @@ class AdminService {
             if (communityUsers[userIndex]['verificationStatus'] !=
                     verificationStatus ||
                 communityUsers[userIndex]['isActive'] != isActive ||
-                (profileImageUrl != null && communityUsers[userIndex]['profileImageUrl'] == null)) {
-
+                (profileImageUrl != null &&
+                    communityUsers[userIndex]['profileImageUrl'] == null)) {
               final updates = <String, dynamic>{
                 'isActive': isActive,
                 'verificationStatus': verificationStatus,
               };
 
               // Include profile image URL in the update if it exists in Firestore but not in RTDB
-              if (profileImageUrl != null && communityUsers[userIndex]['profileImageUrl'] == null) {
+              if (profileImageUrl != null &&
+                  communityUsers[userIndex]['profileImageUrl'] == null) {
                 updates['profileImageUrl'] = profileImageUrl;
               }
 
@@ -586,12 +634,14 @@ class AdminService {
                 if (createdAtMillis >= startOfTodayMillis) {
                   // Add to today's count
                   newPostsToday++;
-                  debugPrint('Found community notice from today, total posts today: $newPostsToday');
+                  debugPrint(
+                      'Found community notice from today, total posts today: $newPostsToday');
                 } else if (createdAtMillis >= startOfYesterdayMillis &&
                     createdAtMillis < startOfTodayMillis) {
                   // Add to yesterday's count
                   newPostsYesterday++;
-                  debugPrint('Found community notice from yesterday, total posts yesterday: $newPostsYesterday');
+                  debugPrint(
+                      'Found community notice from yesterday, total posts yesterday: $newPostsYesterday');
                 }
               }
             }
@@ -641,7 +691,9 @@ class AdminService {
           // Process in batches to avoid overloading Firestore
           const batchSize = 10;
           for (var i = 0; i < communityUsers.length; i += batchSize) {
-            final end = (i + batchSize < communityUsers.length) ? i + batchSize : communityUsers.length;
+            final end = (i + batchSize < communityUsers.length)
+                ? i + batchSize
+                : communityUsers.length;
             final batch = communityUsers.sublist(i, end);
 
             await Future.wait(batch.map((userData) async {
@@ -653,7 +705,8 @@ class AdminService {
                 final userDoc = await _usersCollection.doc(userId).get();
                 if (userDoc.exists) {
                   final firestoreData = userDoc.data() as Map<String, dynamic>;
-                  final verificationStatus = firestoreData['verificationStatus'] ?? 'pending';
+                  final verificationStatus =
+                      firestoreData['verificationStatus'] ?? 'pending';
 
                   // Only count verified users
                   if (verificationStatus == 'verified') {
@@ -867,20 +920,72 @@ class AdminService {
     });
   }
 
-  // Check if current user is an admin
-  Future<bool> isCurrentUserAdmin() async {
+  // Check if current user is an admin and check account status
+  Future<AdminAuthResult> checkAdminStatus() async {
     final user = _auth.currentUser;
-    if (user == null) return false;
+    if (user == null) {
+      return AdminAuthResult(status: AdminAuthStatus.notAdmin);
+    }
+
+    bool firebaseStatus = true;
+    String? deactivationReason;
+    bool needsSyncToRtdb = false;
 
     // First check Firestore
     final userDoc = await _usersCollection.doc(user.uid).get();
     if (userDoc.exists) {
       final userData = userDoc.data() as Map<String, dynamic>;
+
+      // Check if account is deactivated in Firestore
       if (userData['role'] == 'community_admin' ||
           userData['role'] == 'admin' ||
           userData['role'] == 'super_admin') {
-        return true;
+        if (userData['status'] == 'inactive') {
+          firebaseStatus = false;
+          deactivationReason = userData['deactivationReason'] as String?;
+        } else {
+          // Account is active in Firestore, may need to sync to RTDB
+          needsSyncToRtdb = true;
+        }
+      } else {
+        // Not an admin in Firestore
+        return AdminAuthResult(status: AdminAuthStatus.notAdmin);
       }
+    }
+
+    // If status is active in Firestore but we need to check RTDB
+    if (needsSyncToRtdb) {
+      try {
+        final rtdbSnapshot =
+            await _database.child('users').child(user.uid).get();
+        if (rtdbSnapshot.exists) {
+          final rtdbData = rtdbSnapshot.value as Map<dynamic, dynamic>;
+
+          // If deactivated in RTDB but active in Firestore, sync RTDB to match Firestore
+          if (rtdbData['status'] == 'inactive') {
+            await _database.child('users').child(user.uid).update({
+              'status': 'active',
+              'updatedAt': ServerValue.timestamp,
+            });
+            debugPrint('RTDB admin status synchronized to active');
+          }
+        }
+
+        // Return authenticated since Firestore showed active
+        return AdminAuthResult(status: AdminAuthStatus.authenticated);
+      } catch (e) {
+        debugPrint('Error syncing admin status to RTDB: $e');
+        // Continue with Firestore status (active)
+        return AdminAuthResult(status: AdminAuthStatus.authenticated);
+      }
+    }
+
+    // If we found it's inactive in Firestore
+    if (!firebaseStatus) {
+      return AdminAuthResult(
+        status: AdminAuthStatus.deactivated,
+        deactivationReason: deactivationReason,
+      );
     }
 
     // If not found in Firestore or not an admin there, check RTDB
@@ -888,16 +993,44 @@ class AdminService {
       final rtdbSnapshot = await _database.child('users').child(user.uid).get();
       if (rtdbSnapshot.exists) {
         final rtdbData = rtdbSnapshot.value as Map<dynamic, dynamic>;
+
+        // Check if account is deactivated in RTDB
+        if (rtdbData['status'] == 'inactive') {
+          // If we have a Firestore record but status doesn't match RTDB, update Firestore
+          if (userDoc.exists) {
+            // Sync Firestore to match RTDB inactive status
+            await _usersCollection.doc(user.uid).update({
+              'status': 'inactive',
+              'deactivationReason': rtdbData['deactivationReason'],
+              'deactivatedAt': FieldValue.serverTimestamp(),
+            });
+            debugPrint('Firestore admin status synchronized to inactive');
+          }
+
+          return AdminAuthResult(
+            status: AdminAuthStatus.deactivated,
+            deactivationReason: rtdbData['deactivationReason'] as String?,
+          );
+        }
+
         final role = rtdbData['role'] as String?;
-        return role == 'community_admin' ||
+        if (role == 'community_admin' ||
             role == 'admin' ||
-            role == 'super_admin';
+            role == 'super_admin') {
+          return AdminAuthResult(status: AdminAuthStatus.authenticated);
+        }
       }
     } catch (e) {
       debugPrint('Error checking RTDB for admin role: $e');
     }
 
-    return false;
+    return AdminAuthResult(status: AdminAuthStatus.notAdmin);
+  }
+
+  // Original method for backwards compatibility
+  Future<bool> isCurrentUserAdmin() async {
+    final result = await checkAdminStatus();
+    return result.status == AdminAuthStatus.authenticated;
   }
 
   // Create new admin (only for super admin use)
@@ -970,7 +1103,8 @@ class AdminService {
   }
 
   // Update admin profile information
-  Future<void> updateAdminProfile(String adminId, Map<String, dynamic> data) async {
+  Future<void> updateAdminProfile(
+      String adminId, Map<String, dynamic> data) async {
     try {
       // Prepare data for Firestore
       final firestoreData = Map<String, dynamic>.from(data);
@@ -988,7 +1122,8 @@ class AdminService {
         final String adminCommentName = 'Admin $fullName';
 
         // Update all comments by this admin
-        await _noticeService.updateUserCommentsInfo(adminId, adminCommentName, profileImageUrl);
+        await _noticeService.updateUserCommentsInfo(
+            adminId, adminCommentName, profileImageUrl);
 
         // Also update all community notices by this admin
         // Run this in the background to avoid blocking the UI
@@ -1323,15 +1458,22 @@ class AdminService {
             'authorName': originalData['authorName']?.toString() ?? '',
             'authorAvatar': originalData['authorAvatar']?.toString(),
             'imageUrl': originalData['imageUrl']?.toString(),
-            'imageUrls': originalData['imageUrls'] is List ? originalData['imageUrls'] : null,
+            'imageUrls': originalData['imageUrls'] is List
+                ? originalData['imageUrls']
+                : null,
             'communityId': originalData['communityId']?.toString() ?? '',
             'createdAt': originalData['createdAt'] ?? 0,
             'updatedAt': originalData['updatedAt'] ?? 0,
-            'likes': originalData['likes'] is Map ? originalData['likes'] : null,
-            'comments': originalData['comments'] is Map ? originalData['comments'] : null,
+            'likes':
+                originalData['likes'] is Map ? originalData['likes'] : null,
+            'comments': originalData['comments'] is Map
+                ? originalData['comments']
+                : null,
             'poll': originalData['poll'] is Map ? originalData['poll'] : null,
             'videoUrl': originalData['videoUrl']?.toString(),
-            'attachments': originalData['attachments'] is List ? originalData['attachments'] : null,
+            'attachments': originalData['attachments'] is List
+                ? originalData['attachments']
+                : null,
           };
 
           final notice = CommunityNotice.fromMap({
@@ -1356,15 +1498,11 @@ class AdminService {
   }
 
   // Create a new notice
-  Future<void> createNotice(
-    String title,
-    String content,
-    String? imageUrl,
-    {List<String>? imageUrls,
-    String? videoUrl,
-    Map<String, dynamic>? poll,
-    List<Map<String, dynamic>>? attachments}
-  ) async {
+  Future<void> createNotice(String title, String content, String? imageUrl,
+      {List<String>? imageUrls,
+      String? videoUrl,
+      Map<String, dynamic>? poll,
+      List<Map<String, dynamic>>? attachments}) async {
     // Verify admin access first
     if (!await isCurrentUserAdmin()) {
       throw Exception('Permission denied: Only admins can create notices');
@@ -1378,7 +1516,8 @@ class AdminService {
     final newNoticeRef = _database.child('community_notices').push();
 
     // Handle backward compatibility with single imageUrl
-    final List<String>? finalImageUrls = imageUrls ?? (imageUrl != null ? [imageUrl] : null);
+    final List<String>? finalImageUrls =
+        imageUrls ?? (imageUrl != null ? [imageUrl] : null);
 
     // Debug: Print poll data
     print('AdminService.createNotice poll data:');
@@ -1424,15 +1563,11 @@ class AdminService {
 
   // Update a notice
   Future<void> updateNotice(
-    String noticeId,
-    String title,
-    String content,
-    String? imageUrl,
-    {List<String>? imageUrls,
-    String? videoUrl,
-    Map<String, dynamic>? poll,
-    List<Map<String, dynamic>>? attachments}
-  ) async {
+      String noticeId, String title, String content, String? imageUrl,
+      {List<String>? imageUrls,
+      String? videoUrl,
+      Map<String, dynamic>? poll,
+      List<Map<String, dynamic>>? attachments}) async {
     final community = await getCurrentAdminCommunity();
     if (community == null) {
       throw Exception('No community found for current admin');
@@ -1476,7 +1611,8 @@ class AdminService {
     }
 
     // First check if the notice exists
-    final noticeSnapshot = await _database.child('community_notices').child(noticeId).get();
+    final noticeSnapshot =
+        await _database.child('community_notices').child(noticeId).get();
     if (!noticeSnapshot.exists) {
       debugPrint('AdminService: Notice not found: $noticeId');
       throw Exception('Notice not found');
@@ -1507,7 +1643,8 @@ class AdminService {
       // Verify deletion was successful
       final verifySnapshot = await noticeRef.get();
       if (verifySnapshot.exists) {
-        debugPrint('AdminService: Notice still exists after set(null), trying remove()...');
+        debugPrint(
+            'AdminService: Notice still exists after set(null), trying remove()...');
         // If set(null) wasn't successful, try with remove() method
         await noticeRef.remove();
         await Future.delayed(const Duration(milliseconds: 300));
@@ -1515,10 +1652,12 @@ class AdminService {
         // Final verification
         final finalVerifySnapshot = await noticeRef.get();
         if (finalVerifySnapshot.exists) {
-          debugPrint('AdminService: Notice still exists after remove() attempt');
+          debugPrint(
+              'AdminService: Notice still exists after remove() attempt');
           throw Exception('Failed to delete notice after multiple attempts');
         } else {
-          debugPrint('AdminService: Notice successfully deleted using remove()');
+          debugPrint(
+              'AdminService: Notice successfully deleted using remove()');
         }
       } else {
         debugPrint('AdminService: Notice successfully deleted using set(null)');
@@ -1552,7 +1691,8 @@ class AdminService {
   }
 
   // Add a comment to a notice
-  Future<String> addComment(String noticeId, String content, {String? parentCommentId}) async {
+  Future<String> addComment(String noticeId, String content,
+      {String? parentCommentId}) async {
     if (currentUserId == null) {
       throw Exception('No user logged in');
     }
@@ -1585,19 +1725,23 @@ class AdminService {
 
       // Debug print the parent comment data if it exists
       if (parentCommentSnapshot.exists) {
-        final parentData = parentCommentSnapshot.value as Map<dynamic, dynamic>?;
-        debugPrint('ADMIN: Parent comment found as top-level comment: $parentCommentId');
+        final parentData =
+            parentCommentSnapshot.value as Map<dynamic, dynamic>?;
+        debugPrint(
+            'ADMIN: Parent comment found as top-level comment: $parentCommentId');
         debugPrint('ADMIN: Parent comment data: ${parentData.toString()}');
 
         // Check if the parent is an admin comment
         final authorName = parentData?['authorName'] as String?;
         if (authorName != null && authorName.startsWith('Admin')) {
-          debugPrint('ADMIN IMPORTANT: Parent comment is an admin comment: $authorName');
+          debugPrint(
+              'ADMIN IMPORTANT: Parent comment is an admin comment: $authorName');
         }
       }
       // If the parent comment doesn't exist as a top-level comment, it might be a reply
       else {
-        debugPrint('ADMIN: Parent comment $parentCommentId not found as top-level comment, searching in replies...');
+        debugPrint(
+            'ADMIN: Parent comment $parentCommentId not found as top-level comment, searching in replies...');
 
         // Search for the comment in all replies
         final allCommentsSnapshot = await _database
@@ -1607,8 +1751,10 @@ class AdminService {
             .get();
 
         if (allCommentsSnapshot.exists) {
-          final allComments = allCommentsSnapshot.value as Map<dynamic, dynamic>;
-          debugPrint('ADMIN: Found ${allComments.length} top-level comments to search through');
+          final allComments =
+              allCommentsSnapshot.value as Map<dynamic, dynamic>;
+          debugPrint(
+              'ADMIN: Found ${allComments.length} top-level comments to search through');
 
           // Iterate through all top-level comments
           for (var commentEntry in allComments.entries) {
@@ -1626,11 +1772,14 @@ class AdminService {
               if (replies.containsKey(parentCommentId)) {
                 // Found the actual parent comment
                 actualParentId = commentEntry.key.toString();
-                debugPrint('ADMIN: Found actual parent comment: $actualParentId for reply: $parentCommentId');
+                debugPrint(
+                    'ADMIN: Found actual parent comment: $actualParentId for reply: $parentCommentId');
 
                 // Check if this is an admin comment
-                if (commentAuthorName != null && commentAuthorName.startsWith('Admin')) {
-                  debugPrint('ADMIN IMPORTANT: Actual parent comment is an admin comment: $commentAuthorName');
+                if (commentAuthorName != null &&
+                    commentAuthorName.startsWith('Admin')) {
+                  debugPrint(
+                      'ADMIN IMPORTANT: Actual parent comment is an admin comment: $commentAuthorName');
                 }
 
                 break;
@@ -1641,7 +1790,8 @@ class AdminService {
       }
 
       // Debug print to help diagnose issues
-      debugPrint('Adding reply to comment: $actualParentId, Content: "$content"');
+      debugPrint(
+          'Adding reply to comment: $actualParentId, Content: "$content"');
 
       final newReplyRef = _database
           .child('community_notices')
@@ -1652,7 +1802,8 @@ class AdminService {
           .push();
 
       // Debug print to help diagnose issues
-      debugPrint('ADMIN: Setting reply data - parentId: $actualParentId, replyToId: $parentCommentId');
+      debugPrint(
+          'ADMIN: Setting reply data - parentId: $actualParentId, replyToId: $parentCommentId');
 
       // Always store the replyToId, even if it's the same as the parentId
       // This is important for replies to admin comments
@@ -1688,7 +1839,8 @@ class AdminService {
   }
 
   // Delete a comment from a notice
-  Future<void> deleteComment(String noticeId, String commentId, {String? parentCommentId}) async {
+  Future<void> deleteComment(String noticeId, String commentId,
+      {String? parentCommentId}) async {
     if (parentCommentId != null) {
       // Delete a reply
       await _database
@@ -1711,11 +1863,8 @@ class AdminService {
   }
 
   // Like or unlike a comment
-  Future<void> likeComment(
-    String noticeId,
-    String commentId,
-    {String? parentCommentId}
-  ) async {
+  Future<void> likeComment(String noticeId, String commentId,
+      {String? parentCommentId}) async {
     if (currentUserId == null) {
       throw Exception('No user logged in');
     }
@@ -1777,7 +1926,8 @@ class AdminService {
   Future<void> approveMarketItem(String itemId) async {
     // Verify admin access first
     if (!await isCurrentUserAdmin()) {
-      throw Exception('Permission denied: Only admins can approve marketplace items');
+      throw Exception(
+          'Permission denied: Only admins can approve marketplace items');
     }
 
     final itemDoc = await _marketItemsCollection.doc(itemId).get();
@@ -1797,7 +1947,8 @@ class AdminService {
 
     // Verify the item belongs to the admin's community
     if (itemData['communityId'] != communityId) {
-      throw Exception('Permission denied: Item belongs to a different community');
+      throw Exception(
+          'Permission denied: Item belongs to a different community');
     }
 
     // Update the item status to approved
@@ -1812,7 +1963,8 @@ class AdminService {
   Future<void> rejectMarketItem(String itemId, String rejectionReason) async {
     // Verify admin access first
     if (!await isCurrentUserAdmin()) {
-      throw Exception('Permission denied: Only admins can reject marketplace items');
+      throw Exception(
+          'Permission denied: Only admins can reject marketplace items');
     }
 
     final itemDoc = await _marketItemsCollection.doc(itemId).get();
@@ -1832,7 +1984,8 @@ class AdminService {
 
     // Verify the item belongs to the admin's community
     if (itemData['communityId'] != communityId) {
-      throw Exception('Permission denied: Item belongs to a different community');
+      throw Exception(
+          'Permission denied: Item belongs to a different community');
     }
 
     // Update the item status to rejected
@@ -1877,7 +2030,8 @@ class AdminService {
   // Get recent transactions for a community
   Future<List<Map<String, dynamic>>> getRecentTransactions(
       String communityId) async {
-    debugPrint('AdminService.getRecentTransactions called for community: $communityId');
+    debugPrint(
+        'AdminService.getRecentTransactions called for community: $communityId');
 
     final snapshot = await _marketItemsCollection
         .where('communityId', isEqualTo: communityId)
@@ -1911,7 +2065,8 @@ class AdminService {
       if (data['imageUrls'] != null) {
         // New format with multiple images
         imageUrls = List<String>.from(data['imageUrls']);
-      } else if (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty) {
+      } else if (data['imageUrl'] != null &&
+          data['imageUrl'].toString().isNotEmpty) {
         // Old format with single image
         imageUrls = [data['imageUrl']];
       }
@@ -2271,14 +2426,18 @@ class AdminService {
 
             // Only update if there are changes to make
             if (updates.isNotEmpty) {
-              await _database.child('community_notices').child(noticeId).update(updates);
+              await _database
+                  .child('community_notices')
+                  .child(noticeId)
+                  .update(updates);
               debugPrint('Updated profile info for notice: $noticeId');
             }
           }
 
           // Update comments by this admin in this notice
           if (noticeData['comments'] is Map) {
-            final commentsData = noticeData['comments'] as Map<dynamic, dynamic>;
+            final commentsData =
+                noticeData['comments'] as Map<dynamic, dynamic>;
 
             for (var commentEntry in commentsData.entries) {
               try {
@@ -2298,7 +2457,8 @@ class AdminService {
                   }
 
                   // Add name update if needed
-                  if (adminName != null && commentData['authorName'] != adminName) {
+                  if (adminName != null &&
+                      commentData['authorName'] != adminName) {
                     commentUpdates['authorName'] = adminName;
                   }
 
@@ -2310,19 +2470,22 @@ class AdminService {
                         .child('comments')
                         .child(commentId)
                         .update(commentUpdates);
-                    debugPrint('Updated profile info for comment: $commentId in notice: $noticeId');
+                    debugPrint(
+                        'Updated profile info for comment: $commentId in notice: $noticeId');
                   }
                 }
 
                 // Update replies by this admin
                 if (commentData['replies'] is Map) {
-                  final repliesData = commentData['replies'] as Map<dynamic, dynamic>;
+                  final repliesData =
+                      commentData['replies'] as Map<dynamic, dynamic>;
 
                   for (var replyEntry in repliesData.entries) {
                     try {
                       if (replyEntry.value is! Map<dynamic, dynamic>) continue;
 
-                      final replyData = replyEntry.value as Map<dynamic, dynamic>;
+                      final replyData =
+                          replyEntry.value as Map<dynamic, dynamic>;
                       final replyAuthorId = replyData['authorId']?.toString();
                       final replyId = replyEntry.key.toString();
 
@@ -2336,7 +2499,8 @@ class AdminService {
                         }
 
                         // Add name update if needed
-                        if (adminName != null && replyData['authorName'] != adminName) {
+                        if (adminName != null &&
+                            replyData['authorName'] != adminName) {
                           replyUpdates['authorName'] = adminName;
                         }
 
@@ -2350,7 +2514,8 @@ class AdminService {
                               .child('replies')
                               .child(replyId)
                               .update(replyUpdates);
-                          debugPrint('Updated profile info for reply: $replyId in comment: $commentId in notice: $noticeId');
+                          debugPrint(
+                              'Updated profile info for reply: $replyId in comment: $commentId in notice: $noticeId');
                         }
                       }
                     } catch (e) {
@@ -2371,7 +2536,8 @@ class AdminService {
         }
       }
 
-      debugPrint('Finished updating existing notices and comments with profile information');
+      debugPrint(
+          'Finished updating existing notices and comments with profile information');
     } catch (e) {
       debugPrint('Error updating existing notices and comments: $e');
       // Don't throw, as this is a background operation that shouldn't interrupt the UI
@@ -2381,5 +2547,123 @@ class AdminService {
   // Alias for backward compatibility
   Future<void> updateExistingNoticesWithProfilePicture() async {
     return updateExistingNoticesWithProfileInfo();
+  }
+
+  // Check if the current user's account is deactivated
+  Future<Map<String, dynamic>?> isCurrentUserDeactivated() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      bool needsRtdbUpdate = false;
+      bool needsFirestoreUpdate = false;
+      String? deactivationReason;
+      dynamic deactivatedAt;
+
+      // Check Firestore first
+      final userDoc = await _usersCollection.doc(user.uid).get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        if (userData['status'] == 'inactive') {
+          deactivationReason = userData['deactivationReason'] as String?;
+          deactivatedAt = userData['deactivatedAt'] as Timestamp?;
+          return {
+            'deactivated': true,
+            'reason': deactivationReason,
+            'deactivatedAt': deactivatedAt,
+          };
+        } else {
+          // Account is active in Firestore
+          needsRtdbUpdate = true;
+        }
+      }
+
+      // Check RTDB
+      final rtdbSnapshot = await _database.child('users').child(user.uid).get();
+      if (rtdbSnapshot.exists) {
+        final rtdbData = rtdbSnapshot.value as Map<dynamic, dynamic>;
+        if (rtdbData['status'] == 'inactive') {
+          // If Firestore shows active but RTDB shows inactive, sync them
+          if (needsRtdbUpdate) {
+            // Update RTDB to match Firestore (active)
+            await _database.child('users').child(user.uid).update({
+              'status': 'active',
+              'updatedAt': ServerValue.timestamp,
+            });
+            debugPrint('Synchronized RTDB admin status to active');
+            return {'deactivated': false};
+          }
+
+          deactivationReason = rtdbData['deactivationReason'] as String?;
+          deactivatedAt = rtdbData['deactivatedAt'] as int?;
+
+          // If Firestore record exists but doesn't match RTDB inactive status, update it
+          if (userDoc.exists) {
+            needsFirestoreUpdate = true;
+          }
+
+          return {
+            'deactivated': true,
+            'reason': deactivationReason,
+            'deactivatedAt': deactivatedAt,
+          };
+        } else if (needsFirestoreUpdate) {
+          // RTDB is active but Firestore might need update (already handled above)
+          return {'deactivated': false};
+        }
+      }
+
+      return {'deactivated': false};
+    } catch (e) {
+      debugPrint('Error checking if user is deactivated: $e');
+      return null;
+    }
+  }
+
+  // Stream that monitors admin deactivation status in real-time
+  Stream<DeactivationStatus> streamDeactivationStatus() {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return Stream.value(DeactivationStatus.active());
+    }
+
+    // Listen for Firestore changes
+    return _usersCollection
+        .doc(user.uid)
+        .snapshots()
+        .asyncMap((snapshot) async {
+      try {
+        // Check Firestore first
+        if (snapshot.exists) {
+          final userData = snapshot.data() as Map<String, dynamic>;
+          if (userData['status'] == 'inactive') {
+            return DeactivationStatus.inactive(
+              reason: userData['deactivationReason'] as String?,
+              timestamp: userData['deactivatedAt'],
+            );
+          }
+        }
+
+        // If not deactivated in Firestore, check RTDB as well
+        final rtdbSnapshot =
+            await _database.child('users').child(user.uid).get();
+        if (rtdbSnapshot.exists) {
+          final rtdbData = rtdbSnapshot.value as Map<dynamic, dynamic>;
+          if (rtdbData['status'] == 'inactive') {
+            return DeactivationStatus.inactive(
+              reason: rtdbData['deactivationReason'] as String?,
+              timestamp: rtdbData['deactivatedAt'],
+            );
+          }
+        }
+
+        // Not deactivated in either database
+        return DeactivationStatus.active();
+      } catch (e) {
+        debugPrint('Error in deactivation stream: $e');
+        // On error, assume not deactivated to prevent false positives
+        return DeactivationStatus.active();
+      }
+    });
   }
 }

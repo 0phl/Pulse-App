@@ -91,6 +91,20 @@ class AuthService {
 
       if (userDoc.exists) {
         final userData = userDoc.data()!;
+
+        // Check for deactivated admin accounts first
+        if ((userData['role'] == 'admin' ||
+                userData['role'] == 'super_admin') &&
+            userData['status'] == 'inactive') {
+          // Return special object indicating deactivated account
+          return {
+            'userCredential': userCredential,
+            'userType': 'deactivated_admin',
+            'deactivationReason': userData['deactivationReason'],
+            'deactivatedAt': userData['deactivatedAt'],
+          };
+        }
+
         if (userData['role'] == 'admin' || userData['role'] == 'super_admin') {
           final isFirstLogin = userData['isFirstLogin'] ?? false;
 
@@ -172,7 +186,8 @@ class AuthService {
       // Save user data to Realtime Database
       await _database.child('users').child(userCredential.user!.uid).set({
         'firstName': firstName,
-        if (middleName != null && middleName.isNotEmpty) 'middleName': middleName,
+        if (middleName != null && middleName.isNotEmpty)
+          'middleName': middleName,
         'lastName': lastName,
         'fullName': fullName, // Store combined name for backward compatibility
         'username': username,
@@ -371,7 +386,8 @@ class AuthService {
 
         if (fullName != null) {
           // Update all comments by this user with the new name and profile image
-          await _noticeService.updateUserCommentsInfo(uid, fullName, profileImageUrl);
+          await _noticeService.updateUserCommentsInfo(
+              uid, fullName, profileImageUrl);
         }
       }
     } catch (e) {

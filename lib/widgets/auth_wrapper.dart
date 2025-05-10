@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/admin_service.dart';
 import '../pages/login_page.dart';
-import '../main.dart';
 import '../pages/admin/dashboard_page.dart';
 import '../pages/admin/change_password_page.dart';
 import '../models/admin_user.dart';
@@ -13,7 +12,8 @@ import '../pages/pending_verification_page.dart';
 import '../pages/rejected_verification_page.dart';
 import '../services/user_session_service.dart';
 import '../widgets/loading_screen.dart';
-
+import '../pages/admin/deactivated_account_page.dart';
+import '../main.dart'; // Import MainScreen from main.dart
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -63,7 +63,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             print('AuthWrapper: User logged in: ${user.email}');
 
             // Check if user is admin with timeout
-            return FutureBuilder<bool>(
+            return FutureBuilder<dynamic>(
               future: _checkUserRoleWithTimeout(),
               builder: (context, roleSnapshot) {
                 if (roleSnapshot.connectionState == ConnectionState.waiting) {
@@ -72,18 +72,29 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 }
 
                 if (roleSnapshot.hasError) {
-                  print('AuthWrapper: Error checking role: ${roleSnapshot.error}');
+                  print(
+                      'AuthWrapper: Error checking role: ${roleSnapshot.error}');
                   return const LoginPage();
                 }
 
-                print('AuthWrapper: Is admin? ${roleSnapshot.data}');
+                if (roleSnapshot.data is AdminAuthResult) {
+                  final adminResult = roleSnapshot.data as AdminAuthResult;
+                  if (adminResult.status == AdminAuthStatus.deactivated) {
+                    print(
+                        'AuthWrapper: Account is deactivated with reason: ${adminResult.deactivationReason}');
+                    return DeactivatedAccountPage(
+                      reason: adminResult.deactivationReason,
+                    );
+                  }
+                }
 
                 if (roleSnapshot.data == true) {
                   // Check if it's admin's first login
                   return FutureBuilder<AdminUser?>(
                     future: _getAdminUserWithTimeout(_auth.currentUser!.uid),
                     builder: (context, adminSnapshot) {
-                      if (adminSnapshot.connectionState == ConnectionState.waiting) {
+                      if (adminSnapshot.connectionState ==
+                          ConnectionState.waiting) {
                         print('AuthWrapper: Loading admin user data...');
                         return const LoadingScreen(message: '');
                       }
@@ -112,15 +123,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
                         print('AuthWrapper: Redirecting to AdminDashboardPage');
                         return const AdminDashboardPage();
                       }
-                },
-              );
+                    },
+                  );
                 }
 
                 // For regular users, check verification status with timeout
                 return FutureBuilder<DocumentSnapshot?>(
                   future: _getUserDocWithTimeout(user.uid),
                   builder: (context, userSnapshot) {
-                    if (userSnapshot.connectionState == ConnectionState.waiting) {
+                    if (userSnapshot.connectionState ==
+                        ConnectionState.waiting) {
                       return const LoadingScreen(message: '');
                     }
 
@@ -144,23 +156,28 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
                     // Check verification status
                     if (verificationStatus == 'pending') {
-                      print('AuthWrapper: User account is pending verification');
+                      print(
+                          'AuthWrapper: User account is pending verification');
                       return PendingVerificationPage(
-                        registrationId: userData['registrationId'] as String? ?? '',
+                        registrationId:
+                            userData['registrationId'] as String? ?? '',
                       );
                     } else if (verificationStatus == 'rejected') {
                       print('AuthWrapper: User account has been rejected');
                       // Import the rejected verification page at the top of the file
                       return RejectedVerificationPage(
-                        registrationId: userData['registrationId'] as String? ?? '',
+                        registrationId:
+                            userData['registrationId'] as String? ?? '',
                         rejectionReason: userData['rejectionReason'] as String?,
                       );
                     } else if (verificationStatus == 'verified') {
-                      print('AuthWrapper: User is verified, showing regular UI');
+                      print(
+                          'AuthWrapper: User is verified, showing regular UI');
                       // User is verified, show regular user interface
                       return const MainScreen();
                     } else {
-                      print('AuthWrapper: Unknown verification status: $verificationStatus');
+                      print(
+                          'AuthWrapper: Unknown verification status: $verificationStatus');
                       // Sign out if verification status is unknown
                       _auth.signOut();
                       return const LoginPage();
@@ -178,8 +195,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
   // Helper methods with timeout handling
   Future<bool> _getSessionWithTimeout() async {
     try {
-      return await _sessionService.isLoggedIn()
-          .timeout(_timeoutDuration, onTimeout: () {
+      return await _sessionService.isLoggedIn().timeout(_timeoutDuration,
+          onTimeout: () {
         print('Session check timed out');
         return false;
       });
@@ -204,13 +221,22 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
   }
 
-  Future<bool> _checkUserRoleWithTimeout() async {
+  Future<dynamic> _checkUserRoleWithTimeout() async {
     try {
-      return await _adminService.isCurrentUserAdmin()
+      final adminResult = await _adminService
+          .checkAdminStatus()
           .timeout(_timeoutDuration, onTimeout: () {
         print('User role check timed out');
-        return false;
+        return AdminAuthResult(status: AdminAuthStatus.notAdmin);
       });
+
+      // If the account is deactivated, return the result so we can show the deactivated page
+      if (adminResult.status == AdminAuthStatus.deactivated) {
+        return adminResult;
+      }
+
+      // Otherwise return a simple boolean for backward compatibility
+      return adminResult.status == AdminAuthStatus.authenticated;
     } catch (e) {
       print('Error checking user role: $e');
       return false;
@@ -220,7 +246,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Future<AdminUser?> _getAdminUserWithTimeout(String uid) async {
     try {
       // Convert stream to future with timeout
-      return await _adminService.getAdminUser(uid).first
+      return await _adminService
+          .getAdminUser(uid)
+          .first
           .timeout(_timeoutDuration, onTimeout: () {
         print('Admin user fetch timed out');
         return null;
@@ -234,7 +262,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Future<DocumentSnapshot?> _getUserDocWithTimeout(String uid) async {
     try {
       // We need to handle the timeout differently since DocumentSnapshot can't be null
-      final result = await _firestore.collection('users').doc(uid).get()
+      final result = await _firestore
+          .collection('users')
+          .doc(uid)
+          .get()
           .timeout(_timeoutDuration, onTimeout: () {
         print('User document fetch timed out');
         throw TimeoutException('User document fetch timed out');

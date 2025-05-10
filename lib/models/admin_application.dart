@@ -19,6 +19,9 @@ class AdminApplication {
     required this.createdAt,
   });
 
+  // Getter for appliedDate to use in UI (returns the createdAt value)
+  DateTime get appliedDate => createdAt;
+
   factory AdminApplication.fromJson(Map<String, dynamic> json, String id) {
     return AdminApplication(
       id: id,
@@ -43,4 +46,4 @@ class AdminApplication {
       'createdAt': createdAt.millisecondsSinceEpoch,
     };
   }
-} 
+}

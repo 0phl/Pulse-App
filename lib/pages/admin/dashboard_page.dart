@@ -10,6 +10,8 @@ import './admin_drawer.dart';
 import './marketplace_page.dart';
 import 'package:PULSE/widgets/engagement_report_card.dart';
 import '../../widgets/admin_scaffold.dart';
+import './deactivated_account_page.dart';
+import 'dart:async';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -31,6 +33,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
   String _communityName = '';
   bool _isLoading = true;
   List<Report> _recentReports = [];
+  StreamSubscription? _deactivationStreamSubscription;
 
   @override
   void initState() {
@@ -42,11 +45,38 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
-    _loadCommunityAndStats();
+
+    // Initial check for deactivation
+    _checkDeactivatedAccount().then((_) {
+      // Only load stats if account is not deactivated
+      _loadCommunityAndStats();
+
+      // Set up stream listener for real-time deactivation status
+      _listenForDeactivation();
+    });
+  }
+
+  void _listenForDeactivation() {
+    _deactivationStreamSubscription =
+        _adminService.streamDeactivationStatus().listen((status) {
+      if (status.isDeactivated && mounted) {
+        // Navigate to deactivated account page
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => DeactivatedAccountPage(
+              reason: status.reason,
+            ),
+          ),
+        );
+      }
+    }, onError: (e) {
+      debugPrint('Error in deactivation stream: $e');
+    });
   }
 
   @override
   void dispose() {
+    _deactivationStreamSubscription?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -108,9 +138,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
       try {
         userStats = await _adminService.getUserStats();
         // Get pending users count (filter out rejected users)
-        final pendingAndRejectedUsers = await _adminService.getPendingVerificationUsers();
+        final pendingAndRejectedUsers =
+            await _adminService.getPendingVerificationUsers();
         // Only count users with 'pending' status, not 'rejected'
-        final onlyPendingUsers = pendingAndRejectedUsers.where((user) => user.verificationStatus == 'pending').toList();
+        final onlyPendingUsers = pendingAndRejectedUsers
+            .where((user) => user.verificationStatus == 'pending')
+            .toList();
         userStats = {
           ...userStats,
           'pendingUsers': onlyPendingUsers.length,
@@ -662,6 +695,29 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
         ],
       ),
     );
+  }
+
+  // Check if the admin account is deactivated
+  Future<void> _checkDeactivatedAccount() async {
+    try {
+      final deactivationStatus = await _adminService.isCurrentUserDeactivated();
+      if (deactivationStatus != null &&
+          deactivationStatus['deactivated'] == true) {
+        // Navigate to deactivated account page
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => DeactivatedAccountPage(
+                reason: deactivationStatus['reason'] as String?,
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking deactivated account: $e');
+      // Continue loading the dashboard if there's an error
+    }
   }
 
   @override
