@@ -381,43 +381,17 @@ class SuperAdminService {
               })
           .toList();
 
-      // Get all pending admin applications to filter out communities with pending applications
-      final pendingApplicationsSnapshot = await _database
-          .child('admin_applications')
-          .orderByChild('status')
-          .equalTo('pending')
-          .get();
-
-      Set<String> pendingCommunityIds = {};
-      if (pendingApplicationsSnapshot.exists) {
-        final pendingApps =
-            pendingApplicationsSnapshot.value as Map<dynamic, dynamic>;
-        for (var entry in pendingApps.entries) {
-          final appData = entry.value as Map<dynamic, dynamic>;
-          if (appData.containsKey('communityId') &&
-              appData['communityId'] != null) {
-            pendingCommunityIds.add(appData['communityId'].toString());
-          }
-        }
-      }
-
-      // Filter communities:
-      // 1. Keep communities that have an adminId (already assigned admin)
-      // 2. Remove communities that have pending applications and no admin
+      // Filter communities to only show active and inactive communities with assigned admins
       final filteredCommunities = communities.where((community) {
+        // Check if community has an adminId (already assigned admin)
         final hasAdmin = community['adminId'] != null &&
             community['adminId'].toString().isNotEmpty;
-        final communityId = community['id'].toString();
 
-        // If community has an admin, always show it regardless of pending status
-        if (hasAdmin) return true;
+        // Get the status (default to empty if not found)
+        final status = (community['status'] ?? '').toString().toLowerCase();
 
-        // If community has no admin AND is in pending applications, don't show it
-        if (!hasAdmin && pendingCommunityIds.contains(communityId))
-          return false;
-
-        // Otherwise show it (no admin but not pending)
-        return true;
+        // Only include active and inactive communities that have assigned admins
+        return hasAdmin && (status == 'active' || status == 'inactive');
       }).toList();
 
       // Fetch admin data for communities with adminId

@@ -85,6 +85,37 @@ class _CommunitiesListState extends State<CommunitiesList>
             ),
           ),
           _buildSearchBar(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE6F7F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFD1FAE5)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: Color(0xFF059669),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Only active and inactive communities are shown here. Pending and rejected applications can be found in the Admin Applications section.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF059669),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _superAdminService.getCommunities(),
@@ -333,11 +364,20 @@ class _CommunitiesListState extends State<CommunitiesList>
                 ? 'No communities match your search'
                 : _statusFilter != 'all'
                     ? 'No $_statusFilter communities found'
-                    : 'No communities available',
+                    : 'No active or inactive communities available',
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
               color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Communities appear here after they have been approved and assigned an admin.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade600,
             ),
           ),
           if (_searchQuery.isNotEmpty || _statusFilter != 'all')
@@ -578,33 +618,57 @@ class _CommunitiesListState extends State<CommunitiesList>
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Deactivate Community'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to deactivate ${community['name']}?\n\nThis will prevent users from accessing this community.',
+        content: Container(
+          width: MediaQuery.of(context).size.width * 0.8 > 400
+              ? 400
+              : MediaQuery.of(context).size.width * 0.8,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Are you sure you want to deactivate ${community['name']}?\n\nThis will prevent users from accessing this community.',
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Please provide a reason for deactivation:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: reasonController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter deactivation reason',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    alignLabelWithHint: true,
+                  ),
+                  maxLines: 4,
+                  minLines: 3,
+                  textCapitalization: TextCapitalization.sentences,
+                  maxLength: 500,
+                  buildCounter: (context,
+                      {required currentLength, required isFocused, maxLength}) {
+                    return Text(
+                      '$currentLength/$maxLength',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: currentLength > 400
+                            ? Colors.amber[700]
+                            : Colors.grey[600],
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'Please provide a reason for deactivation:',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                hintText: 'Enter deactivation reason',
-                border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-              ),
-              maxLines: 3,
-              textCapitalization: TextCapitalization.sentences,
-            ),
-          ],
+          ),
         ),
         actions: [
           TextButton(
