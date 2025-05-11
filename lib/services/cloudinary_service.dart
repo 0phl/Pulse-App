@@ -20,15 +20,15 @@ class CloudinaryService {
   late final CloudinaryPublic profileCloudinary;
 
   CloudinaryService._internal() {
-    adminCloudinary = CloudinaryPublic('dy1jizr52', 'Admin_docs', cache: false);
+    adminCloudinary = CloudinaryPublic('dge8oi6ok', 'Admin_docs', cache: false);
     marketCloudinary =
-        CloudinaryPublic('dy1jizr52', 'market_images', cache: false);
+        CloudinaryPublic('dge8oi6ok', 'market_images', cache: false);
     noticeCloudinary =
-        CloudinaryPublic('dy1jizr52', 'community_notices', cache: false);
+        CloudinaryPublic('dge8oi6ok', 'community_notices', cache: false);
     reportCloudinary =
-        CloudinaryPublic('dy1jizr52', 'community_reports', cache: false);
+        CloudinaryPublic('dge8oi6ok', 'community_reports', cache: false);
     profileCloudinary =
-        CloudinaryPublic('dy1jizr52', 'profile_images', cache: false);
+        CloudinaryPublic('dge8oi6ok', 'profile_images', cache: false);
   }
 
   Future<String> uploadMarketImage(File file) async {

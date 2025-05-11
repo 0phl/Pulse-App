@@ -1,2 +1,0 @@
-D:/SDCA 2024-2025 1st Sem/Flutter Projects/Pulse-App/android/app/.cxx/Debug/4g3f1h1d/x86/CMakeFiles/edit_cache.dir
-D:/SDCA 2024-2025 1st Sem/Flutter Projects/Pulse-App/android/app/.cxx/Debug/4g3f1h1d/x86/CMakeFiles/rebuild_cache.dir

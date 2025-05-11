@@ -540,7 +540,7 @@ class _ChatPageState extends State<ChatPage> {
       if (isImage && _selectedImage != null) {
         try {
           // Create a CloudinaryPublic instance for chat uploads
-          final chatCloudinary = CloudinaryPublic('dy1jizr52', 'chat_uploads', cache: false);
+          final chatCloudinary = CloudinaryPublic('dge8oi6ok', 'chat_uploads', cache: false);
 
           // Check file size before uploading (5MB limit for images)
           final fileSize = await _selectedImage!.length();
@@ -567,7 +567,7 @@ class _ChatPageState extends State<ChatPage> {
       } else if (!isImage && _selectedVideo != null) {
         try {
           // Use the same CloudinaryPublic instance for videos
-          final chatCloudinary = CloudinaryPublic('dy1jizr52', 'chat_uploads', cache: false);
+          final chatCloudinary = CloudinaryPublic('dge8oi6ok', 'chat_uploads', cache: false);
 
           // Check file size before uploading (20MB limit for videos)
           final fileSize = await _selectedVideo!.length();
