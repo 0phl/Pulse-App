@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 // Import web implementation for web platform
 import 'package:printing/printing_web.dart'
     if (dart.library.io) 'package:printing/printing.dart';
+import 'dart:async';
 
 class SuperAdminAnalyticsDashboardPage extends StatefulWidget {
   const SuperAdminAnalyticsDashboardPage({super.key});
@@ -23,19 +24,58 @@ class _SuperAdminAnalyticsDashboardPageState
   final SuperAdminService _superAdminService = SuperAdminService();
   bool _isLoading = true;
   Map<String, dynamic> _analyticsData = {};
-  String _selectedTimeRange = 'Last 30 Days';
+  String _selectedTimeRange = 'Last 7 Days';
   final List<String> _timeRanges = [
     'Last 7 Days',
     'Last 30 Days',
-    'Last 90 Days'
+    'Last 90 Days',
+    'Last Year'
   ];
+  StreamSubscription<Map<String, dynamic>>? _analyticsSubscription;
 
   @override
   void initState() {
     super.initState();
-    _loadAnalyticsData();
+    _subscribeToAnalyticsData();
   }
 
+  @override
+  void dispose() {
+    _analyticsSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _subscribeToAnalyticsData() {
+    // Cancel any existing subscription
+    _analyticsSubscription?.cancel();
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Subscribe to analytics data stream
+    _analyticsSubscription =
+        _superAdminService.getAnalyticsDataStream(_selectedTimeRange).listen(
+      (data) {
+        setState(() {
+          _analyticsData = data;
+          _isLoading = false;
+        });
+      },
+      onError: (error) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error loading analytics data: $error')),
+          );
+        }
+      },
+    );
+  }
+
+  // This method is now used only when manually refreshing the data
   Future<void> _loadAnalyticsData() async {
     setState(() {
       _isLoading = true;
@@ -78,6 +118,9 @@ class _SuperAdminAnalyticsDashboardPageState
       final PdfColor accentColor = PdfColor.fromHex('4A90E2');
       final PdfColor textColor = PdfColor.fromHex('2D3748');
       final PdfColor lightGrey = PdfColor.fromHex('F7F7F7');
+      final PdfColor warningColor = PdfColor.fromHex('F5A623');
+      final PdfColor successColor = PdfColor.fromHex('4CAF50');
+      final PdfColor dangerColor = PdfColor.fromHex('F44336');
 
       // Get current date
       final now = DateTime.now();
@@ -172,14 +215,17 @@ class _SuperAdminAnalyticsDashboardPageState
               ),
             ),
 
-            // Summary Section
+            // Executive Summary
+            _buildExecutiveSummarySection(primaryColor, textColor, lightGrey),
+
+            // KPI Summary Cards
             pw.Container(
               margin: const pw.EdgeInsets.only(bottom: 20),
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    'Analytics Summary',
+                    'Performance Metrics',
                     style: pw.TextStyle(
                       color: primaryColor,
                       fontWeight: pw.FontWeight.bold,
@@ -190,10 +236,11 @@ class _SuperAdminAnalyticsDashboardPageState
                   pw.Row(
                     children: [
                       _buildSummaryCard(
-                        'Total Communities',
+                        'Communities',
                         _analyticsData['totalCommunities']?.toString() ?? '0',
-                        _analyticsData['communityGrowth']?.toString() ?? '0%',
-                        primaryColor,
+                        _formatGrowth(_analyticsData['communityGrowth']),
+                        _getGrowthColor(
+                            _analyticsData['communityGrowth'], primaryColor),
                         lightGrey,
                         textColor,
                       ),
@@ -201,18 +248,20 @@ class _SuperAdminAnalyticsDashboardPageState
                       _buildSummaryCard(
                         'Total Admins',
                         _analyticsData['totalAdmins']?.toString() ?? '0',
-                        _analyticsData['adminGrowth']?.toString() ?? '0%',
-                        accentColor,
+                        _formatGrowth(_analyticsData['adminGrowth']),
+                        _getGrowthColor(
+                            _analyticsData['adminGrowth'], accentColor),
                         lightGrey,
                         textColor,
                       ),
                       pw.SizedBox(width: 15),
                       _buildSummaryCard(
-                        'Pending Applications',
+                        'Applications',
                         _analyticsData['pendingApplications']?.toString() ??
                             '0',
-                        _analyticsData['applicationGrowth']?.toString() ?? '0%',
-                        PdfColor.fromHex('F5A623'),
+                        _formatGrowth(_analyticsData['applicationGrowth']),
+                        _getGrowthColor(
+                            _analyticsData['applicationGrowth'], warningColor),
                         lightGrey,
                         textColor,
                       ),
@@ -222,14 +271,14 @@ class _SuperAdminAnalyticsDashboardPageState
               ),
             ),
 
-            // Top Communities Section
+            // Growth Trend Chart
             pw.Container(
               margin: const pw.EdgeInsets.only(bottom: 20),
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    'Top Active Communities',
+                    'Community Growth Trend',
                     style: pw.TextStyle(
                       color: primaryColor,
                       fontWeight: pw.FontWeight.bold,
@@ -237,12 +286,7 @@ class _SuperAdminAnalyticsDashboardPageState
                     ),
                   ),
                   pw.SizedBox(height: 10),
-                  _buildCommunitiesTable(
-                    (_analyticsData['topActiveCommunities'] as List?) ?? [],
-                    primaryColor,
-                    lightGrey,
-                    textColor,
-                  ),
+                  _buildPdfTrendChart(primaryColor, lightGrey, textColor),
                 ],
               ),
             ),
@@ -263,9 +307,32 @@ class _SuperAdminAnalyticsDashboardPageState
                   ),
                   pw.SizedBox(height: 10),
                   _buildRegionalDistributionTable(
-                    (_analyticsData['communityByRegion']
-                            as Map<String, dynamic>?) ??
-                        {},
+                    _getFilteredRegionData(),
+                    primaryColor,
+                    lightGrey,
+                    textColor,
+                  ),
+                ],
+              ),
+            ),
+
+            // Top Active Communities Section
+            pw.Container(
+              margin: const pw.EdgeInsets.only(bottom: 20),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'Top Active Communities',
+                    style: pw.TextStyle(
+                      color: primaryColor,
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  pw.SizedBox(height: 10),
+                  _buildCommunitiesTable(
+                    _getFilteredCommunitiesData(),
                     primaryColor,
                     lightGrey,
                     textColor,
@@ -282,7 +349,7 @@ class _SuperAdminAnalyticsDashboardPageState
                 borderRadius: pw.BorderRadius.circular(5),
               ),
               child: pw.Text(
-                'This report is automatically generated from the PULSE analytics system. The data represents activity within the selected time period.',
+                'This report is automatically generated from the PULSE analytics system. The data represents activity within the selected time period. For questions or detailed analysis, please contact support.',
                 style: pw.TextStyle(
                   color: textColor.shade(50),
                   fontSize: 10,
@@ -313,6 +380,569 @@ class _SuperAdminAnalyticsDashboardPageState
         });
       }
     }
+  }
+
+  // Helper methods for PDF report generation
+  String _buildExecutiveSummary() {
+    final communities = _analyticsData['totalCommunities'] ?? 0;
+    final admins = _analyticsData['totalAdmins'] ?? 0;
+    final applications = _analyticsData['pendingApplications'] ?? 0;
+    final users = _analyticsData['totalUsers'] ?? 0;
+    final communityGrowth = _analyticsData['communityGrowth'] ?? 0.0;
+    final growthText = communityGrowth >= 0 ? 'growth' : 'decline';
+
+    String summary =
+        'In the $_selectedTimeRange period, the platform has maintained $communities active communities with $admins administrators serving approximately $users users. ';
+
+    if (communityGrowth != 0) {
+      summary +=
+          'We observed a ${communityGrowth.abs().toStringAsFixed(1)}% $growthText in community count. ';
+    } else {
+      summary += 'Community count has remained stable. ';
+    }
+
+    if (applications > 0) {
+      summary +=
+          'There are currently $applications pending applications awaiting review. ';
+    }
+
+    final topRegions = _getTopRegions();
+    if (topRegions.isNotEmpty) {
+      summary += 'The most active regions are ${topRegions.join(', ')}. ';
+    }
+
+    final avgEngagement = _analyticsData['userEngagementRate'] ?? 0.0;
+    if (avgEngagement > 0) {
+      summary +=
+          'Average user engagement across communities is ${avgEngagement.toStringAsFixed(1)}%. ';
+    }
+
+    return summary;
+  }
+
+  List<String> _getTopRegions() {
+    final regionData =
+        _analyticsData['communityByRegion'] as Map<String, dynamic>?;
+    if (regionData == null) return [];
+
+    // Convert to list of entries, sort by count, and take top 3
+    final sortedRegions = regionData.entries.toList()
+      ..sort((a, b) => (b.value as int).compareTo(a.value as int));
+
+    // Return only regions with at least 1 community
+    return sortedRegions
+        .where((entry) => entry.value > 0)
+        .take(3)
+        .map((entry) => entry.key)
+        .toList();
+  }
+
+  Map<String, dynamic> _getFilteredRegionData() {
+    final regionData =
+        _analyticsData['communityByRegion'] as Map<String, dynamic>?;
+    if (regionData == null) return {};
+
+    // Filter out regions with 0 communities for cleaner report
+    return Map.fromEntries(
+        regionData.entries.where((entry) => entry.value > 0));
+  }
+
+  List<Map<String, dynamic>> _getFilteredCommunitiesData() {
+    final communities =
+        _analyticsData['topActiveCommunities'] as List<dynamic>?;
+    if (communities == null) return [];
+
+    // Filter to only include communities with at least 1 member or engagement > 0
+    return communities
+        .where((community) =>
+            (community['members'] as int) > 0 ||
+            (community['engagement'] as int) > 0)
+        .cast<Map<String, dynamic>>()
+        .toList();
+  }
+
+  String _formatGrowth(dynamic growthValue) {
+    if (growthValue == null) return '0%';
+
+    final growth = growthValue is double ? growthValue : 0.0;
+    final sign = growth >= 0 ? '+' : '';
+    return '$sign${growth.toStringAsFixed(1)}%';
+  }
+
+  PdfColor _getGrowthColor(dynamic growthValue, PdfColor defaultColor) {
+    if (growthValue == null) return defaultColor;
+
+    final growth = growthValue is double ? growthValue : 0.0;
+    if (growth > 0) return PdfColor.fromHex('4CAF50'); // Green for positive
+    if (growth < 0) return PdfColor.fromHex('F44336'); // Red for negative
+    return defaultColor; // Default color for zero
+  }
+
+  pw.Widget _buildRecommendationPoint(
+      String title, String description, PdfColor textColor) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 8),
+      padding: const pw.EdgeInsets.all(4),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.white,
+        borderRadius: pw.BorderRadius.circular(4),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            title,
+            style: pw.TextStyle(
+              color: textColor,
+              fontWeight: pw.FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+          pw.SizedBox(height: 4),
+          pw.Text(
+            description,
+            style: pw.TextStyle(
+              color: textColor.shade(80),
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfTrendChart(
+      PdfColor color, PdfColor bgColor, PdfColor textColor) {
+    final data = _analyticsData['communityTrend'] as List<dynamic>?;
+    if (data == null || data.isEmpty) {
+      return pw.Container(
+        height: 100,
+        alignment: pw.Alignment.center,
+        child: pw.Text('No trend data available'),
+      );
+    }
+
+    // Get growth data for the report
+    final currentTotal = _analyticsData['totalCommunities'] ?? 0;
+    final growth = _analyticsData['communityGrowth'] ?? 0.0;
+    final growthFormatted = _formatGrowth(_analyticsData['communityGrowth']);
+    final direction = growth >= 0 ? 'increase' : 'decrease';
+
+    // Get user related metrics
+    final totalUsers = _analyticsData['totalUsers'] ?? 0;
+    final userGrowth = _analyticsData['userGrowth'] ?? 0.0;
+    final newUsers = totalUsers -
+        (data.isNotEmpty ? data.first : 0) *
+            15; // Estimate if not directly available
+
+    // Get new communities in this period
+    final newCommunities = _analyticsData['newCommunitiesInPeriod'] ?? 0;
+
+    // Get engagement metrics
+    final avgEngagement = _analyticsData['userEngagementRate'] ?? 0.0;
+
+    // Define explicit colors for backgrounds
+    final lightBgColor = PdfColors.white;
+    final panelBgColor = PdfColor.fromHex('F5F7FA'); // Light gray background
+    final separatorColor =
+        PdfColor.fromHex('E1E5EA'); // Medium gray for separators
+
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(15),
+      decoration: pw.BoxDecoration(
+        color: lightBgColor,
+        borderRadius: pw.BorderRadius.circular(8),
+        border: pw.Border.all(color: separatorColor, width: 1),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'Community Growth Summary',
+            style: pw.TextStyle(
+              fontSize: 14,
+              color: textColor,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 12),
+
+          // Communities section
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              color: panelBgColor,
+              borderRadius: pw.BorderRadius.circular(5),
+              border: pw.Border.all(color: separatorColor, width: 0.5),
+            ),
+            child: pw.Row(
+              children: [
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'Communities',
+                        style: pw.TextStyle(
+                          fontSize: 11,
+                          color: textColor,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 3),
+                      pw.Text(
+                        'Current: $currentTotal ($growthFormatted)',
+                        style: pw.TextStyle(fontSize: 10, color: textColor),
+                      ),
+                      if (newCommunities > 0) ...[
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          'New this period: $newCommunities',
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColor.fromHex('4CAF50'),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // Separator
+                pw.Container(
+                  height: 40,
+                  width: 1,
+                  color: separatorColor,
+                ),
+
+                // Users section
+                pw.Expanded(
+                  child: pw.Padding(
+                    padding: const pw.EdgeInsets.only(left: 8),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'Users',
+                          style: pw.TextStyle(
+                            fontSize: 11,
+                            color: textColor,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 3),
+                        pw.Text(
+                          'Total: $totalUsers',
+                          style: pw.TextStyle(fontSize: 10, color: textColor),
+                        ),
+                        if (newUsers > 0) ...[
+                          pw.SizedBox(height: 2),
+                          pw.Text(
+                            'Estimated new: ${newUsers.toInt()}',
+                            style: pw.TextStyle(
+                              fontSize: 10,
+                              color: PdfColor.fromHex('4CAF50'),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          pw.SizedBox(height: 10),
+
+          // Performance metrics
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              color: panelBgColor,
+              borderRadius: pw.BorderRadius.circular(5),
+              border: pw.Border.all(color: separatorColor, width: 0.5),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Performance Metrics',
+                  style: pw.TextStyle(
+                    fontSize: 11,
+                    color: textColor,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 5),
+                pw.Row(
+                  children: [
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            'Avg. Engagement:',
+                            style: pw.TextStyle(fontSize: 10, color: textColor),
+                          ),
+                          pw.SizedBox(height: 2),
+                          pw.Text(
+                            '${avgEngagement.toStringAsFixed(1)}%',
+                            style: pw.TextStyle(
+                              fontSize: 11,
+                              color: avgEngagement > 50.0
+                                  ? PdfColor.fromHex('4CAF50')
+                                  : avgEngagement > 25.0
+                                      ? PdfColor.fromHex('FF9800')
+                                      : PdfColor.fromHex('F44336'),
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            'Growth Rate:',
+                            style: pw.TextStyle(fontSize: 10, color: textColor),
+                          ),
+                          pw.SizedBox(height: 2),
+                          pw.Text(
+                            '$growthFormatted ($direction)',
+                            style: pw.TextStyle(
+                              fontSize: 11,
+                              color: _getGrowthColor(
+                                  _analyticsData['communityGrowth'], textColor),
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          pw.SizedBox(height: 10),
+
+          // Period comparison
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              color: panelBgColor,
+              borderRadius: pw.BorderRadius.circular(5),
+              border: pw.Border.all(color: separatorColor, width: 0.5),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Period Comparison',
+                  style: pw.TextStyle(
+                    fontSize: 11,
+                    color: textColor,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 5),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'Start of Period:',
+                          style: pw.TextStyle(fontSize: 10, color: textColor),
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          '${data.isNotEmpty ? data.first : 0} communities',
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            color: textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        pw.Text(
+                          'Current:',
+                          style: pw.TextStyle(fontSize: 10, color: textColor),
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          '$currentTotal communities',
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            color: textColor,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 4),
+                // Simple progress indicator line
+                pw.Container(
+                  height: 4,
+                  margin: const pw.EdgeInsets.symmetric(vertical: 4),
+                  child: pw.Stack(children: [
+                    // Background line
+                    pw.Container(
+                      height: 4,
+                      decoration: pw.BoxDecoration(
+                        color: separatorColor,
+                        borderRadius: pw.BorderRadius.circular(2),
+                      ),
+                    ),
+                    // Progress indicator
+                    pw.Container(
+                      width: growth > 0 ? 120 : 50, // Width based on growth
+                      height: 4,
+                      decoration: pw.BoxDecoration(
+                        color: growth >= 0
+                            ? PdfColor.fromHex('4CAF50')
+                            : PdfColor.fromHex('F44336'),
+                        borderRadius: pw.BorderRadius.circular(2),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+
+          pw.SizedBox(height: 8),
+          pw.Text(
+            _getTimeRangeLabel(),
+            style: pw.TextStyle(
+              fontSize: 9,
+              color: textColor.shade(70),
+              fontStyle: pw.FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getTimeRangeLabel() {
+    switch (_selectedTimeRange) {
+      case 'Last 7 Days':
+        return 'Data shown for the past week';
+      case 'Last 30 Days':
+        return 'Data shown for the past month';
+      case 'Last 90 Days':
+        return 'Data shown for the past quarter';
+      case 'Last Year':
+        return 'Data shown for the past year';
+      default:
+        return 'Data shown for the selected period';
+    }
+  }
+
+  pw.Widget _buildPdfPieChart(
+      PdfColor color, PdfColor bgColor, PdfColor textColor) {
+    final regionData = _getFilteredRegionData();
+    if (regionData.isEmpty) {
+      return pw.Container(
+        height: 150,
+        alignment: pw.Alignment.center,
+        child: pw.Text('No regional data available'),
+      );
+    }
+
+    // Create a list of region entries sorted by count
+    final entries = regionData.entries.toList()
+      ..sort((a, b) => (b.value as int).compareTo(a.value as int));
+
+    // Take top 5 regions
+    final topRegions = entries.take(5).toList();
+
+    // Calculate total communities
+    final total =
+        regionData.values.fold<int>(0, (sum, value) => sum + (value as int));
+
+    // Define chart colors - using lighter colors
+    final List<PdfColor> pieColors = [
+      PdfColor.fromHex('00C49A'), // Primary
+      PdfColor.fromHex('4A90E2'), // Blue
+      PdfColor.fromHex('F5A623'), // Orange
+      PdfColor.fromHex('FF6B6B'), // Red
+      PdfColor.fromHex('9B59B6'), // Purple
+    ];
+
+    // Define header background color
+    final headerBgColor = PdfColor.fromHex('F5F7FA'); // Light gray for header
+
+    // Create a simple table representation of the pie chart data
+    return pw.Container(
+      height: 200,
+      padding: const pw.EdgeInsets.all(10),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.white,
+        borderRadius: pw.BorderRadius.circular(8),
+        border: pw.Border.all(color: color.shade(20), width: 0.5),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'Regional Distribution',
+            style: pw.TextStyle(
+              fontSize: 12,
+              color: textColor,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Expanded(
+            child: pw.Table(
+              border: pw.TableBorder.all(color: color.shade(20), width: 0.5),
+              children: [
+                pw.TableRow(
+                  decoration: pw.BoxDecoration(color: headerBgColor),
+                  children: [
+                    _buildPdfTableCell('Region', textColor, true, 1),
+                    _buildPdfTableCell('Count', textColor, true, 2),
+                    _buildPdfTableCell('Percentage', textColor, true, 2),
+                  ],
+                ),
+                ...topRegions.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final region = entry.value;
+                  final regionName = region.key;
+                  final count = region.value;
+                  final percentage = total > 0
+                      ? (count / total * 100).toStringAsFixed(1)
+                      : '0.0';
+
+                  return pw.TableRow(
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.white,
+                    ),
+                    children: [
+                      _buildPdfTableCell(regionName, textColor, false, 1),
+                      _buildPdfTableCell(count.toString(), textColor, false, 2),
+                      _buildPdfTableCell('$percentage%', textColor, false, 2),
+                    ],
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // Helper widget for PDF report - Summary Card
@@ -379,12 +1009,15 @@ class _SuperAdminAnalyticsDashboardPageState
     PdfColor bgColor,
     PdfColor textColor,
   ) {
+    // Define header background color
+    final headerBgColor = PdfColor.fromHex('F5F7FA'); // Light gray for header
+
     return pw.Table(
       border: pw.TableBorder.all(color: color.shade(20), width: 0.5),
       children: [
         // Header row
         pw.TableRow(
-          decoration: pw.BoxDecoration(color: bgColor),
+          decoration: pw.BoxDecoration(color: headerBgColor),
           children: [
             _buildPdfTableCell('Community Name', textColor, true, 1),
             _buildPdfTableCell('Members', textColor, true, 2),
@@ -394,6 +1027,7 @@ class _SuperAdminAnalyticsDashboardPageState
         // Data rows
         ...communities
             .map((community) => pw.TableRow(
+                  decoration: pw.BoxDecoration(color: PdfColors.white),
                   children: [
                     _buildPdfTableCell(community['name'], textColor, false, 1),
                     _buildPdfTableCell(
@@ -404,49 +1038,6 @@ class _SuperAdminAnalyticsDashboardPageState
                 ))
             .toList(),
       ],
-    );
-  }
-
-  // Helper widget for PDF report - Regional Distribution Table
-  pw.Widget _buildRegionalDistributionTable(
-    Map<String, dynamic> regions,
-    PdfColor color,
-    PdfColor bgColor,
-    PdfColor textColor,
-  ) {
-    // Calculate total communities
-    final int total =
-        regions.values.fold<int>(0, (sum, value) => sum + (value as int));
-
-    // Create table rows
-    List<pw.TableRow> rows = [
-      // Header row
-      pw.TableRow(
-        decoration: pw.BoxDecoration(color: bgColor),
-        children: [
-          _buildPdfTableCell('Region', textColor, true, 1),
-          _buildPdfTableCell('Communities', textColor, true, 2),
-          _buildPdfTableCell('Percentage', textColor, true, 2),
-        ],
-      ),
-    ];
-
-    // Add data rows for each region
-    regions.forEach((region, count) {
-      final percentage =
-          total > 0 ? (count / total * 100).toStringAsFixed(1) : '0.0';
-      rows.add(pw.TableRow(
-        children: [
-          _buildPdfTableCell(region, textColor, false, 1),
-          _buildPdfTableCell(count.toString(), textColor, false, 2),
-          _buildPdfTableCell('$percentage%', textColor, false, 2),
-        ],
-      ));
-    });
-
-    return pw.Table(
-      border: pw.TableBorder.all(color: color.shade(20), width: 0.5),
-      children: rows,
     );
   }
 
@@ -470,6 +1061,90 @@ class _SuperAdminAnalyticsDashboardPageState
           color: textColor,
           fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
         ),
+      ),
+    );
+  }
+
+  // Helper widget for PDF report - Regional Distribution Table
+  pw.Widget _buildRegionalDistributionTable(
+    Map<String, dynamic> regions,
+    PdfColor color,
+    PdfColor bgColor,
+    PdfColor textColor,
+  ) {
+    // Calculate total communities
+    final int total =
+        regions.values.fold<int>(0, (sum, value) => sum + (value as int));
+
+    // Define light background color for all rows
+    final headerBgColor = PdfColor.fromHex('F5F7FA'); // Light gray for header
+
+    // Create table rows
+    List<pw.TableRow> rows = [
+      // Header row
+      pw.TableRow(
+        decoration: pw.BoxDecoration(color: headerBgColor),
+        children: [
+          _buildPdfTableCell('Region', textColor, true, 1),
+          _buildPdfTableCell('Communities', textColor, true, 2),
+          _buildPdfTableCell('Percentage', textColor, true, 2),
+        ],
+      ),
+    ];
+
+    // Add data rows for each region
+    regions.forEach((region, count) {
+      final percentage =
+          total > 0 ? (count / total * 100).toStringAsFixed(1) : '0.0';
+      rows.add(pw.TableRow(
+        decoration: pw.BoxDecoration(color: PdfColors.white),
+        children: [
+          _buildPdfTableCell(region, textColor, false, 1),
+          _buildPdfTableCell(count.toString(), textColor, false, 2),
+          _buildPdfTableCell('$percentage%', textColor, false, 2),
+        ],
+      ));
+    });
+
+    return pw.Table(
+      border: pw.TableBorder.all(color: color.shade(20), width: 0.5),
+      children: rows,
+    );
+  }
+
+  // Executive Summary Section
+  pw.Container _buildExecutiveSummarySection(
+      PdfColor primaryColor, PdfColor textColor, PdfColor lightGrey) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 20),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'Executive Summary',
+            style: pw.TextStyle(
+              color: primaryColor,
+              fontWeight: pw.FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.white,
+              borderRadius: pw.BorderRadius.circular(5),
+              border: pw.Border.all(color: lightGrey.shade(50), width: 1),
+            ),
+            child: pw.Text(
+              _buildExecutiveSummary(),
+              style: pw.TextStyle(
+                color: textColor,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -539,6 +1214,13 @@ class _SuperAdminAnalyticsDashboardPageState
                 const Spacer(),
                 _buildTimeRangeDropdown(),
                 const SizedBox(width: 12),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  tooltip: 'Refresh data',
+                  onPressed: _loadAnalyticsData,
+                  color: const Color(0xFF64748B),
+                ),
+                const SizedBox(width: 12),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.picture_as_pdf, size: 18),
                   label: Text(isSmallScreen ? 'PDF' : 'Generate Report'),
@@ -607,7 +1289,7 @@ class _SuperAdminAnalyticsDashboardPageState
               setState(() {
                 _selectedTimeRange = newValue;
               });
-              _loadAnalyticsData();
+              _subscribeToAnalyticsData();
             }
           },
         ),
@@ -740,13 +1422,28 @@ class _SuperAdminAnalyticsDashboardPageState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Growth Trends',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2D3748),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Community Growth Trend',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF2D3748),
+                  ),
+                ),
+                // Add info tooltip icon
+                Tooltip(
+                  message:
+                      'Shows community growth over the selected time period',
+                  child: Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -779,10 +1476,32 @@ class _SuperAdminAnalyticsDashboardPageState
                         interval: 2,
                         getTitlesWidget: (value, meta) {
                           if (value % 2 != 0) return const SizedBox();
+
+                          String periodLabel;
+                          if (_selectedTimeRange == 'Last 7 Days') {
+                            // For 7 days, show day labels
+                            final dayNum = (value.toInt() + 1);
+                            final date = DateTime.now()
+                                .subtract(Duration(days: 7 - dayNum));
+                            periodLabel = '${date.day}/${date.month}';
+                          } else if (_selectedTimeRange == 'Last Year') {
+                            // For a year, show month labels
+                            final monthsAgo = 12 - (value.toInt() + 1);
+                            final date = DateTime.now()
+                                .subtract(Duration(days: monthsAgo * 30));
+                            periodLabel =
+                                '${date.month}/${date.year.toString().substring(2)}';
+                          } else {
+                            // For other periods, use standard M1, M3, etc.
+                            String periodLetter =
+                                _selectedTimeRange == 'Last 7 Days' ? 'D' : 'M';
+                            periodLabel = '$periodLetter${value.toInt() + 1}';
+                          }
+
                           return SideTitleWidget(
                             axisSide: meta.axisSide,
                             child: Text(
-                              'M${value.toInt() + 1}',
+                              periodLabel,
                               style: TextStyle(
                                 color: Colors.grey.shade600,
                                 fontSize: 12,
@@ -795,7 +1514,7 @@ class _SuperAdminAnalyticsDashboardPageState
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        interval: 40,
+                        interval: 20,
                         getTitlesWidget: (value, meta) {
                           return SideTitleWidget(
                             axisSide: meta.axisSide,
@@ -819,22 +1538,44 @@ class _SuperAdminAnalyticsDashboardPageState
                       left: BorderSide(color: Colors.grey.shade300, width: 1),
                     ),
                   ),
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      tooltipBgColor: const Color(0xFF2D3748).withOpacity(0.8),
+                      getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                        return touchedSpots.map((LineBarSpot touchedSpot) {
+                          return LineTooltipItem(
+                            'Communities: ${touchedSpot.y.toInt()}',
+                            const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            children: [
+                              if (_analyticsData['totalUsers'] != null)
+                                TextSpan(
+                                  text:
+                                      '\nUsers: ${_analyticsData['totalUsers']}',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontWeight: FontWeight.normal,
+                                  ),
+                                ),
+                            ],
+                          );
+                        }).toList();
+                      },
+                    ),
+                    touchCallback: (_, __) {},
+                    handleBuiltInTouches: true,
+                  ),
                   minX: 0,
                   maxX: 9,
                   minY: 0,
-                  maxY: 160,
+                  // Make the chart y-axis dynamic but with minimum height to avoid flat lines in the middle
+                  maxY: _getMaxY() > 0 ? _getMaxY() : 10,
                   lineBarsData: [
                     _createLineChartBarData(
                       _analyticsData['communityTrend'],
                       const Color(0xFF00C49A),
-                    ),
-                    _createLineChartBarData(
-                      _analyticsData['adminTrend'],
-                      const Color(0xFF4A90E2),
-                    ),
-                    _createLineChartBarData(
-                      _analyticsData['applicationTrend'],
-                      const Color(0xFFF5A623),
                     ),
                   ],
                 ),
@@ -844,12 +1585,20 @@ class _SuperAdminAnalyticsDashboardPageState
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildLegendItem('Communities', const Color(0xFF00C49A)),
-                const SizedBox(width: 24),
-                _buildLegendItem('Admins', const Color(0xFF4A90E2)),
-                const SizedBox(width: 24),
-                _buildLegendItem('Applications', const Color(0xFFF5A623)),
+                _buildLegendItem('Community Growth', const Color(0xFF00C49A)),
               ],
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                _getExplanatoryText(),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
             ),
           ],
         ),
@@ -857,7 +1606,108 @@ class _SuperAdminAnalyticsDashboardPageState
     );
   }
 
-  LineChartBarData _createLineChartBarData(List<dynamic> data, Color color) {
+  // Helper method to get the appropriate Y-axis maximum
+  double _getMaxY() {
+    final data = _analyticsData['communityTrend'] as List<dynamic>?;
+    if (data != null && data.isNotEmpty) {
+      // Convert all values to double before finding max value
+      double maxValue = 0;
+      double minValue = double.infinity;
+      for (var value in data) {
+        final doubleValue = value is num ? value.toDouble() : 0.0;
+        if (doubleValue > maxValue) {
+          maxValue = doubleValue;
+        }
+        if (doubleValue < minValue) {
+          minValue = doubleValue;
+        }
+      }
+
+      // Check if the data is flat (all values are the same)
+      bool isFlat = maxValue == minValue;
+
+      if (isFlat) {
+        // For flat data, create a small range with the value at the bottom
+        // This makes flat lines appear at the bottom instead of middle
+        return maxValue + 5; // Just enough room to show the value at the bottom
+      } else {
+        // For non-flat data, round up to the nearest 10 and add some padding
+        return (((maxValue / 10).ceil() + 1) * 10).toDouble();
+      }
+    }
+    return 10.0; // Default if no data - small range to position line at bottom
+  }
+
+  // Helper method to get explanatory text
+  String _getExplanatoryText() {
+    final growth = _analyticsData['communityGrowth'] ?? 0.0;
+    final direction = growth >= 0 ? 'increase' : 'decrease';
+    final totalUsers = _analyticsData['totalUsers'] ??
+        (_analyticsData['totalCommunities'] ?? 0) * 15; // Fallback estimate
+
+    String period;
+    switch (_selectedTimeRange) {
+      case 'Last 7 Days':
+        period = 'week';
+        break;
+      case 'Last 30 Days':
+        period = 'month';
+        break;
+      case 'Last 90 Days':
+        period = 'quarter';
+        break;
+      case 'Last Year':
+        period = 'year';
+        break;
+      default:
+        period = 'period';
+    }
+
+    final text =
+        'Community Growth: ${growth.abs().toStringAsFixed(1)}% $direction this $period. '
+        'Total active communities: ${_analyticsData['totalCommunities'] ?? 0}. '
+        'Total active users: $totalUsers.';
+
+    return text;
+  }
+
+  LineChartBarData _createLineChartBarData(List<dynamic>? data, Color color) {
+    // Handle null or empty data
+    if (data == null || data.isEmpty) {
+      // Return a flat line at 0 if no data
+      return LineChartBarData(
+        spots: List.generate(
+          10,
+          (index) => FlSpot(index.toDouble(), 0),
+        ),
+        isCurved: true,
+        color: color,
+        barWidth: 3,
+        isStrokeCapRound: true,
+        dotData: FlDotData(
+            show: true,
+            getDotPainter: (spot, percent, barData, index) {
+              return FlDotCirclePainter(
+                radius: 4,
+                color: Colors.white,
+                strokeWidth: 2,
+                strokeColor: color,
+              );
+            }),
+        belowBarData: BarAreaData(
+          show: true,
+          gradient: LinearGradient(
+            colors: [
+              color.withOpacity(0.4),
+              color.withOpacity(0.1),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+      );
+    }
+
     return LineChartBarData(
       spots: List.generate(
         data.length,
@@ -867,10 +1717,26 @@ class _SuperAdminAnalyticsDashboardPageState
       color: color,
       barWidth: 3,
       isStrokeCapRound: true,
-      dotData: const FlDotData(show: false),
+      dotData: FlDotData(
+          show: true,
+          getDotPainter: (spot, percent, barData, index) {
+            return FlDotCirclePainter(
+              radius: 4,
+              color: Colors.white,
+              strokeWidth: 2,
+              strokeColor: color,
+            );
+          }),
       belowBarData: BarAreaData(
         show: true,
-        color: color.withAlpha(25), // 10% opacity
+        gradient: LinearGradient(
+          colors: [
+            color.withOpacity(0.4),
+            color.withOpacity(0.1),
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
       ),
     );
   }
@@ -1068,13 +1934,14 @@ class _SuperAdminAnalyticsDashboardPageState
             ? (value / totalCommunities * 100).toStringAsFixed(1)
             : '0.0';
 
-        return _buildPieLegendItem(
-            regionName, regionColors[regionName] ?? Colors.grey, value, percentage);
+        return _buildPieLegendItem(regionName,
+            regionColors[regionName] ?? Colors.grey, value, percentage);
       }).toList(),
     );
   }
 
-  Widget _buildPieLegendItem(String label, Color color, int value, String percentage) {
+  Widget _buildPieLegendItem(
+      String label, Color color, int value, String percentage) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
