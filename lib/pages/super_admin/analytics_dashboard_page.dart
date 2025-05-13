@@ -1188,57 +1188,121 @@ class _SuperAdminAnalyticsDashboardPageState
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE6F7F2),
-                    borderRadius: BorderRadius.circular(10),
+            child: isSmallScreen 
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE6F7F2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.analytics_rounded,
+                              color: Color(0xFF00C49A),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          const Text(
+                            'Analytics Dashboard',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF2D3748),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(child: _buildTimeRangeDropdown()),
+                          const SizedBox(width: 12),
+                          IconButton(
+                            icon: const Icon(Icons.refresh, size: 20),
+                            tooltip: 'Refresh data',
+                            onPressed: _loadAnalyticsData,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.picture_as_pdf, size: 18),
+                          label: const Text('Generate Report'),
+                          onPressed: _generatePdfReport,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00C49A),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE6F7F2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.analytics_rounded,
+                          color: Color(0xFF00C49A),
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Text(
+                        'Analytics Dashboard',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF2D3748),
+                        ),
+                      ),
+                      const Spacer(),
+                      _buildTimeRangeDropdown(),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, size: 20),
+                        tooltip: 'Refresh data',
+                        onPressed: _loadAnalyticsData,
+                        color: const Color(0xFF64748B),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.picture_as_pdf, size: 18),
+                        label: const Text('Generate Report'),
+                        onPressed: _generatePdfReport,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00C49A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: const Icon(
-                    Icons.analytics_rounded,
-                    color: Color(0xFF00C49A),
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                const Text(
-                  'Analytics Dashboard',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2D3748),
-                  ),
-                ),
-                const Spacer(),
-                _buildTimeRangeDropdown(),
-                const SizedBox(width: 12),
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 20),
-                  tooltip: 'Refresh data',
-                  onPressed: _loadAnalyticsData,
-                  color: const Color(0xFF64748B),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.picture_as_pdf, size: 18),
-                  label: Text(isSmallScreen ? 'PDF' : 'Generate Report'),
-                  onPressed: _generatePdfReport,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00C49A),
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSmallScreen ? 12 : 16,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
           Expanded(
             child: _isLoading
