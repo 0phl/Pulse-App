@@ -11,6 +11,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_storage
   gal
   permission_handler_windows
+  printing
   url_launcher_windows
 )
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/super_admin_service.dart';
 import 'widgets/admin_applications_list.dart';
 import 'widgets/communities_list.dart';
+import 'analytics_dashboard_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SuperAdminDashboardPage extends StatefulWidget {
@@ -154,6 +155,17 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                             onTap: () {
                               setState(() {
                                 _selectedIndex = 1;
+                              });
+                              Navigator.pop(context);
+                            },
+                          ),
+                          _buildDrawerItem(
+                            icon: Icons.analytics_rounded,
+                            title: 'Analytics',
+                            isSelected: _selectedIndex == 2,
+                            onTap: () {
+                              setState(() {
+                                _selectedIndex = 2;
                               });
                               Navigator.pop(context);
                             },
@@ -323,6 +335,12 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                       isSelected: _selectedIndex == 1,
                       onTap: () => setState(() => _selectedIndex = 1),
                     ),
+                    _buildNavItem(
+                      icon: Icons.analytics_rounded,
+                      title: 'Analytics',
+                      isSelected: _selectedIndex == 2,
+                      onTap: () => setState(() => _selectedIndex = 2),
+                    ),
                     const Spacer(),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -418,6 +436,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                   children: const [
                     AdminApplicationsList(),
                     CommunitiesList(),
+                    SuperAdminAnalyticsDashboardPage(),
                   ],
                 ),
               ),
