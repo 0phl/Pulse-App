@@ -28,7 +28,7 @@ android {
     defaultConfig {
         applicationId "com.example.pulse_app"
         minSdkVersion 23
-        targetSdkVersion flutter.targetSdkVersion
+        targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
