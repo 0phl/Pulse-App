@@ -11,6 +11,7 @@ import '../models/report.dart';
 import '../services/community_service.dart';
 import 'engagement_service.dart';
 import 'community_notice_service.dart';
+import 'notification_service.dart';
 import 'package:flutter/material.dart';
 import '../pages/admin/deactivated_account_page.dart';
 import '../main.dart'; // Import this to access the global navigatorKey
@@ -1100,6 +1101,22 @@ class AdminService {
       'status': status,
       'lastLoginAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  // Sign out
+  Future<void> signOut() async {
+    try {
+      // First remove FCM tokens to prevent push notifications after logout
+      final notificationService = NotificationService();
+      await notificationService.removeUserTokens();
+
+      // Then sign out
+      await _auth.signOut();
+    } catch (e) {
+      debugPrint('Error during admin sign out: $e');
+      // Still attempt to sign out even if token removal fails
+      await _auth.signOut();
+    }
   }
 
   // Update admin profile information

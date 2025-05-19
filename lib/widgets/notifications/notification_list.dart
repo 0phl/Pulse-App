@@ -7,6 +7,7 @@ import '../../services/notification_service.dart';
 import 'notification_item.dart';
 
 class NotificationList extends StatefulWidget {
+  // Add a key parameter to force rebuild when needed
   const NotificationList({super.key});
 
   @override
@@ -32,6 +33,14 @@ class _NotificationListState extends State<NotificationList> {
     // Get the user's community ID
     _communityId = await notificationService.getUserCommunityId();
 
+    // Log the current unread notification count for debugging
+    try {
+      final count = await notificationService.getUnreadNotificationCount();
+      debugPrint('NOTIFICATION DEBUG: Current unread notification count: $count');
+    } catch (e) {
+      debugPrint('NOTIFICATION DEBUG: Error getting unread notification count: $e');
+    }
+
     // Subscribe to unread notifications
     _subscribeToNotifications();
 
@@ -54,10 +63,15 @@ class _NotificationListState extends State<NotificationList> {
     });
 
     try {
+      debugPrint('NOTIFICATION DEBUG: Subscribing to notifications stream');
+
       // Subscribe to the notifications stream
       _notificationSubscription = notificationService.getUserNotifications().listen(
         (snapshot) async {
+          debugPrint('NOTIFICATION DEBUG: Received notification snapshot with ${snapshot.docs.length} documents');
+
           if (!snapshot.docs.isNotEmpty) {
+            debugPrint('NOTIFICATION DEBUG: No notifications found in snapshot');
             setState(() {
               _notifications = [];
               _isLoading = false;
@@ -68,16 +82,49 @@ class _NotificationListState extends State<NotificationList> {
           // Process notifications in batches to avoid loading too many at once
           final List<NotificationModel> loadedNotifications = [];
 
+          // Log the raw notification status documents for debugging
+          for (final doc in snapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            debugPrint('NOTIFICATION DEBUG: Raw notification status document: ${doc.id}');
+            debugPrint('NOTIFICATION DEBUG:   - userId: ${data['userId'] ?? 'null'}');
+            debugPrint('NOTIFICATION DEBUG:   - notificationId: ${data['notificationId'] ?? 'null'}');
+            debugPrint('NOTIFICATION DEBUG:   - read: ${data['read'] ?? 'null'}');
+            debugPrint('NOTIFICATION DEBUG:   - communityId: ${data['communityId'] ?? 'null'}');
+          }
+
           for (final doc in snapshot.docs) {
             try {
+              debugPrint('NOTIFICATION DEBUG: Loading notification from status doc: ${doc.id}');
               final notification = await NotificationModel.fromStatusDoc(doc);
+
               if (notification != null) {
-                loadedNotifications.add(notification);
+                // Log notification details for debugging
+                debugPrint('NOTIFICATION DEBUG: Loaded notification: ${notification.title}');
+                debugPrint('NOTIFICATION DEBUG:   - Body: ${notification.body}');
+                debugPrint('NOTIFICATION DEBUG:   - Type: ${notification.type}');
+                debugPrint('NOTIFICATION DEBUG:   - Data: ${notification.data}');
+                debugPrint('NOTIFICATION DEBUG:   - Read: ${notification.read}');
+                debugPrint('NOTIFICATION DEBUG:   - ID: ${notification.id}');
+                debugPrint('NOTIFICATION DEBUG:   - NotificationID: ${notification.notificationId}');
+
+                // Skip self-notifications (where the user is seeing their own action)
+                if (!notification.isSelfNotification()) {
+                  debugPrint('NOTIFICATION DEBUG:   - Adding notification to list');
+                  loadedNotifications.add(notification);
+                } else {
+                  debugPrint('NOTIFICATION DEBUG:   - Skipping self-notification: ${notification.title}');
+                  // Delete self-notifications to clean up the database
+                  notificationService.deleteNotification(notification.id);
+                }
+              } else {
+                debugPrint('NOTIFICATION DEBUG:   - Notification is null, could not load from status doc');
               }
             } catch (e) {
-              debugPrint('Error loading notification: $e');
+              debugPrint('NOTIFICATION DEBUG: Error loading notification: $e');
             }
           }
+
+          debugPrint('NOTIFICATION DEBUG: Loaded ${loadedNotifications.length} notifications');
 
           setState(() {
             _notifications = loadedNotifications;
@@ -110,7 +157,7 @@ class _NotificationListState extends State<NotificationList> {
       if (notificationData.isNotEmpty) {
         debugPrint('Loaded ${notificationData.length} community notifications');
 
-        // Convert to NotificationModel objects
+        // Convert to NotificationModel objects and filter out self-notifications
         final communityNotifications = notificationData
             .map((data) {
               // Add required fields for NotificationModel
@@ -124,7 +171,10 @@ class _NotificationListState extends State<NotificationList> {
 
               return NotificationModel.fromMap(completeData);
             })
+            .where((notification) => !notification.isSelfNotification()) // Filter out self-notifications
             .toList();
+
+        debugPrint('Loaded ${communityNotifications.length} community notifications after filtering out self-notifications');
 
         // Add to read notifications list
         setState(() {

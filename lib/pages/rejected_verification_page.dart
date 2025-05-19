@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 
 class RejectedVerificationPage extends StatelessWidget {
@@ -22,9 +21,19 @@ class RejectedVerificationPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              if (context.mounted) {
-                Navigator.of(context).pushReplacementNamed('/login');
+              final authService = AuthService();
+              try {
+                debugPrint('RejectedVerificationPage: Starting logout process with AuthService');
+                await authService.signOut();
+                debugPrint('RejectedVerificationPage: Logout completed successfully');
+                if (context.mounted) {
+                  Navigator.of(context).pushReplacementNamed('/login');
+                }
+              } catch (e) {
+                debugPrint('RejectedVerificationPage: Error during logout: $e');
+                if (context.mounted) {
+                  Navigator.of(context).pushReplacementNamed('/login');
+                }
               }
             },
             tooltip: 'Sign out',
@@ -115,9 +124,19 @@ class RejectedVerificationPage extends StatelessWidget {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-                if (context.mounted) {
-                  Navigator.of(context).pushReplacementNamed('/login');
+                final authService = AuthService();
+                try {
+                  debugPrint('RejectedVerificationPage: Starting logout process with AuthService');
+                  await authService.signOut();
+                  debugPrint('RejectedVerificationPage: Logout completed successfully');
+                  if (context.mounted) {
+                    Navigator.of(context).pushReplacementNamed('/login');
+                  }
+                } catch (e) {
+                  debugPrint('RejectedVerificationPage: Error during logout: $e');
+                  if (context.mounted) {
+                    Navigator.of(context).pushReplacementNamed('/login');
+                  }
                 }
               },
               icon: const Icon(Icons.logout, color: Colors.white),

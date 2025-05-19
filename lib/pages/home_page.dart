@@ -4,6 +4,7 @@ import 'package:firebase_database/firebase_database.dart';
 import '../services/community_notice_service.dart';
 import '../services/community_service.dart';
 import '../services/admin_service.dart';
+import '../services/auth_service.dart';
 import '../models/community_notice.dart';
 import '../widgets/community_notice_card.dart';
 import '../widgets/notifications/notification_badge.dart';
@@ -29,6 +30,7 @@ class HomePage extends StatefulWidget {
 
 class HomePageState extends State<HomePage> {
   final _auth = FirebaseAuth.instance;
+  final _authService = AuthService();
   final _communityService = CommunityService();
   final _noticeService = CommunityNoticeService();
   final _adminService = AdminService();
@@ -450,18 +452,38 @@ class HomePageState extends State<HomePage> {
               PopupMenuItem(
                 child: const Text('Logout'),
                 onTap: () async {
-                  await _auth.signOut();
-                  // Use a post-frame callback to avoid BuildContext issues
-                  if (mounted) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const LoginPage()),
-                        );
-                      }
-                    });
+                  // Use AuthService to properly remove FCM tokens before signing out
+                  try {
+                    debugPrint('HomePage: Starting logout process with AuthService');
+                    await _authService.signOut();
+                    debugPrint('HomePage: Logout completed successfully');
+
+                    // Use a post-frame callback to avoid BuildContext issues
+                    if (mounted) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const LoginPage()),
+                          );
+                        }
+                      });
+                    }
+                  } catch (e) {
+                    debugPrint('HomePage: Error during logout: $e');
+                    // Still try to navigate to login page even if logout fails
+                    if (mounted) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const LoginPage()),
+                          );
+                        }
+                      });
+                    }
                   }
                 },
               ),

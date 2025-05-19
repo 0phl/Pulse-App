@@ -34,6 +34,7 @@ import 'pages/admin/show_create_notice_sheet.dart';
 import 'pages/admin/profile_page.dart';
 import 'pages/admin/notifications_page.dart';
 import 'pages/admin/notification_settings_page.dart';
+import 'pages/admin/admin_notification_test_page.dart';
 import 'services/user_session_service.dart';
 import 'services/global_state.dart';
 import 'services/media_cache_service.dart';
@@ -52,8 +53,16 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         "Message notification: ${message.notification!.title} - ${message.notification!.body}");
   }
 
-  // Call the handler from notification service
-  await firebaseMessagingBackgroundHandler(message);
+  // Extract the notification type
+  final String notificationType = message.data['type'] ?? 'general';
+
+  // Extract the unique request ID we added
+  final String requestId = message.data['requestId'] ?? '';
+
+  debugPrint("Notification type: $notificationType, Request ID: $requestId");
+
+  // Call the handler from notification service with the new implementation
+  await handleNotification(message);
 }
 
 void main() async {
@@ -165,6 +174,8 @@ class MyApp extends StatelessWidget {
                   const AdminNotificationsPage(),
               '/admin/notification-settings': (context) =>
                   const AdminNotificationSettingsPage(),
+              '/admin/notification-test': (context) =>
+                  const AdminNotificationTestPage(),
               // User verification functionality consolidated into Manage Users page
 
               // Main app routes

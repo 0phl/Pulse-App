@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 
 class PendingVerificationPage extends StatelessWidget {
   final String registrationId;
 
-  const PendingVerificationPage({
+  PendingVerificationPage({
     Key? key,
     required this.registrationId,
   }) : super(key: key);
@@ -21,9 +20,19 @@ class PendingVerificationPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              if (context.mounted) {
-                Navigator.of(context).pushReplacementNamed('/login');
+              final authService = AuthService();
+              try {
+                debugPrint('PendingVerificationPage: Starting logout process with AuthService');
+                await authService.signOut();
+                debugPrint('PendingVerificationPage: Logout completed successfully');
+                if (context.mounted) {
+                  Navigator.of(context).pushReplacementNamed('/login');
+                }
+              } catch (e) {
+                debugPrint('PendingVerificationPage: Error during logout: $e');
+                if (context.mounted) {
+                  Navigator.of(context).pushReplacementNamed('/login');
+                }
               }
             },
             tooltip: 'Sign out',
@@ -136,9 +145,19 @@ class PendingVerificationPage extends StatelessWidget {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-                if (context.mounted) {
-                  Navigator.of(context).pushReplacementNamed('/login');
+                final authService = AuthService();
+                try {
+                  debugPrint('PendingVerificationPage: Starting logout process with AuthService');
+                  await authService.signOut();
+                  debugPrint('PendingVerificationPage: Logout completed successfully');
+                  if (context.mounted) {
+                    Navigator.of(context).pushReplacementNamed('/login');
+                  }
+                } catch (e) {
+                  debugPrint('PendingVerificationPage: Error during logout: $e');
+                  if (context.mounted) {
+                    Navigator.of(context).pushReplacementNamed('/login');
+                  }
                 }
               },
               icon: const Icon(Icons.logout, color: Colors.white),

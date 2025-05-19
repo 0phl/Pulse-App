@@ -288,6 +288,12 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
                           isActive: currentRoute == '/admin/notifications',
                           onTap: () => _navigateTo('/admin/notifications'),
                         ),
+                        _buildMenuItem(
+                          icon: Icons.notification_important_outlined,
+                          title: 'Notification Test',
+                          isActive: currentRoute == '/admin/notification-test',
+                          onTap: () => _navigateTo('/admin/notification-test'),
+                        ),
                       ],
                     ),
                   ),
@@ -378,7 +384,8 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
 
   Future<void> _logout() async {
     try {
-      await AuthService().signOut();
+      // Use AdminService for logout to ensure FCM tokens are removed
+      await _adminService.signOut();
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/login');
       }

@@ -1,11 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import '../models/admin_user.dart';
 import '../models/firestore_user.dart';
 import 'user_session_service.dart';
 import 'community_notice_service.dart';
+import 'notification_service.dart';
 
 class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -115,6 +117,15 @@ class AuthService {
             userType: 'admin',
           );
 
+          // Reset FCM token after login to ensure notifications work for admin
+          try {
+            final notificationService = NotificationService();
+            await notificationService.resetTokenAfterLogin();
+            debugPrint('FCM token reset after login for admin user');
+          } catch (e) {
+            debugPrint('Error resetting FCM token after admin login: $e');
+          }
+
           return {
             'userCredential': userCredential,
             'userType': 'admin',
@@ -130,6 +141,15 @@ class AuthService {
         email: userCredential.user!.email!,
         userType: 'user',
       );
+
+      // Reset FCM token after login to ensure notifications work
+      try {
+        final notificationService = NotificationService();
+        await notificationService.resetTokenAfterLogin();
+        debugPrint('FCM token reset after login for regular user');
+      } catch (e) {
+        debugPrint('Error resetting FCM token after login: $e');
+      }
 
       return {
         'userCredential': userCredential,
@@ -238,8 +258,20 @@ class AuthService {
 
   // Sign out
   Future<void> signOut() async {
-    await _auth.signOut();
-    await _sessionService.clearUserSession();
+    try {
+      // First remove FCM tokens to prevent push notifications after logout
+      final notificationService = NotificationService();
+      await notificationService.removeUserTokens();
+
+      // Then sign out and clear session
+      await _auth.signOut();
+      await _sessionService.clearUserSession();
+    } catch (e) {
+      debugPrint('Error during sign out: $e');
+      // Still attempt to sign out even if token removal fails
+      await _auth.signOut();
+      await _sessionService.clearUserSession();
+    }
   }
 
   // Handle Firebase Auth Exceptions

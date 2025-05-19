@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
+import '../services/auth_service.dart';
 
 class DeactivatedCommunityPage extends StatefulWidget {
   const DeactivatedCommunityPage({super.key});
@@ -14,6 +15,7 @@ class DeactivatedCommunityPage extends StatefulWidget {
 class _DeactivatedCommunityPageState extends State<DeactivatedCommunityPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _database = FirebaseDatabase.instance;
+  final AuthService _authService = AuthService();
 
   String? _userName;
   bool _isLoading = true;
@@ -437,12 +439,24 @@ class _DeactivatedCommunityPageState extends State<DeactivatedCommunityPage> {
                         height: 52,
                         child: ElevatedButton(
                           onPressed: () async {
-                            await _auth.signOut();
-                            if (context.mounted) {
-                              Navigator.of(context).pushNamedAndRemoveUntil(
-                                '/login',
-                                (route) => false,
-                              );
+                            try {
+                              debugPrint('DeactivatedCommunityPage: Starting logout process with AuthService');
+                              await _authService.signOut();
+                              debugPrint('DeactivatedCommunityPage: Logout completed successfully');
+                              if (context.mounted) {
+                                Navigator.of(context).pushNamedAndRemoveUntil(
+                                  '/login',
+                                  (route) => false,
+                                );
+                              }
+                            } catch (e) {
+                              debugPrint('DeactivatedCommunityPage: Error during logout: $e');
+                              if (context.mounted) {
+                                Navigator.of(context).pushNamedAndRemoveUntil(
+                                  '/login',
+                                  (route) => false,
+                                );
+                              }
                             }
                           },
                           style: ElevatedButton.styleFrom(

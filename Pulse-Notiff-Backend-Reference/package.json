@@ -6,12 +6,16 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "setup": "node scripts/setup-env.js"
+    "setup": "node scripts/setup-env.js",
+    "recover-tokens": "node scripts/token_recovery.js",
+    "cron:daily": "node scripts/token_recovery.js",
+    "setup-cron": "node scripts/cron.js"
   },
   "engines": {
     "node": "18.x"
   },
   "dependencies": {
+    "axios": "^1.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",

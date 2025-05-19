@@ -1,5 +1,6 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/admin_application.dart';
 import '../models/community.dart';
 import 'email_service.dart';
@@ -7,6 +8,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'user_session_service.dart';
 import 'engagement_service.dart';
+import 'notification_service.dart';
 import 'dart:async';
 
 class SuperAdminService {
@@ -360,8 +362,20 @@ class SuperAdminService {
 
   // Sign out
   Future<void> signOut() async {
-    await _auth.signOut();
-    await _sessionService.clearUserSession();
+    try {
+      // First remove FCM tokens to prevent push notifications after logout
+      final notificationService = NotificationService();
+      await notificationService.removeUserTokens();
+
+      // Then sign out and clear session
+      await _auth.signOut();
+      await _sessionService.clearUserSession();
+    } catch (e) {
+      debugPrint('Error during sign out: $e');
+      // Still attempt to sign out even if token removal fails
+      await _auth.signOut();
+      await _sessionService.clearUserSession();
+    }
   }
 
   // Get analytics data for the super admin dashboard

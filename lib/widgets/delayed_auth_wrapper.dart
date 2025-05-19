@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/admin_service.dart';
 import '../services/user_service.dart';
+import '../services/auth_service.dart';
 import '../pages/login_page.dart';
 import '../main.dart';
 import '../pages/admin/dashboard_page.dart';
@@ -35,6 +36,7 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
   final _firestore = FirebaseFirestore.instance;
   final _adminService = AdminService();
   final _userService = UserService();
+  final _authService = AuthService();
 
   // State variables
   bool _isAuthenticating = true;
@@ -99,7 +101,13 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
 
         if (userDoc == null || !userDoc.exists) {
           // User document not found, go to login page
-          _auth.signOut();
+          try {
+            debugPrint('DelayedAuthWrapper: Signing out user with AuthService');
+            await _authService.signOut();
+            debugPrint('DelayedAuthWrapper: Logout completed successfully');
+          } catch (e) {
+            debugPrint('DelayedAuthWrapper: Error signing out: $e');
+          }
           _navigateTo(const LoginPage());
           return;
         }
@@ -129,7 +137,13 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
           }
         } else {
           // Unknown verification status, go to login page
-          _auth.signOut();
+          try {
+            debugPrint('DelayedAuthWrapper: Signing out user with AuthService');
+            await _authService.signOut();
+            debugPrint('DelayedAuthWrapper: Logout completed successfully');
+          } catch (e) {
+            debugPrint('DelayedAuthWrapper: Error signing out: $e');
+          }
           _navigateTo(const LoginPage());
         }
       }
@@ -170,8 +184,14 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
 
     try {
       final notificationService = NotificationService();
+
+      // First initialize the notification service
       await notificationService.initialize();
       debugPrint('NotificationService initialized after authentication');
+
+      // Then explicitly reset the token to ensure it's properly saved
+      await notificationService.resetTokenAfterLogin();
+      debugPrint('FCM token explicitly reset after authentication in DelayedAuthWrapper');
     } catch (e) {
       debugPrint('Error initializing NotificationService after authentication: $e');
     }

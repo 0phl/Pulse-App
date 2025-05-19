@@ -103,7 +103,7 @@ Update your Flutter app to send FCM tokens to this server instead of Firebase Fu
 Future<void> sendTokenToBackend(String token) async {
   final userId = FirebaseAuth.instance.currentUser?.uid;
   if (userId == null) return;
-
+  
   try {
     final response = await http.post(
       Uri.parse('https://your-render-service.onrender.com/api/tokens/register'),
@@ -114,7 +114,7 @@ Future<void> sendTokenToBackend(String token) async {
         'platform': Platform.isAndroid ? 'android' : 'ios',
       }),
     );
-
+    
     if (response.statusCode == 200) {
       print('Token registered successfully');
     } else {
@@ -134,45 +134,6 @@ For production use, consider adding:
 2. Rate limiting to prevent abuse
 3. HTTPS for secure communication
 4. Environment-specific configurations
-
-## Troubleshooting FCM Issues
-
-If you're experiencing issues with FCM notifications, such as 404 errors for the `/batch` endpoint or "data must only contain string values" errors, please refer to the following resources:
-
-1. **Service Account Setup**:
-   - Check `SERVICE_ACCOUNT_INSTRUCTIONS.md` for detailed instructions on setting up your Firebase service account
-   - Make sure your service account has the proper permissions for FCM
-
-2. **Test FCM Connection**:
-   - Run the test script to verify FCM connectivity:
-   ```bash
-   node scripts/test-fcm-connection.js
-   ```
-
-3. **Common Issues and Solutions**:
-
-   - **404 Errors for `/batch` Endpoint**:
-     - This is often due to service account permission issues
-     - Generate a new service account key with the proper permissions
-     - Make sure your Firebase project is active and FCM is enabled
-
-   - **Data Payload Errors**:
-     - All values in the data payload must be strings
-     - The notification service now automatically converts all values to strings
-     - Make sure there are no undefined or null values in your data payload
-
-   - **No Tokens Found**:
-     - Make sure FCM tokens are being correctly registered in Firestore
-     - Check the `user_tokens` collection in Firestore
-     - Verify that your Flutter app is sending tokens to the server
-
-4. **Updates Made to Fix Issues**:
-   - Updated Firebase Admin SDK initialization with custom HTTP agent
-   - Implemented single-token notification sending instead of batch sending
-   - Added better error handling and logging
-   - Fixed data payload handling to ensure all values are strings
-   - Improved error handling throughout the notification service
-   - Added sequential processing of notifications to avoid overwhelming the FCM API
 
 ## License
 

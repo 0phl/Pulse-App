@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/admin_service.dart';
 import '../services/user_service.dart';
+import '../services/auth_service.dart';
 import '../pages/login_page.dart';
 import '../pages/admin/dashboard_page.dart';
 import '../pages/admin/change_password_page.dart';
@@ -30,6 +31,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
   final _adminService = AdminService();
   final _userService = UserService();
   final _auth = FirebaseAuth.instance;
+  final _authService = AuthService();
   final _firestore = FirebaseFirestore.instance;
   final _sessionService = UserSessionService();
 
@@ -145,7 +147,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
                       print(
                           'AuthWrapper: Error fetching user data: ${userSnapshot.error}');
                       // Sign out if we can't verify the user status
-                      _auth.signOut();
+                      try {
+                        debugPrint('AuthWrapper: Signing out user with AuthService');
+                        _authService.signOut();
+                      } catch (e) {
+                        debugPrint('AuthWrapper: Error signing out: $e');
+                      }
                       return const LoginPage();
                     }
 
@@ -200,7 +207,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
                       print(
                           'AuthWrapper: Unknown verification status: $verificationStatus');
                       // Sign out if verification status is unknown
-                      _auth.signOut();
+                      try {
+                        debugPrint('AuthWrapper: Signing out user with AuthService');
+                        _authService.signOut();
+                      } catch (e) {
+                        debugPrint('AuthWrapper: Error signing out: $e');
+                      }
                       return const LoginPage();
                     }
                   },
