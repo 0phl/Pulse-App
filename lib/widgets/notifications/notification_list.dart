@@ -4,15 +4,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/notification_model.dart';
 import '../../services/notification_service.dart';
+import '../../services/admin_service.dart';
 import 'notification_item.dart';
 
 class NotificationList extends StatefulWidget {
   // Add a key parameter to force rebuild when needed
   final String? filter;
+  final bool isAdminView;
 
   const NotificationList({
     super.key,
     this.filter,
+    this.isAdminView = false,
   });
 
   @override
@@ -21,11 +24,13 @@ class NotificationList extends StatefulWidget {
 
 class _NotificationListState extends State<NotificationList> {
   final notificationService = NotificationService();
+  final adminService = AdminService();
   List<NotificationModel> _notifications = [];
   List<NotificationModel> _readNotifications =
       []; // Store read notifications that were deleted from Firestore
   bool _isLoading = true;
   String? _error;
+  bool _isAdmin = false;
   StreamSubscription? _notificationSubscription;
   String? _communityId;
   final _refreshKey = GlobalKey<RefreshIndicatorState>();
@@ -37,6 +42,17 @@ class _NotificationListState extends State<NotificationList> {
   }
 
   Future<void> _initialize() async {
+    // Check if the current user is an admin
+    if (widget.isAdminView) {
+      try {
+        _isAdmin = await adminService.isCurrentUserAdmin();
+        debugPrint('NOTIFICATION DEBUG: User is admin: $_isAdmin');
+      } catch (e) {
+        debugPrint('NOTIFICATION DEBUG: Error checking admin status: $e');
+        _isAdmin = false;
+      }
+    }
+
     // Get the user's community ID
     _communityId = await notificationService.getUserCommunityId();
 
@@ -387,6 +403,30 @@ class _NotificationListState extends State<NotificationList> {
       ..._notifications,
       ..._readNotifications
     ];
+
+    // Filter notifications based on admin status
+    if (widget.isAdminView) {
+      // For admin view, only show admin-specific notifications
+      allNotifications = allNotifications.where((notification) {
+        // Check if this is an admin-specific notification
+        final bool isAdminNotification = notification.isAdminNotification();
+
+        // Log for debugging
+        debugPrint('ADMIN NOTIFICATION FILTER: ${notification.title} - isAdminNotification: $isAdminNotification');
+        debugPrint('  - Type: ${notification.type}');
+        debugPrint('  - Data: ${notification.data}');
+
+        return isAdminNotification;
+      }).toList();
+
+      debugPrint('ADMIN NOTIFICATION FILTER: Filtered to ${allNotifications.length} admin notifications');
+    } else {
+      // For regular user view, filter out admin-specific notifications
+      allNotifications = allNotifications.where((notification) {
+        // Keep notifications that are NOT admin-specific
+        return !notification.isAdminNotification();
+      }).toList();
+    }
 
     // Apply filter if provided
     if (widget.filter != null &&

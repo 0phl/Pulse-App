@@ -218,6 +218,76 @@ class NotificationModel {
     );
   }
 
+  // Check if this notification is relevant for admins
+  bool isAdminNotification() {
+    // Check if the notification type is admin-specific
+    if (type == 'admin_notification' ||
+        type == 'admin_test' ||
+        type.startsWith('admin_')) {
+      return true;
+    }
+
+    // Check if the notification data indicates it's for admins
+    if (data.containsKey('isForAdmin') &&
+        (data['isForAdmin'] == true || data['isForAdmin'] == 'true')) {
+      return true;
+    }
+
+    // Check if the notification is about admin-specific features
+    if (type == 'reports' || type == 'report') {
+      return true;
+    }
+
+    // Check if the notification is about community management
+    if (data.containsKey('adminAction') &&
+        (data['adminAction'] == true || data['adminAction'] == 'true')) {
+      return true;
+    }
+
+    // For community notices, only show admin notifications if they're from the admin's community
+    if (type == 'community_notice' || type == 'communityNotices') {
+      // If the notification has adminCommunityId field, check if it matches
+      if (data.containsKey('adminCommunityId')) {
+        return true;
+      }
+
+      // If the notification is about community management
+      if (data.containsKey('isAdminNotice') &&
+          (data['isAdminNotice'] == true || data['isAdminNotice'] == 'true')) {
+        return true;
+      }
+
+      // If the notification is from an admin
+      if (data.containsKey('authorIsAdmin') &&
+          (data['authorIsAdmin'] == true || data['authorIsAdmin'] == 'true')) {
+        return true;
+      }
+    }
+
+    // Check if this is a social interaction related to admin content
+    if (type == 'social_interaction' || type == 'socialInteractions') {
+      // If the notification is about admin content
+      if (data.containsKey('targetIsAdmin') &&
+          (data['targetIsAdmin'] == true || data['targetIsAdmin'] == 'true')) {
+        return true;
+      }
+
+      // If the notification is about admin actions
+      if (data.containsKey('adminAction') &&
+          (data['adminAction'] == true || data['adminAction'] == 'true')) {
+        return true;
+      }
+
+      // If the notification is about admin content
+      if (body != null && body!.toLowerCase().contains('admin')) {
+        return true;
+      }
+    }
+
+    // By default, most notifications are not admin-specific
+    return false;
+  }
+
   // Check if this notification is a self-notification (user is seeing their own action)
   bool isSelfNotification() {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
