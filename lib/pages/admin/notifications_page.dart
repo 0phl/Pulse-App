@@ -33,9 +33,6 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
     super.initState();
     _tabController = TabController(length: _filterOptions.length, vsync: this);
     _tabController.addListener(_handleTabChange);
-
-    // Auto mark as read for admins
-    _markAllAsRead();
   }
 
   @override
@@ -53,15 +50,71 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
     }
   }
 
-  Future<void> _markAllAsRead() async {
-    // Mark all as read and get the notification data for community notifications
+  // Show a confirmation dialog for marking all notifications as read
+  void _showMarkAllAsReadDialog(BuildContext context) {
+    // Show a confirmation dialog
+    showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Mark All as Read'),
+        content: const Text(
+            'Are you sure you want to mark all notifications as read?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              // Mark as read immediately when the button is pressed
+              _markAllAsReadAndShowSnackbar(context);
+              Navigator.of(dialogContext).pop(true);
+            },
+            child: const Text('Mark All as Read'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to mark all as read and show a snackbar
+  Future<void> _markAllAsReadAndShowSnackbar(BuildContext context) async {
+    // Get the ScaffoldMessengerState before any async operations
+    final scaffoldMessengerState = ScaffoldMessenger.of(context);
+
+    // Mark all as read
     final notificationDataList =
         await _notificationService.markAllNotificationsAsRead();
 
     // Log the result
     debugPrint('Marked ${notificationDataList.length} notifications as read');
 
-    // The NotificationList widget will handle loading community notifications
+    // Show a snackbar to confirm if the widget is still mounted
+    if (mounted) {
+      scaffoldMessengerState.showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle_outline, color: Colors.white),
+              SizedBox(width: 12),
+              Text('All notifications marked as read'),
+            ],
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+
+    // Force refresh to update the UI
+    if (mounted) {
+      setState(() {
+        _notificationListKey.currentState?.setState(() {});
+      });
+    }
   }
 
   Future<void> _refreshNotifications() async {
@@ -153,6 +206,17 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
             ),
             onPressed: _isRefreshing ? null : _refreshNotifications,
             tooltip: 'Refresh Notifications',
+          ),
+          // Add a "Mark All as Read" button
+          IconButton(
+            icon: Icon(
+              Icons.done_all_rounded,
+              color: primaryColor,
+            ),
+            onPressed: () {
+              _showMarkAllAsReadDialog(context);
+            },
+            tooltip: 'Mark All as Read',
           ),
           IconButton(
             icon: Icon(
