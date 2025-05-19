@@ -8,15 +8,17 @@ class AdminNotificationBadge extends StatefulWidget {
   final double? size;
   final Color? color;
   final Color? textColor;
+  final VoidCallback? onTap;
 
   const AdminNotificationBadge({
     super.key,
     required this.child,
-    this.top = -5,
-    this.right = -5,
-    this.size = 18,
+    this.top = -2,
+    this.right = -2,
+    this.size = 14,
     this.color,
     this.textColor,
+    this.onTap,
   });
 
   @override
@@ -91,27 +93,30 @@ class _AdminNotificationBadgeState extends State<AdminNotificationBadge>
               child: AnimatedBuilder(
                 animation: _animation,
                 builder: (context, child) {
-                  return Transform.scale(
-                    scale: _animation.value,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: badgeColor,
-                        shape: BoxShape.circle,
-                      ),
-                      constraints: BoxConstraints(
-                        minWidth: widget.size!,
-                        minHeight: widget.size!,
-                      ),
-                      child: Center(
-                        child: Text(
-                          count > 99 ? '99+' : count.toString(),
-                          style: TextStyle(
-                            color: badgeTextColor,
-                            fontSize: count > 99 ? 8 : (count > 9 ? 10 : 12),
-                            fontWeight: FontWeight.bold,
+                  return GestureDetector(
+                    onTap: widget.onTap,
+                    child: Transform.scale(
+                      scale: _animation.value,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: badgeColor,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: BoxConstraints(
+                          minWidth: widget.size!,
+                          minHeight: widget.size!,
+                        ),
+                        child: Center(
+                          child: Text(
+                            count > 99 ? '99+' : count.toString(),
+                            style: TextStyle(
+                              color: badgeTextColor,
+                              fontSize: count > 99 ? 7 : (count > 9 ? 9 : 10),
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
                         ),
                       ),
                     ),

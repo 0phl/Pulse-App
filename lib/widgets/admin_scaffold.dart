@@ -13,6 +13,7 @@ class AdminScaffold extends StatefulWidget {
   final Color? backgroundColor;
   final bool extendBodyBehindAppBar;
   final PreferredSizeWidget? appBar;
+  final bool showNotificationIcon;
 
   const AdminScaffold({
     Key? key,
@@ -24,6 +25,7 @@ class AdminScaffold extends StatefulWidget {
     this.backgroundColor,
     this.extendBodyBehindAppBar = false,
     this.appBar,
+    this.showNotificationIcon = true,
   }) : super(key: key);
 
   @override
@@ -55,23 +57,38 @@ class _AdminScaffoldState extends State<AdminScaffold> {
       },
       child: Scaffold(
         appBar: widget.appBar ??
-          AppBar(
-            title: Text(widget.title),
-            actions: [
-              // Add notification badge
-              AdminNotificationBadge(
-                child: IconButton(
-                  icon: const Icon(Icons.notifications),
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/admin/notifications');
-                  },
-                  tooltip: 'Notifications',
-                ),
-              ),
-              // Add other actions if provided
-              if (widget.actions != null) ...widget.actions!,
-            ],
-          ),
+            AppBar(
+              // Use standard title
+              title: Text(widget.title),
+              // Standard title spacing
+              titleSpacing: 16.0,
+              // Add notification icon to actions
+              actions: [
+                // Add notification badge with increased padding to move away from the screen edge
+                if (widget.showNotificationIcon)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0, right: 16.0),
+                    child: AdminNotificationBadge(
+                      onTap: () {
+                        Navigator.pushNamed(context, '/admin/notifications');
+                      },
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.pushNamed(context, '/admin/notifications');
+                        },
+                        child: const Icon(Icons.notifications, size: 24),
+                      ),
+                    ),
+                  ),
+                // Add other actions if provided
+                if (widget.actions != null) ...widget.actions!,
+                // Add extra space after all actions
+                const SizedBox(width: 8),
+              ],
+              // Customize AppBar to reduce spacing
+              toolbarHeight: 56.0,
+              leadingWidth: 40.0,
+            ),
         drawer: const AdminDrawer(),
         body: widget.body,
         floatingActionButton: widget.floatingActionButton,

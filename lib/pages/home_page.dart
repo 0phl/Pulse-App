@@ -258,7 +258,8 @@ class HomePageState extends State<HomePage> {
   }
 
   // Method to handle notice deletion with proper context management
-  Future<void> _deleteNotice(String noticeId, BuildContext contextFromCaller) async {
+  Future<void> _deleteNotice(
+      String noticeId, BuildContext contextFromCaller) async {
     // Store the context locally to avoid issues with async gaps
     final BuildContext context = contextFromCaller;
 
@@ -356,12 +357,38 @@ class HomePageState extends State<HomePage> {
         ),
         backgroundColor: const Color(0xFF00C49A),
         actions: [
-          NotificationBadge(
-            child: IconButton(
-              icon: const Icon(Icons.notifications, color: Colors.white),
-              onPressed: () {
-                Navigator.pushNamed(context, '/notifications');
-              },
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: Stack(
+                children: [
+                  Center(
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.notifications,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/notifications');
+                      },
+                    ),
+                  ),
+                  Positioned(
+                    top: 10,
+                    right: 8,
+                    child: NotificationBadge(
+                      size: 16,
+                      child: const SizedBox(width: 2, height: 2),
+                      onTap: () {
+                        Navigator.pushNamed(context, '/notifications');
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -369,7 +396,8 @@ class HomePageState extends State<HomePage> {
             icon: StreamBuilder<Map<String, dynamic>>(
               stream: _getUserData(),
               builder: (context, snapshot) {
-                final userData = snapshot.data ?? {'initial': '?', 'profileImageUrl': null};
+                final userData =
+                    snapshot.data ?? {'initial': '?', 'profileImageUrl': null};
                 final initial = userData['initial'] as String;
                 final profileImageUrl = userData['profileImageUrl'] as String?;
 
@@ -377,47 +405,50 @@ class HomePageState extends State<HomePage> {
                   backgroundColor: Colors.white,
                   radius: 16,
                   child: profileImageUrl != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Image.network(
-                          profileImageUrl,
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Center(
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  color: const Color(0xFF00C49A),
-                                  strokeWidth: 2,
-                                  value: loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                    : null,
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.network(
+                            profileImageUrl,
+                            width: 32,
+                            height: 32,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    color: const Color(0xFF00C49A),
+                                    strokeWidth: 2,
+                                    value: loadingProgress.expectedTotalBytes !=
+                                            null
+                                        ? loadingProgress
+                                                .cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            return Text(
-                              initial,
-                              style: const TextStyle(
-                                color: Color(0xFF00C49A),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            );
-                          },
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return Text(
+                                initial,
+                                style: const TextStyle(
+                                  color: Color(0xFF00C49A),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        )
+                      : Text(
+                          initial,
+                          style: const TextStyle(
+                            color: Color(0xFF00C49A),
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      )
-                    : Text(
-                        initial,
-                        style: const TextStyle(
-                          color: Color(0xFF00C49A),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
                 );
               },
             ),
@@ -432,7 +463,8 @@ class HomePageState extends State<HomePage> {
                     if (mounted) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const ProfilePage()),
+                        MaterialPageRoute(
+                            builder: (context) => const ProfilePage()),
                       );
                     }
                   });
@@ -454,7 +486,8 @@ class HomePageState extends State<HomePage> {
                 onTap: () async {
                   // Use AuthService to properly remove FCM tokens before signing out
                   try {
-                    debugPrint('HomePage: Starting logout process with AuthService');
+                    debugPrint(
+                        'HomePage: Starting logout process with AuthService');
                     await _authService.signOut();
                     debugPrint('HomePage: Logout completed successfully');
 
@@ -561,16 +594,20 @@ class HomePageState extends State<HomePage> {
                     itemBuilder: (context, index) {
                       final notice = notices[index];
                       return CommunityNoticeCard(
-                        key: ValueKey('notice_${notice.id}'), // Add key to help Flutter identify this widget uniquely
+                        key: ValueKey(
+                            'notice_${notice.id}'), // Add key to help Flutter identify this widget uniquely
                         notice: notice,
                         isAdmin: _isAdmin,
-                        onDelete: _isAdmin ? () {
-                          debugPrint('HomePage: Delete function called for notice ${notice.id}');
+                        onDelete: _isAdmin
+                            ? () {
+                                debugPrint(
+                                    'HomePage: Delete function called for notice ${notice.id}');
 
-                          // Use a more direct approach to delete the notice
-                          // This avoids issues with the stream refreshing during deletion
-                          _deleteNotice(notice.id, context);
-                        } : null,
+                                // Use a more direct approach to delete the notice
+                                // This avoids issues with the stream refreshing during deletion
+                                _deleteNotice(notice.id, context);
+                              }
+                            : null,
                       );
                     },
                   ),

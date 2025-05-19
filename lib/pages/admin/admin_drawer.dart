@@ -282,18 +282,6 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
                           isActive: currentRoute == '/admin/reports',
                           onTap: () => _navigateTo('/admin/reports'),
                         ),
-                        _buildMenuItem(
-                          icon: Icons.notifications_outlined,
-                          title: 'Notifications',
-                          isActive: currentRoute == '/admin/notifications',
-                          onTap: () => _navigateTo('/admin/notifications'),
-                        ),
-                        _buildMenuItem(
-                          icon: Icons.notification_important_outlined,
-                          title: 'Notification Test',
-                          isActive: currentRoute == '/admin/notification-test',
-                          onTap: () => _navigateTo('/admin/notification-test'),
-                        ),
                       ],
                     ),
                   ),
@@ -327,7 +315,7 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF00C49A).withOpacity(0.1) : null,
+          color: isActive ? const Color(0xFF00C49A).withAlpha(25) : null,
           border: isActive
               ? const Border(
                   left: BorderSide(

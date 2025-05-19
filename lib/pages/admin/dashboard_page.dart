@@ -724,12 +724,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: 'Admin Dashboard',
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.logout),
-          onPressed: _signOut,
-        ),
-      ],
       body: _isLoading
           ? _buildLoadingSkeleton()
           : RefreshIndicator(

@@ -32,10 +32,12 @@ class MarketPage extends StatefulWidget {
 class _NotificationBadge extends StatefulWidget {
   final int count;
   final Color color;
+  final VoidCallback? onTap;
 
   const _NotificationBadge({
     required this.count,
     required this.color,
+    this.onTap,
   });
 
   @override
@@ -94,26 +96,29 @@ class _NotificationBadgeState extends State<_NotificationBadge>
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
-        return Transform.scale(
-          scale: _animation.value,
-          child: Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: widget.color,
-              shape: BoxShape.circle,
-            ),
-            constraints: const BoxConstraints(
-              minWidth: 18,
-              minHeight: 18,
-            ),
-            child: Text(
-              widget.count.toString(),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
+        return GestureDetector(
+          onTap: widget.onTap,
+          child: Transform.scale(
+            scale: _animation.value,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: widget.color,
+                shape: BoxShape.circle,
               ),
-              textAlign: TextAlign.center,
+              constraints: const BoxConstraints(
+                minWidth: 18,
+                minHeight: 18,
+              ),
+              child: Text(
+                widget.count.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
         );
@@ -493,13 +498,15 @@ class _MarketPageState extends State<MarketPage>
           IconButton(
             icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
             onPressed: _toggleViewMode,
-            tooltip: _isGridView ? 'Switch to List View' : 'Switch to Grid View',
+            tooltip:
+                _isGridView ? 'Switch to List View' : 'Switch to Grid View',
           ),
           // Seller Dashboard Button with distinct icon
           IconButton(
             icon: const Icon(Icons.store_outlined),
             onPressed: () {
-              Navigator.pushNamed(context, '/seller/dashboard', arguments: {'initialTabIndex': 0});
+              Navigator.pushNamed(context, '/seller/dashboard',
+                  arguments: {'initialTabIndex': 0});
             },
             tooltip: 'Seller Dashboard',
           ),
@@ -543,6 +550,14 @@ class _MarketPageState extends State<MarketPage>
                       child: _NotificationBadge(
                         count: _unreadChats,
                         color: Colors.red,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ChatListPage(),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -590,7 +605,8 @@ class _MarketPageState extends State<MarketPage>
               }
 
               final items = snapshot.data ?? [];
-              final hasPendingItems = items.any((item) => item.status == 'pending');
+              final hasPendingItems =
+                  items.any((item) => item.status == 'pending');
 
               return Column(
                 children: [
@@ -598,11 +614,13 @@ class _MarketPageState extends State<MarketPage>
                   if (hasPendingItems)
                     GestureDetector(
                       onTap: () {
-                        Navigator.pushNamed(context, '/seller/dashboard', arguments: {'initialTabIndex': 1});
+                        Navigator.pushNamed(context, '/seller/dashboard',
+                            arguments: {'initialTabIndex': 1});
                       },
                       child: Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 16),
                         color: Colors.orange.withOpacity(0.1),
                         child: const Row(
                           children: [
@@ -747,8 +765,8 @@ class _MarketPageState extends State<MarketPage>
 
     if (displayItems.isEmpty) {
       // Check if there are pending items when in My Items tab
-      bool hasPendingItems = isMyItemsTab &&
-          items.any((item) => item.status == 'pending');
+      bool hasPendingItems =
+          isMyItemsTab && items.any((item) => item.status == 'pending');
 
       return Center(
         child: SingleChildScrollView(
@@ -764,7 +782,9 @@ class _MarketPageState extends State<MarketPage>
                   borderRadius: BorderRadius.circular(100),
                 ),
                 child: Icon(
-                  isMyItemsTab ? Icons.shopping_bag_outlined : Icons.store_outlined,
+                  isMyItemsTab
+                      ? Icons.shopping_bag_outlined
+                      : Icons.store_outlined,
                   size: 64,
                   color: const Color(0xFF00C49A),
                 ),
@@ -803,14 +823,16 @@ class _MarketPageState extends State<MarketPage>
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/seller/dashboard', arguments: {'initialTabIndex': 1});
+                    Navigator.pushNamed(context, '/seller/dashboard',
+                        arguments: {'initialTabIndex': 1});
                   },
                   icon: const Icon(Icons.dashboard),
                   label: const Text('View in Seller Dashboard'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00C49A),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -836,7 +858,8 @@ class _MarketPageState extends State<MarketPage>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00C49A),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -851,7 +874,8 @@ class _MarketPageState extends State<MarketPage>
 
     // Precache next few images
     for (var i = 0; i < items.length && i < 5; i++) {
-      if (items[i].imageUrls.isNotEmpty && items[i].imageUrls[0].startsWith('http')) {
+      if (items[i].imageUrls.isNotEmpty &&
+          items[i].imageUrls[0].startsWith('http')) {
         precacheImage(NetworkImage(items[i].imageUrls[0]), context);
       }
     }
@@ -862,7 +886,8 @@ class _MarketPageState extends State<MarketPage>
             padding: const EdgeInsets.all(16),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2, // Reduced to 2 items per row for more space
-              childAspectRatio: 0.6, // Further reduced to give more height for buttons
+              childAspectRatio:
+                  0.6, // Further reduced to give more height for buttons
               crossAxisSpacing: 12,
               mainAxisSpacing: 16,
             ),
@@ -871,16 +896,17 @@ class _MarketPageState extends State<MarketPage>
               final bool isMyItemsTab = _tabController.index == 1;
               return MarketItemCard(
                 item: displayItems[index],
-                onInterested: () => _handleInterested(context, displayItems[index]),
-                onImageTap: () =>
-                    _handleImageTap(context, displayItems[index]),
+                onInterested: () =>
+                    _handleInterested(context, displayItems[index]),
+                onImageTap: () => _handleImageTap(context, displayItems[index]),
                 isOwner: _auth.currentUser?.uid == displayItems[index].sellerId,
                 showEditButton: isMyItemsTab,
                 onEdit: isMyItemsTab
                     ? () => _handleEditItem(displayItems[index])
                     : null,
-                onDelete:
-                    isMyItemsTab ? () => _handleDelete(displayItems[index]) : null,
+                onDelete: isMyItemsTab
+                    ? () => _handleDelete(displayItems[index])
+                    : null,
                 onSellerTap: !isMyItemsTab
                     ? () => _navigateToSellerProfile(displayItems[index])
                     : null,
@@ -897,16 +923,19 @@ class _MarketPageState extends State<MarketPage>
                 padding: const EdgeInsets.only(bottom: 16),
                 child: MarketItemCard(
                   item: displayItems[index],
-                  onInterested: () => _handleInterested(context, displayItems[index]),
+                  onInterested: () =>
+                      _handleInterested(context, displayItems[index]),
                   onImageTap: () =>
                       _handleImageTap(context, displayItems[index]),
-                  isOwner: _auth.currentUser?.uid == displayItems[index].sellerId,
+                  isOwner:
+                      _auth.currentUser?.uid == displayItems[index].sellerId,
                   showEditButton: isMyItemsTab,
                   onEdit: isMyItemsTab
                       ? () => _handleEditItem(displayItems[index])
                       : null,
-                  onDelete:
-                      isMyItemsTab ? () => _handleDelete(displayItems[index]) : null,
+                  onDelete: isMyItemsTab
+                      ? () => _handleDelete(displayItems[index])
+                      : null,
                   onSellerTap: !isMyItemsTab
                       ? () => _navigateToSellerProfile(displayItems[index])
                       : null,
@@ -933,7 +962,8 @@ class _MarketPageState extends State<MarketPage>
     final confirmDelete = await ConfirmationDialog.show(
       context: context,
       title: 'Delete Item',
-      message: 'Are you sure you want to delete this item? This action cannot be undone.',
+      message:
+          'Are you sure you want to delete this item? This action cannot be undone.',
       confirmText: 'Delete',
       cancelText: 'Cancel',
       confirmColor: Colors.red,

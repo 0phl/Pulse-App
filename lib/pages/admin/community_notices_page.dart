@@ -261,6 +261,7 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
   Widget build(BuildContext context) {
     return AdminScaffold(
       title: 'Community Notices',
+      showNotificationIcon: false,
       body: Column(
         children: [
           _buildHeader(),

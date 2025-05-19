@@ -15,10 +15,12 @@ class ChatListPage extends StatefulWidget {
 class _NotificationBadge extends StatefulWidget {
   final int count;
   final Color color;
+  final VoidCallback? onTap;
 
   const _NotificationBadge({
     required this.count,
     required this.color,
+    this.onTap,
   });
 
   @override
@@ -77,22 +79,25 @@ class _NotificationBadgeState extends State<_NotificationBadge>
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
-        return Transform.scale(
-          scale: _animation.value,
-          child: Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              color: widget.color,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                widget.count.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
+        return GestureDetector(
+          onTap: widget.onTap,
+          child: Transform.scale(
+            scale: _animation.value,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: widget.color,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  widget.count.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -138,7 +143,9 @@ class _ChatListPageState extends State<ChatListPage> {
     // We're using the Firebase database to trigger a refresh
     final currentUser = _auth.currentUser;
     if (currentUser != null) {
-      _database.ref('users/${currentUser.uid}/lastChatListVisit').set(ServerValue.timestamp);
+      _database
+          .ref('users/${currentUser.uid}/lastChatListVisit')
+          .set(ServerValue.timestamp);
     }
   }
 
@@ -236,8 +243,8 @@ class _ChatListPageState extends State<ChatListPage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Delete Chat'),
-          content: const Text(
-              'Are you sure you want to delete this conversation?'),
+          content:
+              const Text('Are you sure you want to delete this conversation?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -414,7 +421,8 @@ class _ChatListPageState extends State<ChatListPage> {
               // Get profile image URL for the other user
               String? profileImageUrl;
               try {
-                final userSnapshot = await _database.ref('users/$otherUserId').get();
+                final userSnapshot =
+                    await _database.ref('users/$otherUserId').get();
                 if (userSnapshot.exists) {
                   final userData = userSnapshot.value as Map<dynamic, dynamic>;
                   profileImageUrl = userData['profileImageUrl'] as String?;
@@ -435,10 +443,12 @@ class _ChatListPageState extends State<ChatListPage> {
               bool hasMedia = false;
               String? mediaType;
 
-              if (lastMessage.containsKey('imageUrl') && lastMessage['imageUrl'] != null) {
+              if (lastMessage.containsKey('imageUrl') &&
+                  lastMessage['imageUrl'] != null) {
                 hasMedia = true;
                 mediaType = 'image';
-              } else if (lastMessage.containsKey('videoUrl') && lastMessage['videoUrl'] != null) {
+              } else if (lastMessage.containsKey('videoUrl') &&
+                  lastMessage['videoUrl'] != null) {
                 hasMedia = true;
                 mediaType = 'video';
               }
@@ -601,28 +611,8 @@ class _ChatListPageState extends State<ChatListPage> {
         child: ListTile(
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          onTap: () async {
-            // Wait for the chat page to complete and then refresh
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ChatPage(
-                  itemId: chat.itemId,
-                  sellerId: chat.sellerId,
-                  sellerName:
-                      chat.isSeller ? chat.otherUserName : chat.sellerName,
-                  itemTitle: chat.itemTitle,
-                  communityId: chat.communityId,
-                  isSeller: chat.isSeller,
-                  buyerId: chat.buyerId,
-                ),
-              ),
-            );
-
-            // Refresh the chat list after returning from chat page
-            if (mounted) {
-              _loadChats();
-            }
+          onTap: () {
+            _navigateToChat(chat);
           },
           leading: Stack(
             children: [
@@ -650,6 +640,9 @@ class _ChatListPageState extends State<ChatListPage> {
                   child: _NotificationBadge(
                     count: chat.unreadCount,
                     color: Colors.red,
+                    onTap: () {
+                      _navigateToChat(chat);
+                    },
                   ),
                 ),
             ],
@@ -720,49 +713,56 @@ class _ChatListPageState extends State<ChatListPage> {
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 8),
             child: chat.hasMedia
-              ? Row(
-                  children: [
-                    Icon(
-                      chat.mediaType == 'image' ? Icons.image : Icons.videocam,
-                      size: 16,
-                      color: hasUnread ? Colors.black87 : Colors.grey[600],
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      chat.mediaType == 'image' ? '[Image]' : '[Video]',
-                      style: TextStyle(
-                        fontSize: 14,
+                ? Row(
+                    children: [
+                      Icon(
+                        chat.mediaType == 'image'
+                            ? Icons.image
+                            : Icons.videocam,
+                        size: 16,
                         color: hasUnread ? Colors.black87 : Colors.grey[600],
-                        fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
                       ),
-                    ),
-                    if (chat.lastMessage.isNotEmpty) ...[
                       const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          chat.lastMessage,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: hasUnread ? Colors.black87 : Colors.grey[600],
-                            fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      Text(
+                        chat.mediaType == 'image' ? '[Image]' : '[Video]',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: hasUnread ? Colors.black87 : Colors.grey[600],
+                          fontWeight:
+                              hasUnread ? FontWeight.w500 : FontWeight.normal,
                         ),
                       ),
+                      if (chat.lastMessage.isNotEmpty) ...[
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            chat.lastMessage,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color:
+                                  hasUnread ? Colors.black87 : Colors.grey[600],
+                              fontWeight: hasUnread
+                                  ? FontWeight.w500
+                                  : FontWeight.normal,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                )
-              : Text(
-                  chat.lastMessage,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: hasUnread ? Colors.black87 : Colors.grey[600],
-                    fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+                  )
+                : Text(
+                    chat.lastMessage,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: hasUnread ? Colors.black87 : Colors.grey[600],
+                      fontWeight:
+                          hasUnread ? FontWeight.w500 : FontWeight.normal,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
           ),
         ),
       ),
@@ -805,6 +805,29 @@ class _ChatListPageState extends State<ChatListPage> {
       ];
       final month = months[philippinesTime.month - 1];
       return '$month ${philippinesTime.day}, ${philippinesTime.year}';
+    }
+  }
+
+  void _navigateToChat(ChatInfo chat) async {
+    // Same navigation logic as in the ListTile onTap
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatPage(
+          itemId: chat.itemId,
+          sellerId: chat.sellerId,
+          sellerName: chat.isSeller ? chat.otherUserName : chat.sellerName,
+          itemTitle: chat.itemTitle,
+          communityId: chat.communityId,
+          isSeller: chat.isSeller,
+          buyerId: chat.buyerId,
+        ),
+      ),
+    );
+
+    // Refresh the chat list after returning from chat page
+    if (mounted) {
+      _loadChats();
     }
   }
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/notifications/notification_list.dart';
-import '../admin/admin_drawer.dart';
 
 class AdminNotificationsPage extends StatefulWidget {
   const AdminNotificationsPage({super.key});
@@ -177,9 +176,9 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.menu),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            _scaffoldKey.currentState?.openDrawer();
+            Navigator.pushReplacementNamed(context, '/admin/dashboard');
           },
         ),
         centerTitle: false,
@@ -231,7 +230,6 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
           const SizedBox(width: 8),
         ],
       ),
-      drawer: const AdminDrawer(),
       body: Column(
         children: [
           Container(
@@ -239,7 +237,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             decoration: BoxDecoration(
               color: isDarkMode
-                  ? Colors.grey.shade800.withOpacity(0.5)
+                  ? Colors.grey.shade800.withAlpha(128)
                   : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
             ),
@@ -251,8 +249,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
               indicatorSize: TabBarIndicatorSize.tab,
               indicator: BoxDecoration(
                 color: isDarkMode
-                    ? theme.colorScheme.primary.withOpacity(0.15)
-                    : theme.colorScheme.primary.withOpacity(0.1),
+                    ? theme.colorScheme.primary.withAlpha(38)
+                    : theme.colorScheme.primary.withAlpha(25),
                 borderRadius: BorderRadius.circular(8),
               ),
               labelColor: theme.colorScheme.primary,
@@ -285,7 +283,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                         end: Alignment.bottomCenter,
                         colors: [
                           theme.scaffoldBackgroundColor,
-                          theme.scaffoldBackgroundColor.withOpacity(0.95),
+                          theme.scaffoldBackgroundColor.withAlpha(242),
                         ],
                       )
                     : LinearGradient(

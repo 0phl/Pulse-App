@@ -1367,14 +1367,9 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Test admin notification specifically
-  Future<void> testAdminNotification() async {
-    return testLocalNotification(isAdminTest: true);
-  }
-
   // Test local notification
-  Future<void> testLocalNotification({bool isAdminTest = false}) async {
-    debugPrint('Testing local notification... (Admin test: $isAdminTest)');
+  Future<void> testLocalNotification() async {
+    debugPrint('Testing local notification...');
 
     // First try to create a notification in Firestore using the new structure
     // This will at least show up in the app's notification list
@@ -1383,14 +1378,11 @@ class NotificationService with WidgetsBindingObserver {
       if (user != null) {
         // Create a single notification record
         final notificationRef = await _firestore.collection('user_notifications').add({
-          'title': isAdminTest ? 'Test Admin Notification' : 'Test Notification',
-          'body': isAdminTest
-              ? 'This is a test admin notification from PULSE app'
-              : 'This is a test notification from PULSE app',
+          'title': 'Test Notification',
+          'body': 'This is a test notification from PULSE app',
           'type': 'test',
           'data': {
             'test': true,
-            'isForAdmin': isAdminTest ? 'true' : 'false',
           },
           'createdAt': FieldValue.serverTimestamp(),
           'createdBy': 'system',
@@ -1419,26 +1411,18 @@ class NotificationService with WidgetsBindingObserver {
     }
 
     try {
-      // Determine which channel to use based on whether this is an admin test
-      final String channelId = isAdminTest
-          ? 'admin_high_importance_channel'
-          : _androidChannel!.id;
-
+      final String channelId = _androidChannel!.id;
       debugPrint('Using notification channel for test: $channelId');
 
       await _localNotifications!.show(
         0,
-        isAdminTest ? 'Test Admin Notification' : 'Test Notification',
-        isAdminTest
-            ? 'This is a test admin notification from PULSE app'
-            : 'This is a test notification from PULSE app',
+        'Test Notification',
+        'This is a test notification from PULSE app',
         NotificationDetails(
           android: AndroidNotificationDetails(
             channelId,
-            isAdminTest ? 'Admin Notifications' : _androidChannel!.name,
-            channelDescription: isAdminTest
-                ? 'For important notifications for administrators'
-                : _androidChannel!.description,
+            _androidChannel!.name,
+            channelDescription: _androidChannel!.description,
             icon: '@drawable/notification_icon',
             importance: Importance.high,
             priority: Priority.high,
@@ -1448,10 +1432,9 @@ class NotificationService with WidgetsBindingObserver {
             presentAlert: true,
             presentBadge: true,
             presentSound: true,
-            categoryIdentifier: isAdminTest ? 'ADMIN_NOTIFICATION' : null,
           ),
         ),
-        payload: isAdminTest ? 'test_admin_notification' : 'test_notification',
+        payload: 'test_notification',
       );
 
       debugPrint('Test notification sent successfully');

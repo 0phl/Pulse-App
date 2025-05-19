@@ -34,7 +34,6 @@ import 'pages/admin/show_create_notice_sheet.dart';
 import 'pages/admin/profile_page.dart';
 import 'pages/admin/notifications_page.dart';
 import 'pages/admin/notification_settings_page.dart';
-import 'pages/admin/admin_notification_test_page.dart';
 import 'services/user_session_service.dart';
 import 'services/global_state.dart';
 import 'services/media_cache_service.dart';
@@ -174,8 +173,6 @@ class MyApp extends StatelessWidget {
                   const AdminNotificationsPage(),
               '/admin/notification-settings': (context) =>
                   const AdminNotificationSettingsPage(),
-              '/admin/notification-test': (context) =>
-                  const AdminNotificationTestPage(),
               // User verification functionality consolidated into Manage Users page
 
               // Main app routes

@@ -8,15 +8,17 @@ class NotificationBadge extends StatefulWidget {
   final double? size;
   final Color? color;
   final Color? textColor;
+  final VoidCallback? onTap;
 
   const NotificationBadge({
     super.key,
     required this.child,
-    this.top = -5,
-    this.right = -5,
-    this.size = 18,
+    this.top = 0,
+    this.right = 0,
+    this.size = 14,
     this.color,
     this.textColor,
+    this.onTap,
   });
 
   @override
@@ -81,45 +83,45 @@ class _NotificationBadgeState extends State<NotificationBadge>
           return widget.child;
         }
 
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            widget.child,
-            Positioned(
-              top: widget.top,
-              right: widget.right,
-              child: AnimatedBuilder(
-                animation: _animation,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _animation.value,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: badgeColor,
-                        shape: BoxShape.circle,
+        return AnimatedBuilder(
+          animation: _animation,
+          builder: (context, child) {
+            return GestureDetector(
+              onTap: widget.onTap,
+              child: Transform.scale(
+                scale: _animation.value,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: badgeColor,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: badgeColor.withOpacity(0.3),
+                        blurRadius: 2,
+                        spreadRadius: 0,
                       ),
-                      constraints: BoxConstraints(
-                        minWidth: widget.size!,
-                        minHeight: widget.size!,
+                    ],
+                  ),
+                  constraints: BoxConstraints(
+                    minWidth: widget.size!,
+                    minHeight: widget.size!,
+                  ),
+                  child: Center(
+                    child: Text(
+                      count > 99 ? '99+' : count.toString(),
+                      style: TextStyle(
+                        color: badgeTextColor,
+                        fontSize: count > 99 ? 6 : (count > 9 ? 8 : 9),
+                        fontWeight: FontWeight.bold,
                       ),
-                      child: Center(
-                        child: Text(
-                          count > 99 ? '99+' : count.toString(),
-                          style: TextStyle(
-                            color: badgeTextColor,
-                            fontSize: count > 99 ? 8 : (count > 9 ? 10 : 12),
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+                      textAlign: TextAlign.center,
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
-            ),
-          ],
+            );
+          },
         );
       },
     );
