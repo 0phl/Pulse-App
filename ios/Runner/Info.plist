@@ -53,5 +53,9 @@
 	<string>This app needs access to your camera to take photos and record videos.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs access to your microphone to record videos with sound.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs access to your location to automatically fill in your current address when reporting issues.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs access to your location to automatically fill in your current address when reporting issues.</string>
 </dict>
 </plist>
