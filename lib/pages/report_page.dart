@@ -4,6 +4,9 @@ import 'package:image_picker/image_picker.dart';
 // Removed map-related imports
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:video_compress/video_compress.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/report.dart';
 import '../models/report_status.dart';
 import '../services/report_service.dart';
@@ -63,6 +66,7 @@ class _ReportPageState extends State<ReportPage>
   final List<File> _selectedVideos = [];
   final ImagePicker _imagePicker = ImagePicker();
   bool _isVideoUploading = false;
+  bool _isGettingLocation = false;
 
   @override
   void initState() {
@@ -93,6 +97,197 @@ class _ReportPageState extends State<ReportPage>
         // This empty setState will trigger a rebuild with the updated text values
       });
     }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      setState(() {
+        _isGettingLocation = true;
+      });
+
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      
+      if (!serviceEnabled) {
+        _showSnackBar('Please enable location services in your device settings');
+        setState(() {
+          _isGettingLocation = false;
+        });
+        return;
+      }
+
+      // Check current permission status
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        
+        if (permission == LocationPermission.denied) {
+          _showSnackBar('Location permission is required. Please grant permission in app settings.');
+          setState(() {
+            _isGettingLocation = false;
+          });
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        // Show dialog to open app settings
+        _showLocationPermissionDialog();
+        setState(() {
+          _isGettingLocation = false;
+        });
+        return;
+      }
+
+      // Get current position with more flexible settings for real devices
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium, // Changed from high to medium for better compatibility
+        timeLimit: const Duration(seconds: 15), // Increased timeout
+        forceAndroidLocationManager: false, // Use Google Play Services if available
+      );
+
+      // Convert coordinates to address
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+        String address = _formatAddress(place);
+        
+        setState(() {
+          _addressController.text = address;
+          _isGettingLocation = false;
+        });
+        
+        _showSnackBar('Location found successfully!');
+      } else {
+        setState(() {
+          _addressController.text = "Lat: ${position.latitude.toStringAsFixed(6)}, Lng: ${position.longitude.toStringAsFixed(6)}";
+          _isGettingLocation = false;
+        });
+        _showSnackBar('Location found but address lookup failed. Coordinates used instead.');
+      }
+    } catch (e) {
+      setState(() {
+        _isGettingLocation = false;
+      });
+      
+      String errorMessage = 'Failed to get location';
+      
+      if (e.toString().contains('timeout') || e.toString().contains('TIMEOUT')) {
+        errorMessage = 'Location request timed out. Please check your GPS/network connection and try again.';
+      } else if (e.toString().contains('PERMISSION_DENIED')) {
+        errorMessage = 'Location permission denied. Please enable location permission in app settings.';
+      } else if (e.toString().contains('LOCATION_SERVICES_DISABLED')) {
+        errorMessage = 'Location services are disabled. Please enable them in device settings.';
+      } else if (e.toString().contains('network')) {
+        errorMessage = 'Network error while getting location. Please check your internet connection.';
+      } else {
+        errorMessage = 'Failed to get location: ${e.toString()}';
+      }
+      
+      _showSnackBar(errorMessage);
+      
+      // Show additional debugging dialog in debug mode
+      if (true) { // You can change this to check for debug mode
+        _showDebugDialog(e.toString());
+      }
+    }
+  }
+
+  String _formatAddress(Placemark place) {
+    List<String> addressParts = [];
+    
+    // Add street number and name
+    if (place.subThoroughfare != null && place.subThoroughfare!.isNotEmpty) {
+      addressParts.add(place.subThoroughfare!);
+    }
+    if (place.thoroughfare != null && place.thoroughfare!.isNotEmpty) {
+      addressParts.add(place.thoroughfare!);
+    }
+    
+    // Add locality (city/town)
+    if (place.locality != null && place.locality!.isNotEmpty) {
+      addressParts.add(place.locality!);
+    }
+    
+    // Removed administrative area (state/province) and country
+    // to show only street and city information
+    
+    return addressParts.join(', ');
+  }
+
+  void _showLocationPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Location Permission Required'),
+          content: const Text(
+            'This app needs location permission to automatically fill in your current address. Please enable location permission in your device settings.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                openAppSettings();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00C49A),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Open Settings'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDebugDialog(String error) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Debug Information'),
+          content: SingleChildScrollView(
+            child: Text(
+              'Error details:\n\n$error\n\nPlease check:\n'
+              '1. Location services are enabled in device settings\n'
+              '2. App has location permission\n'
+              '3. GPS signal is available (try going outside)\n'
+              '4. Network connection is working\n\n'
+              'Check the console/logs for more DEBUG messages.',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                openAppSettings();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00C49A),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Open Settings'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -485,7 +680,7 @@ class _ReportPageState extends State<ReportPage>
         ),
 
         // Loading Overlay
-        if (_isUploading || _isVideoUploading)
+        if (_isUploading || _isVideoUploading || _isGettingLocation)
           Container(
             color: Colors.black.withAlpha(77), // 0.3 opacity
             child: Center(
@@ -497,7 +692,9 @@ class _ReportPageState extends State<ReportPage>
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    _isVideoUploading ? 'Compressing video...' : 'Uploading report...',
+                    _isGettingLocation 
+                        ? 'Getting your location...' 
+                        : (_isVideoUploading ? 'Compressing video...' : 'Uploading report...'),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -829,13 +1026,22 @@ class _ReportPageState extends State<ReportPage>
                 ),
               ),
               TextButton.icon(
-                onPressed: () {
-                  _addressController.text = "Current Location";
+                onPressed: _isGettingLocation ? null : () {
+                  _getCurrentLocation();
                 },
-                icon: const Icon(Icons.my_location, size: 14),
-                label: const Text('Use current location'),
+                icon: _isGettingLocation 
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                        ),
+                      )
+                    : const Icon(Icons.my_location, size: 14),
+                label: Text(_isGettingLocation ? 'Getting location...' : 'Use current location'),
                 style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF00C49A),
+                  foregroundColor: _isGettingLocation ? Colors.grey : const Color(0xFF00C49A),
                   padding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
