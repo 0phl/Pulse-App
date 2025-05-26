@@ -139,6 +139,15 @@ class _NotificationListState extends State<NotificationList> {
                     'NOTIFICATION DEBUG:   - Body: ${notification.body}');
                 debugPrint(
                     'NOTIFICATION DEBUG:   - Type: ${notification.type}');
+
+                // Log more details for community notices
+                if (notification.type == 'community_notice' || notification.type == 'communityNotices') {
+                  debugPrint('COMMUNITY NOTICE FOUND: ${notification.title}');
+                  debugPrint('  - CommunityId: ${notification.communityId}');
+                  debugPrint('  - Author: ${notification.data['authorId'] ?? 'unknown'}');
+                  debugPrint('  - Full data: ${notification.data}');
+                }
+
                 debugPrint(
                     'NOTIFICATION DEBUG:   - Data: ${notification.data}');
                 debugPrint(
@@ -147,8 +156,17 @@ class _NotificationListState extends State<NotificationList> {
                 debugPrint(
                     'NOTIFICATION DEBUG:   - NotificationID: ${notification.notificationId}');
 
-                // Skip self-notifications (where the user is seeing their own action)
-                if (!notification.isSelfNotification()) {
+                // Check if this is a self-notification
+                final isSelfNotif = notification.isSelfNotification();
+                debugPrint('NOTIFICATION DEBUG:   - Is self notification: $isSelfNotif');
+
+                // For community notices, always add them to the list regardless of self-notification status
+                if (notification.type == 'community_notice' || notification.type == 'communityNotices') {
+                  debugPrint('NOTIFICATION DEBUG:   - Adding community notice to list');
+                  loadedNotifications.add(notification);
+                }
+                // For other notifications, skip self-notifications
+                else if (!isSelfNotif) {
                   debugPrint(
                       'NOTIFICATION DEBUG:   - Adding notification to list');
                   loadedNotifications.add(notification);
@@ -411,21 +429,51 @@ class _NotificationListState extends State<NotificationList> {
         // Check if this is an admin-specific notification
         final bool isAdminNotification = notification.isAdminNotification();
 
+        // Check if this is a self-notification (admin seeing their own action)
+        final bool isSelfNotif = notification.isSelfNotification();
+
         // Log for debugging
-        debugPrint('ADMIN NOTIFICATION FILTER: ${notification.title} - isAdminNotification: $isAdminNotification');
+        debugPrint('ADMIN NOTIFICATION FILTER: ${notification.title} - isAdminNotification: $isAdminNotification, isSelfNotification: $isSelfNotif');
         debugPrint('  - Type: ${notification.type}');
         debugPrint('  - Data: ${notification.data}');
+
+        // Skip self-notifications for admins (e.g., "Admin created this community notice")
+        if (isSelfNotif) {
+          debugPrint('  - Skipping self-notification for admin');
+          return false;
+        }
 
         return isAdminNotification;
       }).toList();
 
       debugPrint('ADMIN NOTIFICATION FILTER: Filtered to ${allNotifications.length} admin notifications');
     } else {
-      // For regular user view, filter out admin-specific notifications
+      // For regular user view, filter out admin-specific notifications and self-notifications
       allNotifications = allNotifications.where((notification) {
-        // Keep notifications that are NOT admin-specific
-        return !notification.isAdminNotification();
+        // Always include community notices for regular users
+        if (notification.type == 'community_notice' || notification.type == 'communityNotices') {
+          debugPrint('USER NOTIFICATION FILTER: Including community notice: ${notification.title}');
+          return true;
+        }
+
+        // Skip admin-specific notifications for regular users
+        if (notification.isAdminNotification()) {
+          debugPrint('USER NOTIFICATION FILTER: Skipping admin notification: ${notification.title}');
+          return false;
+        }
+
+        // Skip self-notifications (except community notices which we already handled)
+        if (notification.isSelfNotification()) {
+          debugPrint('USER NOTIFICATION FILTER: Skipping self-notification: ${notification.title}');
+          return false;
+        }
+
+        // Keep all other notifications
+        debugPrint('USER NOTIFICATION FILTER: Including regular notification: ${notification.title}');
+        return true;
       }).toList();
+
+      debugPrint('USER NOTIFICATION FILTER: Filtered to ${allNotifications.length} user notifications');
     }
 
     // Apply filter if provided

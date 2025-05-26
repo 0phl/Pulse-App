@@ -245,7 +245,22 @@ class NotificationModel {
     }
 
     // For community notices, only show admin notifications if they're from the admin's community
+    // and not created by the current admin (to avoid self-notifications)
     if (type == 'community_notice' || type == 'communityNotices') {
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+      // Skip notifications about community notices that the current admin created
+      if (data.containsKey('authorId') && data['authorId'] == currentUserId) {
+        debugPrint('ADMIN NOTIFICATION FILTER: Skipping notification about community notice created by current admin');
+        return false;
+      }
+
+      // Skip notifications with the specific "Admin created this community notice" message
+      if (body != null && body!.toLowerCase().contains('admin created this community notice')) {
+        debugPrint('ADMIN NOTIFICATION FILTER: Skipping "Admin created this community notice" notification');
+        return false;
+      }
+
       // If the notification has adminCommunityId field, check if it matches
       if (data.containsKey('adminCommunityId')) {
         return true;
@@ -257,7 +272,7 @@ class NotificationModel {
         return true;
       }
 
-      // If the notification is from an admin
+      // If the notification is from an admin (but not the current admin)
       if (data.containsKey('authorIsAdmin') &&
           (data['authorIsAdmin'] == true || data['authorIsAdmin'] == 'true')) {
         return true;
@@ -292,6 +307,13 @@ class NotificationModel {
   bool isSelfNotification() {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null) return false;
+
+    // IMPORTANT: Community notices should NEVER be considered self-notifications
+    // Users should always see community notices regardless of who created them
+    if (type == 'community_notice' || type == 'communityNotices') {
+      debugPrint('COMMUNITY NOTICE: Always showing community notices regardless of author');
+      return false;
+    }
 
     // For social interactions, check if the user is the one who performed the action
     if (type == 'socialInteractions' || type == 'social_interaction') {
