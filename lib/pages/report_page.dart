@@ -107,7 +107,7 @@ class _ReportPageState extends State<ReportPage>
 
       // Check if location services are enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      
+
       if (!serviceEnabled) {
         _showSnackBar('Please enable location services in your device settings');
         setState(() {
@@ -121,7 +121,7 @@ class _ReportPageState extends State<ReportPage>
 
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        
+
         if (permission == LocationPermission.denied) {
           _showSnackBar('Location permission is required. Please grant permission in app settings.');
           setState(() {
@@ -156,12 +156,12 @@ class _ReportPageState extends State<ReportPage>
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
         String address = _formatAddress(place);
-        
+
         setState(() {
           _addressController.text = address;
           _isGettingLocation = false;
         });
-        
+
         _showSnackBar('Location found successfully!');
       } else {
         setState(() {
@@ -174,9 +174,9 @@ class _ReportPageState extends State<ReportPage>
       setState(() {
         _isGettingLocation = false;
       });
-      
+
       String errorMessage = 'Failed to get location';
-      
+
       if (e.toString().contains('timeout') || e.toString().contains('TIMEOUT')) {
         errorMessage = 'Location request timed out. Please check your GPS/network connection and try again.';
       } else if (e.toString().contains('PERMISSION_DENIED')) {
@@ -188,19 +188,17 @@ class _ReportPageState extends State<ReportPage>
       } else {
         errorMessage = 'Failed to get location: ${e.toString()}';
       }
-      
+
       _showSnackBar(errorMessage);
-      
-      // Show additional debugging dialog in debug mode
-      if (true) { // You can change this to check for debug mode
-        _showDebugDialog(e.toString());
-      }
+
+      // Show location error dialog
+      _showLocationErrorDialog();
     }
   }
 
   String _formatAddress(Placemark place) {
     List<String> addressParts = [];
-    
+
     // Add street number and name
     if (place.subThoroughfare != null && place.subThoroughfare!.isNotEmpty) {
       addressParts.add(place.subThoroughfare!);
@@ -208,15 +206,15 @@ class _ReportPageState extends State<ReportPage>
     if (place.thoroughfare != null && place.thoroughfare!.isNotEmpty) {
       addressParts.add(place.thoroughfare!);
     }
-    
+
     // Add locality (city/town)
     if (place.locality != null && place.locality!.isNotEmpty) {
       addressParts.add(place.locality!);
     }
-    
+
     // Removed administrative area (state/province) and country
     // to show only street and city information
-    
+
     return addressParts.join(', ');
   }
 
@@ -251,27 +249,71 @@ class _ReportPageState extends State<ReportPage>
     );
   }
 
-  void _showDebugDialog(String error) {
+  void _showLocationErrorDialog() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Debug Information'),
-          content: SingleChildScrollView(
-            child: Text(
-              'Error details:\n\n$error\n\nPlease check:\n'
-              '1. Location services are enabled in device settings\n'
-              '2. App has location permission\n'
-              '3. GPS signal is available (try going outside)\n'
-              '4. Network connection is working\n\n'
-              'Check the console/logs for more DEBUG messages.',
-              style: const TextStyle(fontSize: 12),
-            ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.location_off,
+                  color: Colors.orange,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Location Unavailable',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'We\'re unable to access your current location at the moment.',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.black87,
+                ),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Please check your location settings and try again, or enter your address manually.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey[600],
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(fontSize: 14),
+              ),
             ),
             ElevatedButton(
               onPressed: () {
@@ -281,10 +323,22 @@ class _ReportPageState extends State<ReportPage>
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF00C49A),
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
               ),
-              child: const Text('Open Settings'),
+              child: const Text(
+                'Open Settings',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
           ],
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         );
       },
     );
@@ -513,6 +567,11 @@ class _ReportPageState extends State<ReportPage>
       return;
     }
 
+    if (_addressDetailsController.text.trim().isEmpty) {
+      _showSnackBar('Please provide address details (landmarks, nearby establishments, etc.)');
+      return;
+    }
+
     if (_descriptionController.text.trim().isEmpty) {
       _showSnackBar('Please provide a description');
       return;
@@ -692,8 +751,8 @@ class _ReportPageState extends State<ReportPage>
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    _isGettingLocation 
-                        ? 'Getting your location...' 
+                    _isGettingLocation
+                        ? 'Getting your location...'
                         : (_isVideoUploading ? 'Compressing video...' : 'Uploading report...'),
                     style: const TextStyle(
                       color: Colors.white,
@@ -713,7 +772,8 @@ class _ReportPageState extends State<ReportPage>
       return 0;
     }
 
-    if (_addressController.text.trim().isEmpty) {
+    if (_addressController.text.trim().isEmpty ||
+        _addressDetailsController.text.trim().isEmpty) {
       return 1;
     }
 
@@ -1029,7 +1089,7 @@ class _ReportPageState extends State<ReportPage>
                 onPressed: _isGettingLocation ? null : () {
                   _getCurrentLocation();
                 },
-                icon: _isGettingLocation 
+                icon: _isGettingLocation
                     ? const SizedBox(
                         width: 14,
                         height: 14,
@@ -1054,12 +1114,11 @@ class _ReportPageState extends State<ReportPage>
         // Address Details Field
         ReportFormField(
           label: 'Address Details',
-          isRequired: false,
-          showOptionalText: true,
+          isRequired: true,
           child: TextFormField(
             controller: _addressDetailsController,
             decoration: InputDecoration(
-              hintText: 'e.g., Street, nearby landmarks, etc.',
+              hintText: 'e.g., Near SM Mall, beside 7-Eleven, Barangay Hall, etc.',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide(color: Colors.grey.shade300),
@@ -1099,7 +1158,8 @@ class _ReportPageState extends State<ReportPage>
             const SizedBox(width: 16),
             Expanded(
               child: ElevatedButton(
-                onPressed: _addressController.text.isNotEmpty
+                onPressed: _addressController.text.isNotEmpty &&
+                           _addressDetailsController.text.trim().isNotEmpty
                     ? () {
                         setState(() {
                           _currentStep = 2;

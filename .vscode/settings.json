@@ -1,0 +1,8 @@
+{
+    "dart.flutterLogFilter": [
+        "E/libEGL",
+        "D/EGL_emulation", 
+        "app_time_stats",
+        "called unimplemented OpenGL ES API"
+    ]
+}
