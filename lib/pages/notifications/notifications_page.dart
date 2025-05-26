@@ -253,7 +253,7 @@ class _NotificationsPageState extends State<NotificationsPage>
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             decoration: BoxDecoration(
               color: isDarkMode
-                  ? Colors.grey.shade800.withOpacity(0.5)
+                  ? Colors.grey.shade800.withValues(alpha: 0.5)
                   : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
             ),
@@ -265,8 +265,8 @@ class _NotificationsPageState extends State<NotificationsPage>
               indicatorSize: TabBarIndicatorSize.tab,
               indicator: BoxDecoration(
                 color: isDarkMode
-                    ? theme.colorScheme.primary.withOpacity(0.15)
-                    : theme.colorScheme.primary.withOpacity(0.1),
+                    ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                    : theme.colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               labelColor: theme.colorScheme.primary,
@@ -299,7 +299,7 @@ class _NotificationsPageState extends State<NotificationsPage>
                         end: Alignment.bottomCenter,
                         colors: [
                           theme.scaffoldBackgroundColor,
-                          theme.scaffoldBackgroundColor.withOpacity(0.95),
+                          theme.scaffoldBackgroundColor.withValues(alpha: 0.95),
                         ],
                       )
                     : LinearGradient(

@@ -29,6 +29,8 @@ class _NotificationListState extends State<NotificationList> {
   List<NotificationModel> _readNotifications =
       []; // Store read notifications that were deleted from Firestore
   bool _isLoading = true;
+  bool _isInitialLoad = true; // Track if this is the first load
+  bool _hasLoadedOnce = false; // Track if we've loaded data at least once
   String? _error;
   bool _isAdmin = false;
   StreamSubscription? _notificationSubscription;
@@ -100,9 +102,17 @@ class _NotificationListState extends State<NotificationList> {
           if (!snapshot.docs.isNotEmpty) {
             debugPrint(
                 'NOTIFICATION DEBUG: No notifications found in snapshot');
+
+            // Add a small delay for initial load to prevent flash
+            if (_isInitialLoad) {
+              await Future.delayed(const Duration(milliseconds: 300));
+            }
+
             setState(() {
               _notifications = [];
               _isLoading = false;
+              _isInitialLoad = false;
+              _hasLoadedOnce = true;
             });
             return;
           }
@@ -188,15 +198,24 @@ class _NotificationListState extends State<NotificationList> {
           debugPrint(
               'NOTIFICATION DEBUG: Loaded ${loadedNotifications.length} notifications');
 
+          // Add a small delay for initial load to prevent flash
+          if (_isInitialLoad) {
+            await Future.delayed(const Duration(milliseconds: 300));
+          }
+
           setState(() {
             _notifications = loadedNotifications;
             _isLoading = false;
+            _isInitialLoad = false;
+            _hasLoadedOnce = true;
           });
         },
         onError: (e) {
           setState(() {
             _error = e.toString();
             _isLoading = false;
+            _isInitialLoad = false;
+            _hasLoadedOnce = true;
           });
         },
       );
@@ -204,6 +223,8 @@ class _NotificationListState extends State<NotificationList> {
       setState(() {
         _error = e.toString();
         _isLoading = false;
+        _isInitialLoad = false;
+        _hasLoadedOnce = true;
       });
     }
   }
@@ -258,9 +279,12 @@ class _NotificationListState extends State<NotificationList> {
   }
 
   Future<void> _refreshNotifications() async {
-    setState(() {
-      _isLoading = true;
-    });
+    // Don't show loading spinner for refresh if we already have data
+    if (!_hasLoadedOnce) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     // Cancel existing subscription
     await _notificationSubscription?.cancel();
@@ -273,9 +297,12 @@ class _NotificationListState extends State<NotificationList> {
       await _loadCommunityNotifications();
     }
 
-    setState(() {
-      _isLoading = false;
-    });
+    // Only set loading to false if we were showing loading
+    if (!_hasLoadedOnce) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
 
     debugPrint(
         'Refreshed notifications: ${_notifications.length} unread, ${_readNotifications.length} read');
@@ -301,7 +328,7 @@ class _NotificationListState extends State<NotificationList> {
                 decoration: BoxDecoration(
                   color: theme.scaffoldBackgroundColor,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                  border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   children: [
@@ -389,13 +416,79 @@ class _NotificationListState extends State<NotificationList> {
     }
   }
 
+  // Build skeleton loading widget
+  Widget _buildSkeletonLoading() {
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: 8, bottom: 80),
+      itemCount: 6, // Show 6 skeleton items
+      itemBuilder: (context, index) {
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.grey.withValues(alpha: 0.1),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Avatar skeleton
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title skeleton
+                    Container(
+                      height: 16,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Body skeleton
+                    Container(
+                      height: 14,
+                      width: MediaQuery.of(context).size.width * 0.7,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Time skeleton
+                    Container(
+                      height: 12,
+                      width: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
 
     if (_error != null) {
       return Center(
@@ -405,7 +498,7 @@ class _NotificationListState extends State<NotificationList> {
             Icon(Icons.error_outline_rounded,
                 size: 48, color: Colors.red.shade400),
             const SizedBox(height: 16),
-            Text('Error loading notifications'),
+            const Text('Error loading notifications'),
             const SizedBox(height: 8),
             ElevatedButton(
               onPressed: _refreshNotifications,
@@ -499,7 +592,13 @@ class _NotificationListState extends State<NotificationList> {
     // Sort notifications by creation date, newest first
     allNotifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    if (allNotifications.isEmpty) {
+    // Show skeleton loading only during initial load AND when we're still loading
+    if (_isLoading && _isInitialLoad) {
+      return _buildSkeletonLoading();
+    }
+
+    // Show empty state if we've loaded at least once and there's no data
+    if (allNotifications.isEmpty && _hasLoadedOnce && !_isLoading) {
       return RefreshIndicator(
         key: _refreshKey,
         onRefresh: _refreshNotifications,
@@ -516,7 +615,7 @@ class _NotificationListState extends State<NotificationList> {
                     Icon(
                       Icons.notifications_off_rounded,
                       size: 64,
-                      color: Colors.grey.withOpacity(0.5),
+                      color: Colors.grey.withValues(alpha: 0.5),
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -544,6 +643,11 @@ class _NotificationListState extends State<NotificationList> {
       );
     }
 
+    // If we're still loading but not initial load, or have no data but haven't loaded once, show skeleton
+    if (allNotifications.isEmpty) {
+      return _buildSkeletonLoading();
+    }
+
     return RefreshIndicator(
       key: _refreshKey,
       onRefresh: _refreshNotifications,
@@ -567,6 +671,9 @@ class _NotificationListState extends State<NotificationList> {
               debugPrint('Notification tapped: ${notification.id}');
             },
             onDismiss: () async {
+              // Capture scaffold messenger early to avoid async gap issues
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+
               // Show confirmation dialog before deleting
               final shouldDelete =
                   await _showDeleteConfirmationDialog(context, notification);
@@ -587,7 +694,6 @@ class _NotificationListState extends State<NotificationList> {
 
                 // Show snackbar with undo option
                 if (mounted) {
-                  final scaffoldMessenger = ScaffoldMessenger.of(context);
                   scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: const Text('Notification removed'),
