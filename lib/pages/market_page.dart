@@ -19,6 +19,7 @@ import '../services/global_state.dart';
 import 'seller_profile_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/confirmation_dialog.dart';
+import '../widgets/marketplace_shimmer_loading.dart';
 
 class MarketPage extends StatefulWidget {
   final Function(int)? onUnreadChatsChanged;
@@ -142,6 +143,9 @@ class _MarketPageState extends State<MarketPage>
   String? _currentUserCommunityId;
   late StreamSubscription<int> _unreadCountSubscription;
 
+  // Loading state
+  bool _isInitialLoading = true;
+
   // View mode state
   bool _isGridView = false; // Default to list view
 
@@ -241,8 +245,19 @@ class _MarketPageState extends State<MarketPage>
         setState(() {
           _currentUserCommunityId = community.id;
           _initializeStreams();
+          _isInitialLoading = false; // Set loading to false after streams are initialized
+        });
+      } else {
+        // If no community found, still set loading to false
+        setState(() {
+          _isInitialLoading = false;
         });
       }
+    } else {
+      // If no user, set loading to false
+      setState(() {
+        _isInitialLoading = false;
+      });
     }
   }
 
@@ -577,88 +592,90 @@ class _MarketPageState extends State<MarketPage>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // All Items Tab
-          StreamBuilder<List<MarketItem>>(
-            stream: _allItemsStream,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
-              }
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              return _buildItemList(snapshot.data ?? []);
-            },
-          ),
-          // My Items Tab
-          StreamBuilder<List<MarketItem>>(
-            stream: _userItemsStream,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
-              }
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+      body: _isInitialLoading
+          ? MarketplaceShimmerLoading(isGridView: _isGridView)
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                // All Items Tab
+                StreamBuilder<List<MarketItem>>(
+                  stream: _allItemsStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return MarketplaceShimmerLoading(isGridView: _isGridView);
+                    }
+                    return _buildItemList(snapshot.data ?? []);
+                  },
+                ),
+                // My Items Tab
+                StreamBuilder<List<MarketItem>>(
+                  stream: _userItemsStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return MarketplaceShimmerLoading(isGridView: _isGridView);
+                    }
 
-              final items = snapshot.data ?? [];
-              final hasPendingItems =
-                  items.any((item) => item.status == 'pending');
+                    final items = snapshot.data ?? [];
+                    final hasPendingItems =
+                        items.any((item) => item.status == 'pending');
 
-              return Column(
-                children: [
-                  // Show pending items notification if there are any
-                  if (hasPendingItems)
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.pushNamed(context, '/seller/dashboard',
-                            arguments: {'initialTabIndex': 1});
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 8, horizontal: 16),
-                        color: Colors.orange.withOpacity(0.1),
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.pending_actions,
-                              size: 18,
-                              color: Colors.orange,
-                            ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'You have items pending approval',
-                                style: TextStyle(
-                                  color: Colors.orange,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                    return Column(
+                      children: [
+                        // Show pending items notification if there are any
+                        if (hasPendingItems)
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.pushNamed(context, '/seller/dashboard',
+                                  arguments: {'initialTabIndex': 1});
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 8, horizontal: 16),
+                              color: Colors.orange.withOpacity(0.1),
+                              child: const Row(
+                                children: [
+                                  Icon(
+                                    Icons.pending_actions,
+                                    size: 18,
+                                    color: Colors.orange,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'You have items pending approval',
+                                      style: TextStyle(
+                                        color: Colors.orange,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.arrow_forward_ios,
+                                    size: 14,
+                                    color: Colors.orange,
+                                  ),
+                                ],
                               ),
                             ),
-                            Icon(
-                              Icons.arrow_forward_ios,
-                              size: 14,
-                              color: Colors.orange,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                          ),
 
-                  // Main content
-                  Expanded(
-                    child: _buildItemList(items),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+                        // Main content
+                        Expanded(
+                          child: _buildItemList(items),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: _isAddingItem || _currentUserCommunityId == null
             ? null

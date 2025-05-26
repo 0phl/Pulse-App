@@ -441,14 +441,21 @@ class _DeactivatedCommunityPageState extends State<DeactivatedCommunityPage> {
                           onPressed: () async {
                             try {
                               debugPrint('DeactivatedCommunityPage: Starting logout process with AuthService');
-                              await _authService.signOut();
-                              debugPrint('DeactivatedCommunityPage: Logout completed successfully');
+
+                              // Add a 2.5 second delay to show any loading indicators
+                              await Future.delayed(const Duration(milliseconds: 2500));
+
+                              // Navigate after the delay
                               if (context.mounted) {
                                 Navigator.of(context).pushNamedAndRemoveUntil(
                                   '/login',
                                   (route) => false,
                                 );
                               }
+
+                              // Then sign out after navigation
+                              await _authService.signOut();
+                              debugPrint('DeactivatedCommunityPage: Logout completed successfully');
                             } catch (e) {
                               debugPrint('DeactivatedCommunityPage: Error during logout: $e');
                               if (context.mounted) {

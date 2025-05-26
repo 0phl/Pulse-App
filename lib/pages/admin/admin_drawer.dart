@@ -15,6 +15,7 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
   final _authService = AuthService();
   String _communityName = '';
   bool _isLoading = true;
+  bool _isLoggingOut = false;
   String? _profileImageUrl;
   // Key that will change when the app is resumed to force a complete rebuild
   late Key _drawerKey;
@@ -118,11 +119,13 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
     // Debug the current route
     debugPrint('AdminDrawer: Current route: $currentRoute');
 
-    return Drawer(
-      key: _drawerKey,
-      elevation: 1,
-      backgroundColor: Colors.white,
-      child: SafeArea(
+    return Stack(
+      children: [
+        Drawer(
+          key: _drawerKey,
+          elevation: 1,
+          backgroundColor: Colors.white,
+          child: SafeArea(
         child: Column(
           children: [
             // Header
@@ -299,7 +302,33 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
             ),
           ],
         ),
-      ),
+          ),
+        ),
+        // Logout loading overlay
+        if (_isLoggingOut)
+          Container(
+            color: Colors.black.withValues(alpha: 0.7),
+            child: const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Signing out...',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -371,14 +400,27 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
   }
 
   Future<void> _logout() async {
+    // Show loading state immediately
+    setState(() {
+      _isLoggingOut = true;
+    });
+
     try {
-      // Use AdminService for logout to ensure FCM tokens are removed
-      await _adminService.signOut();
+      // Add a 2.5 second delay to show the logout loading screen
+      await Future.delayed(const Duration(milliseconds: 2500));
+
+      // Navigate after the delay
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/login');
       }
+
+      // Then sign out after navigation
+      await _adminService.signOut();
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _isLoggingOut = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error signing out: $e')),
         );

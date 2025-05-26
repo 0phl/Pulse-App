@@ -24,11 +24,18 @@ class RejectedVerificationPage extends StatelessWidget {
               final authService = AuthService();
               try {
                 debugPrint('RejectedVerificationPage: Starting logout process with AuthService');
-                await authService.signOut();
-                debugPrint('RejectedVerificationPage: Logout completed successfully');
+
+                // Add a 2.5 second delay to show any loading indicators
+                await Future.delayed(const Duration(milliseconds: 2500));
+
+                // Navigate after the delay
                 if (context.mounted) {
                   Navigator.of(context).pushReplacementNamed('/login');
                 }
+
+                // Then sign out after navigation
+                await authService.signOut();
+                debugPrint('RejectedVerificationPage: Logout completed successfully');
               } catch (e) {
                 debugPrint('RejectedVerificationPage: Error during logout: $e');
                 if (context.mounted) {
@@ -127,11 +134,18 @@ class RejectedVerificationPage extends StatelessWidget {
                 final authService = AuthService();
                 try {
                   debugPrint('RejectedVerificationPage: Starting logout process with AuthService');
-                  await authService.signOut();
-                  debugPrint('RejectedVerificationPage: Logout completed successfully');
+
+                  // Add a 2.5 second delay to show any loading indicators
+                  await Future.delayed(const Duration(milliseconds: 2500));
+
+                  // Navigate after the delay
                   if (context.mounted) {
                     Navigator.of(context).pushReplacementNamed('/login');
                   }
+
+                  // Then sign out after navigation
+                  await authService.signOut();
+                  debugPrint('RejectedVerificationPage: Logout completed successfully');
                 } catch (e) {
                   debugPrint('RejectedVerificationPage: Error during logout: $e');
                   if (context.mounted) {

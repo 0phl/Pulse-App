@@ -17,6 +17,10 @@ class GlobalState {
   int _unreadChatCount = 0;
   final _unreadChatCountController = StreamController<int>.broadcast();
 
+  // Logout state
+  bool _isLoggingOut = false;
+  final _logoutController = StreamController<bool>.broadcast();
+
   // Stream subscriptions
   StreamSubscription? _chatSubscription;
   StreamSubscription? _visitSubscription;
@@ -28,6 +32,9 @@ class GlobalState {
   // Getters
   int get unreadChatCount => _unreadChatCount;
   Stream<int> get unreadChatCountStream => _unreadChatCountController.stream;
+
+  bool get isLoggingOut => _isLoggingOut;
+  Stream<bool> get logoutStream => _logoutController.stream;
 
   // Initialize the global state
   void _initialize() async {
@@ -161,12 +168,24 @@ class GlobalState {
     debugPrint('Refreshed unread count: $_unreadChatCount');
   }
 
+  // Set logout state
+  void setLogoutState(bool isLoggingOut) {
+    _isLoggingOut = isLoggingOut;
+    if (!_logoutController.isClosed) {
+      _logoutController.add(_isLoggingOut);
+    }
+    debugPrint('Logout state changed: $_isLoggingOut');
+  }
+
   // Dispose of resources
   void dispose() {
     _chatSubscription?.cancel();
     _visitSubscription?.cancel();
     if (!_unreadChatCountController.isClosed) {
       _unreadChatCountController.close();
+    }
+    if (!_logoutController.isClosed) {
+      _logoutController.close();
     }
   }
 }

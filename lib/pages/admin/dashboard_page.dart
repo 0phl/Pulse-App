@@ -260,10 +260,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
   Future<void> _signOut() async {
     try {
-      await _authService.signOut();
+      // Add a 2.5 second delay to show any loading indicators
+      await Future.delayed(const Duration(milliseconds: 2500));
+
+      // Navigate after the delay
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/login');
       }
+
+      // Then sign out after navigation
+      await _authService.signOut();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

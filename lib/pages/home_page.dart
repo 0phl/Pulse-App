@@ -5,6 +5,7 @@ import '../services/community_notice_service.dart';
 import '../services/community_service.dart';
 import '../services/admin_service.dart';
 import '../services/auth_service.dart';
+import '../services/global_state.dart';
 import '../models/community_notice.dart';
 import '../widgets/community_notice_card.dart';
 import '../widgets/notifications/notification_badge.dart';
@@ -34,6 +35,7 @@ class HomePageState extends State<HomePage> {
   final _communityService = CommunityService();
   final _noticeService = CommunityNoticeService();
   final _adminService = AdminService();
+  final _globalState = GlobalState();
   final ScrollController _scrollController = ScrollController();
   String? _currentUserCommunityId;
   bool _isAdmin = false;
@@ -186,7 +188,7 @@ class HomePageState extends State<HomePage> {
                 color: const Color(0xFFE8F5F0),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Theme.of(context).primaryColor.withOpacity(0.3),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
                 ),
               ),
               child: Column(
@@ -333,29 +335,31 @@ class HomePageState extends State<HomePage> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'PULSE',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'PULSE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  _communityName,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              _communityName,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF00C49A),
+            backgroundColor: const Color(0xFF00C49A),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
@@ -484,39 +488,38 @@ class HomePageState extends State<HomePage> {
               PopupMenuItem(
                 child: const Text('Logout'),
                 onTap: () async {
-                  // Use AuthService to properly remove FCM tokens before signing out
+                  // Show loading state immediately using global state
+                  _globalState.setLogoutState(true);
+
                   try {
-                    debugPrint(
-                        'HomePage: Starting logout process with AuthService');
+                    debugPrint('HomePage: Starting logout process with AuthService');
+
+                    // Add a 2.5 second delay to show the logout loading screen
+                    await Future.delayed(const Duration(milliseconds: 2500));
+
+                    // Navigate after the delay
+                    if (mounted) {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => const LoginPage()),
+                      );
+                    }
+
+                    // Then sign out after navigation
                     await _authService.signOut();
                     debugPrint('HomePage: Logout completed successfully');
-
-                    // Use a post-frame callback to avoid BuildContext issues
-                    if (mounted) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const LoginPage()),
-                          );
-                        }
-                      });
-                    }
                   } catch (e) {
                     debugPrint('HomePage: Error during logout: $e');
                     // Still try to navigate to login page even if logout fails
                     if (mounted) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const LoginPage()),
-                          );
-                        }
-                      });
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => const LoginPage()),
+                      );
                     }
+                  } finally {
+                    // Reset logout state
+                    _globalState.setLogoutState(false);
                   }
                 },
               ),
@@ -617,6 +620,8 @@ class HomePageState extends State<HomePage> {
           ),
         ],
       ),
+        ),
+      ],
     );
   }
 }

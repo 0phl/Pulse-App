@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/rendering.dart';
 import 'dart:async';
 import 'firebase_options.dart';
 import 'widgets/delayed_auth_wrapper.dart';
@@ -66,6 +67,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Disable debug painting to prevent yellow debug lines
+  debugPaintSizeEnabled = false;
 
   if (kIsWeb) {
     try {
@@ -333,32 +337,71 @@ class _MainScreenState extends State<MainScreen> {
         }
         return true;
       },
-      child: Scaffold(
-        body: _pages[_selectedIndex],
-        bottomNavigationBar: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          currentIndex: _selectedIndex,
-          selectedItemColor: const Color(0xFF00C49A),
-          onTap: _onItemTapped,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: 'Home',
+      child: Stack(
+        children: [
+          Scaffold(
+            body: _pages[_selectedIndex],
+            bottomNavigationBar: BottomNavigationBar(
+              type: BottomNavigationBarType.fixed,
+              currentIndex: _selectedIndex,
+              selectedItemColor: const Color(0xFF00C49A),
+              onTap: _onItemTapped,
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home),
+                  label: 'Home',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.shopping_cart),
+                  label: 'Market',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.volunteer_activism),
+                  label: 'Volunteer',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.report),
+                  label: 'Report',
+                ),
+              ],
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_cart),
-              label: 'Market',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.volunteer_activism),
-              label: 'Volunteer',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.report),
-              label: 'Report',
-            ),
-          ],
-        ),
+          ),
+          // Global logout overlay that covers entire screen including bottom navigation
+          StreamBuilder<bool>(
+            stream: _globalState.logoutStream,
+            initialData: _globalState.isLoggingOut,
+            builder: (context, snapshot) {
+              final isLoggingOut = snapshot.data ?? false;
+              if (!isLoggingOut) return const SizedBox.shrink();
+
+              return Positioned.fill(
+                child: Material(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  child: const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Signing out...',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

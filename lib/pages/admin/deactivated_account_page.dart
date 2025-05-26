@@ -546,16 +546,20 @@ class _DeactivatedAccountPageState extends State<DeactivatedAccountPage> {
 
   Future<void> _signOut() async {
     try {
-      // Use AdminService for logout to ensure FCM tokens are removed
-      final adminService = AdminService();
-      await adminService.signOut();
+      // Add a 2.5 second delay to show any loading indicators
+      await Future.delayed(const Duration(milliseconds: 2500));
 
+      // Navigate after the delay
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil(
           '/login',
           (route) => false,
         );
       }
+
+      // Then sign out after navigation
+      final adminService = AdminService();
+      await adminService.signOut();
     } catch (e) {
       debugPrint('Error signing out: $e');
 
