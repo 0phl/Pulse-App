@@ -527,22 +527,11 @@ class _CommentsSheetState extends State<CommentsSheet> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (_replyingTo != null) ...[
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () => setState(() => _replyingTo = null),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.grey[600],
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text('Cancel Reply'),
-                  ),
-                ],
               ],
             ),
           ),
+
+
 
           // Comments list with pull-to-refresh
           Flexible(
@@ -646,13 +635,74 @@ class _CommentsSheetState extends State<CommentsSheet> {
             ),
           ),
 
+          // Reply banner (when replying to someone)
+          if (_replyingTo != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                border: Border(
+                  top: BorderSide(color: Colors.grey.shade200),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    'Replying to ',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _replyingTo!.authorName.startsWith('Admin')
+                          ? const Color(0xFF00C49A)
+                          : Colors.blue[600],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _replyingTo!.authorName,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '•',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => setState(() => _replyingTo = null),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Comment input
           SafeArea(
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.grey[50],
                 border: Border(
-                  top: BorderSide(color: Colors.grey.shade200),
+                  top: _replyingTo != null ? BorderSide.none : BorderSide(color: Colors.grey.shade200),
                 ),
               ),
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -752,50 +802,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
                                     contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                                     filled: true,
                                     fillColor: Colors.grey[100],
-                                    prefixIcon: _replyingTo != null
-                                        ? Padding(
-                                            padding: const EdgeInsets.only(right: 8.0),
-                                            child: Container(
-                                              margin: const EdgeInsets.only(left: 8.0),
-                                              child: IntrinsicWidth(
-                                                child: Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: _replyingTo!.authorName.startsWith('Admin')
-                                                        ? const Color(0xFF00C49A).withOpacity(0.1)
-                                                        : Colors.blue[50],
-                                                    borderRadius: BorderRadius.circular(12),
-                                                  ),
-                                                  child: Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      Text(
-                                                        '@${_replyingTo!.authorName}',
-                                                        style: TextStyle(
-                                                          fontSize: 12,
-                                                          fontWeight: FontWeight.w600,
-                                                          color: _replyingTo!.authorName.startsWith('Admin')
-                                                              ? const Color(0xFF00C49A)
-                                                              : Colors.blue[700],
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 4),
-                                                      GestureDetector(
-                                                        onTap: () => setState(() => _replyingTo = null),
-                                                        child: Icon(
-                                                          Icons.close,
-                                                          size: 12,
-                                                          color: Colors.grey[600],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          )
-                                        : null,
-                                    prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                                   ),
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {
