@@ -38,6 +38,7 @@ import 'pages/admin/notification_settings_page.dart';
 import 'services/user_session_service.dart';
 import 'services/global_state.dart';
 import 'services/media_cache_service.dart';
+import 'services/user_activity_service.dart';
 
 // Top-level function to handle background messages
 @pragma('vm:entry-point')
@@ -221,6 +222,7 @@ class _MainScreenState extends State<MainScreen> {
   DateTime? _lastPressedAt;
   final GlobalState _globalState = GlobalState();
   final UserService _userService = UserService();
+  final UserActivityService _activityService = UserActivityService();
   StreamSubscription? _communityStatusSubscription;
 
   @override
@@ -228,12 +230,22 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     // Start monitoring community status
     _startCommunityStatusMonitoring();
+
+    // Initialize comprehensive activity tracking
+    _activityService.initialize();
+
+    // Track that user opened the main screen
+    _activityService.trackPageNavigation('MainScreen');
   }
 
   @override
   void dispose() {
     // Cancel the subscription when the widget is disposed
     _communityStatusSubscription?.cancel();
+
+    // Clean up activity service
+    _activityService.dispose();
+
     super.dispose();
   }
 
@@ -269,6 +281,10 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   void _onItemTapped(int index) {
+    // Track navigation activity
+    final pageNames = ['Home', 'Market', 'Volunteer', 'Report'];
+    _activityService.trackPageNavigation(pageNames[index]);
+
     // If already on the home tab and pressing home again, scroll to top
     if (index == 0 && _selectedIndex == 0) {
       // Call the static method to scroll to top
@@ -382,7 +398,8 @@ class _MainScreenState extends State<MainScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
                         ),
                         SizedBox(height: 16),
                         Text(

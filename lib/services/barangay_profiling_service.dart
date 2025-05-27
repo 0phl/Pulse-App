@@ -52,7 +52,7 @@ class BarangayProfilingService {
 
           profiles.add(profile);
         } catch (e) {
-          debugPrint('Error processing barangay profile: $e');
+          continue;
         }
       }
 
@@ -91,7 +91,6 @@ class BarangayProfilingService {
         analytics: analytics,
       );
     } catch (e) {
-      debugPrint('Error getting barangay profile: $e');
       return null;
     }
   }
@@ -112,8 +111,7 @@ class BarangayProfilingService {
       final publicPosts = await _getPublicPostsCount(communityId);
 
       // Get reports submitted
-      final reportsCount =
-          await _getReportsCount(communityData['barangayCode']?.toString());
+      final reportsCount = await _getReportsCount(communityId);
 
       // Get volunteer participants
       final volunteerCount = await _getVolunteerParticipants(communityId);
@@ -126,8 +124,7 @@ class BarangayProfilingService {
       final weeklyVolunteers = await _getWeeklyVolunteers(communityId);
 
       // Get category reports
-      final categoryReports =
-          await _getCategoryReports(communityData['barangayCode']?.toString());
+      final categoryReports = await _getCategoryReports(communityId);
 
       return BarangayAnalytics(
         totalRegisteredUsers: totalUsers,
@@ -141,7 +138,6 @@ class BarangayProfilingService {
         lastUpdated: DateTime.now(),
       );
     } catch (e) {
-      debugPrint('Error calculating analytics: $e');
       return BarangayAnalytics(
         totalRegisteredUsers: 0,
         totalActiveUsers: 0,
@@ -167,7 +163,6 @@ class BarangayProfilingService {
           .get();
       return snapshot.docs.length;
     } catch (e) {
-      debugPrint('Error getting total users: $e');
       return 0;
     }
   }
@@ -176,16 +171,48 @@ class BarangayProfilingService {
     if (barangayCode == null) return 0;
 
     try {
-      final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+      final activeThreshold = DateTime.now().subtract(const Duration(days: 30));
+
       final snapshot = await _firestore
           .collection('users')
           .where('location.barangayCode', isEqualTo: barangayCode)
-          .where('lastActive', isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
+          .where('role', isEqualTo: 'member')
+          .where('lastActive',
+              isGreaterThan: Timestamp.fromDate(activeThreshold))
           .get();
+
       return snapshot.docs.length;
     } catch (e) {
-      debugPrint('Error getting active users: $e');
-      return 0;
+      try {
+        final allUsersSnapshot = await _firestore
+            .collection('users')
+            .where('location.barangayCode', isEqualTo: barangayCode)
+            .get();
+
+        final members = allUsersSnapshot.docs.where((doc) {
+          final data = doc.data();
+          return data['role'] == 'member';
+        }).toList();
+
+        final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+        int activeCount = 0;
+
+        for (var doc in members) {
+          final data = doc.data();
+          final lastActive = data['lastActive'] as Timestamp?;
+
+          if (lastActive != null) {
+            final lastActiveDate = lastActive.toDate();
+            if (lastActiveDate.isAfter(thirtyDaysAgo)) {
+              activeCount++;
+            }
+          }
+        }
+
+        return activeCount;
+      } catch (fallbackError) {
+        return 0;
+      }
     }
   }
 
@@ -194,7 +221,8 @@ class BarangayProfilingService {
       final snapshot = await _database
           .ref()
           .child('community_notices')
-          .child(communityId)
+          .orderByChild('communityId')
+          .equalTo(communityId)
           .get();
 
       if (!snapshot.exists) return 0;
@@ -202,48 +230,38 @@ class BarangayProfilingService {
       final data = snapshot.value as Map<dynamic, dynamic>?;
       return data?.length ?? 0;
     } catch (e) {
-      debugPrint('Error getting public posts: $e');
       return 0;
     }
   }
 
-  Future<int> _getReportsCount(String? barangayCode) async {
-    if (barangayCode == null) return 0;
-
+  Future<int> _getReportsCount(String communityId) async {
     try {
       final snapshot = await _firestore
           .collection('reports')
-          .where('location.barangayCode', isEqualTo: barangayCode)
+          .where('communityId', isEqualTo: communityId)
           .get();
       return snapshot.docs.length;
     } catch (e) {
-      debugPrint('Error getting reports count: $e');
       return 0;
     }
   }
 
   Future<int> _getVolunteerParticipants(String communityId) async {
     try {
-      final snapshot = await _database
-          .ref()
-          .child('volunteer_posts')
-          .child(communityId)
+      final snapshot = await _firestore
+          .collection('volunteer_posts')
+          .where('communityId', isEqualTo: communityId)
           .get();
 
-      if (!snapshot.exists) return 0;
-
-      final data = snapshot.value as Map<dynamic, dynamic>?;
-      if (data == null) return 0;
-
       int totalParticipants = 0;
-      for (var post in data.values) {
-        if (post is Map && post['participants'] is Map) {
-          totalParticipants += (post['participants'] as Map).length;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        if (data['joinedUsers'] is List) {
+          totalParticipants += (data['joinedUsers'] as List).length;
         }
       }
       return totalParticipants;
     } catch (e) {
-      debugPrint('Error getting volunteer participants: $e');
       return 0;
     }
   }
@@ -274,7 +292,6 @@ class BarangayProfilingService {
 
       return monthlyGrowth;
     } catch (e) {
-      debugPrint('Error getting monthly growth: $e');
       return {};
     }
   }
@@ -290,54 +307,45 @@ class BarangayProfilingService {
         final weekEnd = weekStart.add(const Duration(days: 6));
         final weekKey = '${weekStart.year}-W${_getWeekOfYear(weekStart)}';
 
-        final snapshot = await _database
-            .ref()
-            .child('volunteer_posts')
-            .child(communityId)
-            .orderByChild('createdAt')
-            .startAt(weekStart.millisecondsSinceEpoch)
-            .endAt(weekEnd.millisecondsSinceEpoch)
+        final snapshot = await _firestore
+            .collection('volunteer_posts')
+            .where('communityId', isEqualTo: communityId)
+            .where('date',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(weekStart))
+            .where('date', isLessThanOrEqualTo: Timestamp.fromDate(weekEnd))
             .get();
 
-        if (snapshot.exists) {
-          final data = snapshot.value as Map<dynamic, dynamic>;
-          int weeklyCount = 0;
-          for (var post in data.values) {
-            if (post is Map && post['participants'] is Map) {
-              weeklyCount += (post['participants'] as Map).length;
-            }
+        int weeklyCount = 0;
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          if (data['joinedUsers'] is List) {
+            weeklyCount += (data['joinedUsers'] as List).length;
           }
-          weeklyVolunteers[weekKey] = weeklyCount;
-        } else {
-          weeklyVolunteers[weekKey] = 0;
         }
+        weeklyVolunteers[weekKey] = weeklyCount;
       }
 
       return weeklyVolunteers;
     } catch (e) {
-      debugPrint('Error getting weekly volunteers: $e');
       return {};
     }
   }
 
-  Future<Map<String, int>> _getCategoryReports(String? barangayCode) async {
-    if (barangayCode == null) return {};
-
+  Future<Map<String, int>> _getCategoryReports(String communityId) async {
     try {
       final snapshot = await _firestore
           .collection('reports')
-          .where('location.barangayCode', isEqualTo: barangayCode)
+          .where('communityId', isEqualTo: communityId)
           .get();
 
       final Map<String, int> categoryReports = {};
       for (var doc in snapshot.docs) {
-        final category = doc.data()['category']?.toString() ?? 'Other';
+        final category = doc.data()['issueType']?.toString() ?? 'Other';
         categoryReports[category] = (categoryReports[category] ?? 0) + 1;
       }
 
       return categoryReports;
     } catch (e) {
-      debugPrint('Error getting category reports: $e');
       return {};
     }
   }

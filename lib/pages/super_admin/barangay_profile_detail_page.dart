@@ -546,22 +546,22 @@ class _BarangayProfileDetailPageState extends State<BarangayProfileDetailPage> {
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
                   maxY: _getMaxVolunteers(),
-                                     barTouchData: BarTouchData(
-                     touchTooltipData: BarTouchTooltipData(
-                       tooltipBgColor: Colors.blueGrey,
-                       tooltipHorizontalAlignment: FLHorizontalAlignment.right,
-                       tooltipMargin: -10,
-                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                         return BarTooltipItem(
-                           '${rod.toY.round()} volunteers',
-                           const TextStyle(
-                             color: Colors.white,
-                             fontWeight: FontWeight.bold,
-                           ),
-                         );
-                       },
-                     ),
-                   ),
+                  barTouchData: BarTouchData(
+                    touchTooltipData: BarTouchTooltipData(
+                      tooltipBgColor: Colors.blueGrey,
+                      tooltipHorizontalAlignment: FLHorizontalAlignment.right,
+                      tooltipMargin: -10,
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        return BarTooltipItem(
+                          '${rod.toY.round()} volunteers',
+                          const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                   titlesData: FlTitlesData(
                     show: true,
                     rightTitles: const AxisTitles(
@@ -656,7 +656,7 @@ class _BarangayProfileDetailPageState extends State<BarangayProfileDetailPage> {
             ),
             const SizedBox(height: 20),
             SizedBox(
-              height: 200,
+              height: 240,
               child: widget.profile.analytics.categoryReports.isEmpty
                   ? const Center(
                       child: Text(
@@ -667,18 +667,48 @@ class _BarangayProfileDetailPageState extends State<BarangayProfileDetailPage> {
                         ),
                       ),
                     )
-                  : PieChart(
-                      PieChartData(
-                        pieTouchData: PieTouchData(
-                          touchCallback:
-                              (FlTouchEvent event, pieTouchResponse) {},
-                          enabled: true,
+                  : Stack(
+                      children: [
+                        PieChart(
+                          PieChartData(
+                            pieTouchData: PieTouchData(
+                              touchCallback:
+                                  (FlTouchEvent event, pieTouchResponse) {},
+                              enabled: true,
+                            ),
+                            borderData: FlBorderData(show: false),
+                            sectionsSpace: 3,
+                            centerSpaceRadius: 55,
+                            sections: _getReportsSections(),
+                          ),
                         ),
-                        borderData: FlBorderData(show: false),
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 40,
-                        sections: _getReportsSections(),
-                      ),
+                        // Center text showing total reports
+                        Positioned.fill(
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${widget.profile.analytics.reportsSubmitted}',
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1F2937),
+                                  ),
+                                ),
+                                const Text(
+                                  'Total Reports',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF6B7280),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
             ),
             if (widget.profile.analytics.categoryReports.isNotEmpty) ...[
@@ -694,6 +724,13 @@ class _BarangayProfileDetailPageState extends State<BarangayProfileDetailPage> {
   Widget _buildReportsLegend() {
     final categories =
         widget.profile.analytics.categoryReports.entries.toList();
+    final total = categories.fold(0, (sum, entry) => sum + entry.value);
+
+    if (total == 0) return const SizedBox.shrink();
+
+    // Sort categories by value (descending)
+    categories.sort((a, b) => b.value.compareTo(a.value));
+
     final colors = [
       const Color(0xFFE74C3C),
       const Color(0xFFF5A623),
@@ -701,36 +738,97 @@ class _BarangayProfileDetailPageState extends State<BarangayProfileDetailPage> {
       const Color(0xFF4A90E2),
       const Color(0xFF9B59B6),
       const Color(0xFF1ABC9C),
+      const Color(0xFF3498DB),
+      const Color(0xFFE67E22),
     ];
 
-    return Wrap(
-      spacing: 16,
-      runSpacing: 8,
-      children: categories.asMap().entries.map((entry) {
-        final index = entry.key;
-        final category = entry.value;
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: colors[index % colors.length],
-                shape: BoxShape.circle,
-              ),
+    // Group small categories together (less than 5% of total)
+    final mainCategories = <MapEntry<String, int>>[];
+    int othersTotal = 0;
+
+    for (final category in categories) {
+      final percentage = (category.value / total) * 100;
+      if (percentage >= 5.0 && mainCategories.length < 6) {
+        mainCategories.add(category);
+      } else {
+        othersTotal += category.value;
+      }
+    }
+
+    // Add "Others" category if there are small categories
+    final legendItems = <MapEntry<String, int>>[];
+    legendItems.addAll(mainCategories);
+    if (othersTotal > 0) {
+      legendItems.add(MapEntry('Others', othersTotal));
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        children: legendItems.asMap().entries.map((entry) {
+          final index = entry.key;
+          final category = entry.value;
+          final percentage = (category.value / total) * 100;
+
+          return Padding(
+            padding:
+                EdgeInsets.only(bottom: index < legendItems.length - 1 ? 8 : 0),
+            child: Row(
+              children: [
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: colors[index % colors.length],
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    category.key,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF374151),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${category.value}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: colors[index % colors.length].withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '${percentage.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors[index % colors.length],
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 6),
-            Text(
-              '${category.key} (${category.value})',
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF64748B),
-              ),
-            ),
-          ],
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -863,6 +961,12 @@ class _BarangayProfileDetailPageState extends State<BarangayProfileDetailPage> {
     final categories =
         widget.profile.analytics.categoryReports.entries.toList();
     final total = categories.fold(0, (sum, entry) => sum + entry.value);
+
+    if (total == 0) return [];
+
+    // Sort categories by value (descending)
+    categories.sort((a, b) => b.value.compareTo(a.value));
+
     final colors = [
       const Color(0xFFE74C3C),
       const Color(0xFFF5A623),
@@ -870,9 +974,31 @@ class _BarangayProfileDetailPageState extends State<BarangayProfileDetailPage> {
       const Color(0xFF4A90E2),
       const Color(0xFF9B59B6),
       const Color(0xFF1ABC9C),
+      const Color(0xFF3498DB),
+      const Color(0xFFE67E22),
     ];
 
-    return categories.asMap().entries.map((entry) {
+    // Group small categories together (less than 5% of total)
+    final mainCategories = <MapEntry<String, int>>[];
+    int othersTotal = 0;
+
+    for (final category in categories) {
+      final percentage = (category.value / total) * 100;
+      if (percentage >= 5.0 && mainCategories.length < 6) {
+        mainCategories.add(category);
+      } else {
+        othersTotal += category.value;
+      }
+    }
+
+    // Add "Others" category if there are small categories
+    final sectionsToShow = <MapEntry<String, int>>[];
+    sectionsToShow.addAll(mainCategories);
+    if (othersTotal > 0) {
+      sectionsToShow.add(MapEntry('Others', othersTotal));
+    }
+
+    return sectionsToShow.asMap().entries.map((entry) {
       final index = entry.key;
       final category = entry.value;
       final percentage = (category.value / total) * 100;
@@ -880,12 +1006,19 @@ class _BarangayProfileDetailPageState extends State<BarangayProfileDetailPage> {
       return PieChartSectionData(
         color: colors[index % colors.length],
         value: category.value.toDouble(),
-        title: '${percentage.toStringAsFixed(1)}%',
-        radius: 60,
+        title: percentage >= 8.0 ? '${percentage.toStringAsFixed(1)}%' : '',
+        radius: 70,
         titleStyle: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
           color: Colors.white,
+          shadows: [
+            Shadow(
+              offset: Offset(0.5, 0.5),
+              blurRadius: 1.0,
+              color: Colors.black26,
+            ),
+          ],
         ),
       );
     }).toList();

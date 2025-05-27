@@ -8,6 +8,7 @@ import '../models/firestore_user.dart';
 import 'user_session_service.dart';
 import 'community_notice_service.dart';
 import 'notification_service.dart';
+import 'user_activity_service.dart';
 
 class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -15,6 +16,7 @@ class AuthService {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
   final UserSessionService _sessionService = UserSessionService();
   final CommunityNoticeService _noticeService = CommunityNoticeService();
+  final UserActivityService _activityService = UserActivityService();
   final _maxRetries = 3;
   final _retryDelay = const Duration(milliseconds: 500);
 
@@ -126,6 +128,9 @@ class AuthService {
             debugPrint('Error resetting FCM token after admin login: $e');
           }
 
+          // Track admin login activity
+          await _activityService.onUserLogin();
+
           return {
             'userCredential': userCredential,
             'userType': 'admin',
@@ -150,6 +155,9 @@ class AuthService {
       } catch (e) {
         debugPrint('Error resetting FCM token after login: $e');
       }
+
+      // Track user login activity
+      await _activityService.onUserLogin();
 
       return {
         'userCredential': userCredential,
@@ -250,6 +258,9 @@ class AuthService {
           .doc(userCredential.user!.uid)
           .set(firestoreUser.toMap());
 
+      // Initialize user activity tracking
+      await _activityService.initializeUserActivity(userCredential.user!.uid);
+
       return userCredential;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
@@ -259,6 +270,9 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     try {
+      // Track user activity before signing out
+      await _activityService.onUserLogout();
+
       // First remove FCM tokens to prevent push notifications after logout
       final notificationService = NotificationService();
       await notificationService.removeUserTokens();

@@ -18,7 +18,6 @@ class _BarangayProfilingPageState extends State<BarangayProfilingPage> {
   List<BarangayProfile> _allProfiles = [];
   List<BarangayProfile> _filteredProfiles = [];
   String _selectedSortBy = 'name';
-  String _selectedStatusFilter = 'all';
   bool _isLoading = true;
 
   final List<String> _sortOptions = [
@@ -26,14 +25,6 @@ class _BarangayProfilingPageState extends State<BarangayProfilingPage> {
     'registeredAt',
     'totalUsers',
     'activeUsers',
-    'status',
-  ];
-
-  final List<String> _statusOptions = [
-    'all',
-    'active',
-    'pending',
-    'inactive',
   ];
 
   @override
@@ -72,12 +63,8 @@ class _BarangayProfilingPageState extends State<BarangayProfilingPage> {
           _profilingService.filterBarangays(filtered, _searchController.text);
     }
 
-    // Apply status filter
-    if (_selectedStatusFilter != 'all') {
-      filtered = filtered
-          .where((profile) => profile.status == _selectedStatusFilter)
-          .toList();
-    }
+    // Only show active barangays
+    filtered = filtered.where((profile) => profile.status == 'active').toList();
 
     // Apply sorting
     filtered = _profilingService.sortBarangays(filtered, _selectedSortBy);
@@ -149,7 +136,7 @@ class _BarangayProfilingPageState extends State<BarangayProfilingPage> {
                               color: const Color(0xFF16A34A).withOpacity(0.2)),
                         ),
                         child: Text(
-                          '${_filteredProfiles.length} Barangays',
+                          '${_filteredProfiles.length} Active Barangays',
                           style: const TextStyle(
                             color: Color(0xFF16A34A),
                             fontWeight: FontWeight.w500,
@@ -167,8 +154,6 @@ class _BarangayProfilingPageState extends State<BarangayProfilingPage> {
                   Row(
                     children: [
                       Expanded(child: _buildSortDropdown()),
-                      const SizedBox(width: 12),
-                      Expanded(child: _buildStatusFilter()),
                     ],
                   ),
                 ] else ...[
@@ -177,8 +162,6 @@ class _BarangayProfilingPageState extends State<BarangayProfilingPage> {
                       Expanded(flex: 3, child: _buildSearchField()),
                       const SizedBox(width: 16),
                       Expanded(flex: 1, child: _buildSortDropdown()),
-                      const SizedBox(width: 16),
-                      Expanded(flex: 1, child: _buildStatusFilter()),
                     ],
                   ),
                 ],
@@ -257,43 +240,6 @@ class _BarangayProfilingPageState extends State<BarangayProfilingPage> {
       onChanged: (value) {
         setState(() {
           _selectedSortBy = value!;
-          _applyFilters();
-        });
-      },
-    );
-  }
-
-  Widget _buildStatusFilter() {
-    return DropdownButtonFormField<String>(
-      value: _selectedStatusFilter,
-      decoration: InputDecoration(
-        labelText: 'Status',
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFF00C49A)),
-        ),
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      ),
-      items: _statusOptions.map((option) {
-        return DropdownMenuItem(
-          value: option,
-          child: Text(_getStatusDisplayName(option)),
-        );
-      }).toList(),
-      onChanged: (value) {
-        setState(() {
-          _selectedStatusFilter = value!;
           _applyFilters();
         });
       },
@@ -621,21 +567,6 @@ class _BarangayProfilingPageState extends State<BarangayProfilingPage> {
         return 'Status';
       default:
         return sortBy;
-    }
-  }
-
-  String _getStatusDisplayName(String status) {
-    switch (status) {
-      case 'all':
-        return 'All Status';
-      case 'active':
-        return 'Active';
-      case 'pending':
-        return 'Pending';
-      case 'inactive':
-        return 'Inactive';
-      default:
-        return status;
     }
   }
 

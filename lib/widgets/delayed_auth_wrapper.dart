@@ -16,7 +16,7 @@ import '../pages/deactivated_community_page.dart';
 import 'loading_screen.dart';
 import '../services/user_session_service.dart';
 import '../services/notification_service.dart';
-
+import '../services/user_activity_service.dart';
 
 class DelayedAuthWrapper extends StatefulWidget {
   const DelayedAuthWrapper({super.key});
@@ -37,6 +37,7 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
   final _adminService = AdminService();
   final _userService = UserService();
   final _authService = AuthService();
+  final _activityService = UserActivityService();
 
   // State variables
   bool _isAuthenticating = true;
@@ -93,6 +94,8 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
           _navigateTo(const ChangePasswordPage());
         } else {
           // Redirect to admin dashboard
+          // Track admin activity
+          await _activityService.onAppResumed();
           _navigateTo(const AdminDashboardPage());
         }
       } else {
@@ -133,6 +136,8 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
             _navigateTo(const DeactivatedCommunityPage());
           } else {
             // Community is active, show regular user interface
+            // Track that user opened the app
+            await _activityService.onAppResumed();
             _navigateTo(const MainScreen());
           }
         } else {
@@ -176,11 +181,13 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
     // Double-check currentUser after waiting for the stream
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
-      debugPrint('Error: User became null unexpectedly after authStateChanges.');
+      debugPrint(
+          'Error: User became null unexpectedly after authStateChanges.');
       return; // Don't proceed if user is somehow null again
     }
 
-    debugPrint('User confirmed by authStateChanges: ${currentUser.uid}. Initializing NotificationService...');
+    debugPrint(
+        'User confirmed by authStateChanges: ${currentUser.uid}. Initializing NotificationService...');
 
     try {
       final notificationService = NotificationService();
@@ -191,16 +198,19 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
 
       // Then explicitly reset the token to ensure it's properly saved
       await notificationService.resetTokenAfterLogin();
-      debugPrint('FCM token explicitly reset after authentication in DelayedAuthWrapper');
+      debugPrint(
+          'FCM token explicitly reset after authentication in DelayedAuthWrapper');
     } catch (e) {
-      debugPrint('Error initializing NotificationService after authentication: $e');
+      debugPrint(
+          'Error initializing NotificationService after authentication: $e');
     }
   }
 
   // Helper methods with timeout handling
   Future<bool> _getSessionWithTimeout() async {
     try {
-      return await _sessionService.isLoggedIn()
+      return await _sessionService
+          .isLoggedIn()
           .timeout(_timeoutDuration, onTimeout: () => false);
     } catch (e) {
       return false;
@@ -219,7 +229,8 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
 
   Future<bool> _checkUserRoleWithTimeout() async {
     try {
-      return await _adminService.isCurrentUserAdmin()
+      return await _adminService
+          .isCurrentUserAdmin()
           .timeout(_timeoutDuration, onTimeout: () => false);
     } catch (e) {
       return false;
@@ -228,7 +239,9 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
 
   Future<AdminUser?> _getAdminUserWithTimeout(String uid) async {
     try {
-      return await _adminService.getAdminUser(uid).first
+      return await _adminService
+          .getAdminUser(uid)
+          .first
           .timeout(_timeoutDuration, onTimeout: () => null);
     } catch (e) {
       return null;
@@ -237,7 +250,10 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
 
   Future<DocumentSnapshot?> _getUserDocWithTimeout(String uid) async {
     try {
-      return await _firestore.collection('users').doc(uid).get()
+      return await _firestore
+          .collection('users')
+          .doc(uid)
+          .get()
           .timeout(_timeoutDuration, onTimeout: () {
         throw TimeoutException('User document fetch timed out');
       });
@@ -249,9 +265,8 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
   // Check if user's community is active with timeout
   Future<CommunityDeactivationStatus> _checkCommunityStatusWithTimeout() async {
     try {
-      return await _userService
-          .checkCommunityStatus()
-          .timeout(_timeoutDuration, onTimeout: () {
+      return await _userService.checkCommunityStatus().timeout(_timeoutDuration,
+          onTimeout: () {
         // On timeout, assume community is active to prevent false positives
         return CommunityDeactivationStatus.active();
       });

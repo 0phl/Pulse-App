@@ -2,6 +2,17 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+  
+  
+      match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+      
+      // Allow querying by barangayCode and lastActive
+      allow list: if true;
+    }
+  
+  
     // Helper functions
     function isSignedIn() {
       return request.auth != null;
@@ -218,6 +229,11 @@ service cloud.firestore {
       allow read: if canAccessStats();
     }
 
+    // User tokens collection for analytics
+    match /user_tokens/{document=**} {
+      allow read: if canAccessStats();
+    }
+
     // Old Notifications collection (for backward compatibility)
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
@@ -252,13 +268,21 @@ service cloud.firestore {
 
     // User tokens collection
     match /user_tokens/{userId} {
-      allow read: if isSignedIn() && userId == request.auth.uid;
+      allow read: if isSignedIn() && (userId == request.auth.uid || canAccessStats());
       allow create: if isSignedIn() && userId == request.auth.uid;
       allow update: if isSignedIn() && userId == request.auth.uid;
       allow delete: if isSignedIn() && userId == request.auth.uid;
     }
 
+    // <<< START OF NEW RULE >>>
+    // Rule for accessing the 'posts' collection for analytics
+    match /posts/{document=**} {
+      allow read: if canAccessStats();
+    }
+    // <<< END OF NEW RULE >>>
+
     // Deny access to other collections by default
+    // This should be the last rule in this block
     match /{document=**} {
       allow read, write: if false;
     }
