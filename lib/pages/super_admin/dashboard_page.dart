@@ -3,6 +3,7 @@ import '../../services/super_admin_service.dart';
 import 'widgets/admin_applications_list.dart';
 import 'widgets/communities_list.dart';
 import 'analytics_dashboard_page.dart';
+import 'barangay_profiling_page.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SuperAdminDashboardPage extends StatefulWidget {
@@ -78,7 +79,8 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                   children: [
                     DrawerHeader(
                       margin: EdgeInsets.zero,
-                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 20, horizontal: 12),
                       decoration: BoxDecoration(
                         color: const Color(0xFF00C49A),
                         boxShadow: [
@@ -160,8 +162,8 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                             },
                           ),
                           _buildDrawerItem(
-                            icon: Icons.analytics_rounded,
-                            title: 'Analytics',
+                            icon: Icons.location_city_rounded,
+                            title: 'Barangay Profiling',
                             isSelected: _selectedIndex == 2,
                             onTap: () {
                               setState(() {
@@ -170,11 +172,23 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                               Navigator.pop(context);
                             },
                           ),
+                          _buildDrawerItem(
+                            icon: Icons.analytics_rounded,
+                            title: 'Analytics',
+                            isSelected: _selectedIndex == 3,
+                            onTap: () {
+                              setState(() {
+                                _selectedIndex = 3;
+                              });
+                              Navigator.pop(context);
+                            },
+                          ),
                         ],
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       child: Divider(
                         color: Colors.grey.withOpacity(0.2),
                         thickness: 1.5,
@@ -241,7 +255,8 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                          side: const BorderSide(
+                              color: Color(0xFFE2E8F0), width: 1.5),
                           elevation: 0,
                           backgroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -336,14 +351,21 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                       onTap: () => setState(() => _selectedIndex = 1),
                     ),
                     _buildNavItem(
-                      icon: Icons.analytics_rounded,
-                      title: 'Analytics',
+                      icon: Icons.location_city_rounded,
+                      title: 'Barangay Profiling',
                       isSelected: _selectedIndex == 2,
                       onTap: () => setState(() => _selectedIndex = 2),
                     ),
+                    _buildNavItem(
+                      icon: Icons.analytics_rounded,
+                      title: 'Analytics',
+                      isSelected: _selectedIndex == 3,
+                      onTap: () => setState(() => _selectedIndex = 3),
+                    ),
                     const Spacer(),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       child: Divider(
                         color: Colors.grey.withOpacity(0.2),
                         thickness: 1.5,
@@ -412,7 +434,8 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                          side: const BorderSide(
+                              color: Color(0xFFE2E8F0), width: 1.5),
                           elevation: 0,
                           backgroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -436,6 +459,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                   children: const [
                     AdminApplicationsList(),
                     CommunitiesList(),
+                    BarangayProfilingPage(),
                     SuperAdminAnalyticsDashboardPage(),
                   ],
                 ),
@@ -502,19 +526,23 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFE6F7F2) : Colors.grey.withOpacity(0.1),
+            color: isSelected
+                ? const Color(0xFFE6F7F2)
+                : Colors.grey.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
             icon,
-            color: isSelected ? const Color(0xFF00C49A) : const Color(0xFF64748B),
+            color:
+                isSelected ? const Color(0xFF00C49A) : const Color(0xFF64748B),
             size: 20,
           ),
         ),
         title: Text(
           title,
           style: TextStyle(
-            color: isSelected ? const Color(0xFF00C49A) : const Color(0xFF64748B),
+            color:
+                isSelected ? const Color(0xFF00C49A) : const Color(0xFF64748B),
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             fontSize: 15,
           ),
