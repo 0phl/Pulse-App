@@ -40,13 +40,29 @@ Future<void> handleNotification(RemoteMessage message) async {
             message.data.containsKey('communityId');
         final String? communityId = message.data['communityId'];
 
+        // Check if this notification status already exists for this user
+        final existingStatusQuery = await firestore
+            .collection('notification_status')
+            .where('userId', isEqualTo: user.uid)
+            .where('notificationId', isEqualTo: message.data['notificationId'])
+            .limit(1)
+            .get();
+
+        if (existingStatusQuery.docs.isNotEmpty) {
+          debugPrint(
+              'Notification status already exists for this user and notification, skipping creation');
+          return;
+        }
+
         // Check if the current user is the author of the notification
         final String authorId = message.data['authorId'] ?? 'system';
         final bool isAuthor = user.uid == authorId;
 
         // For debugging
-        debugPrint('Processing notification - isCommunityNotification: $isCommunityNotification, communityId: $communityId');
-        debugPrint('Current user: ${user.uid}, Author: $authorId, isAuthor: $isAuthor');
+        debugPrint(
+            'Processing notification - isCommunityNotification: $isCommunityNotification, communityId: $communityId');
+        debugPrint(
+            'Current user: ${user.uid}, Author: $authorId, isAuthor: $isAuthor');
 
         // Create notification record in the appropriate collection
         DocumentReference notificationRef;
@@ -119,8 +135,10 @@ Future<void> handleNotification(RemoteMessage message) async {
 
         // IMPORTANT: Always create notification status records for community notices
         // Users should always see community notices regardless of who created them
-        if (notificationType == 'community_notice' || notificationType == 'communityNotices') {
-          debugPrint('Creating notification status for community notice for user: ${user.uid}');
+        if (notificationType == 'community_notice' ||
+            notificationType == 'communityNotices') {
+          debugPrint(
+              'Creating notification status for community notice for user: ${user.uid}');
           await firestore.collection('notification_status').add({
             'userId': user.uid,
             'notificationId': notificationRef.id,
@@ -128,13 +146,15 @@ Future<void> handleNotification(RemoteMessage message) async {
             'read': false,
             'createdAt': FieldValue.serverTimestamp(),
             'requestId': requestId,
-            'type': notificationType,  // Add type for easier filtering
+            'type': notificationType, // Add type for easier filtering
           });
-          debugPrint('Community notice notification status created for user ${user.uid}');
+          debugPrint(
+              'Community notice notification status created for user ${user.uid}');
         }
         // For other notification types, skip self-notifications
         else if (isAuthor && isCommunityNotification) {
-          debugPrint('Skipping notification status creation for author of non-community notice: ${user.uid}');
+          debugPrint(
+              'Skipping notification status creation for author of non-community notice: ${user.uid}');
         } else {
           // Create a status record for this user
           await firestore.collection('notification_status').add({
@@ -144,7 +164,7 @@ Future<void> handleNotification(RemoteMessage message) async {
             'read': false,
             'createdAt': FieldValue.serverTimestamp(),
             'requestId': requestId,
-            'type': notificationType,  // Add type for easier filtering
+            'type': notificationType, // Add type for easier filtering
           });
           debugPrint('Notification status created for user ${user.uid}');
         }
@@ -1005,8 +1025,10 @@ class NotificationService with WidgetsBindingObserver {
 
         // IMPORTANT: Always create notification status records for community notices
         // Users should always see community notices regardless of who created them
-        if (notificationType == 'community_notice' || notificationType == 'communityNotices') {
-          debugPrint('Creating notification status for community notice for user: ${user.uid}');
+        if (notificationType == 'community_notice' ||
+            notificationType == 'communityNotices') {
+          debugPrint(
+              'Creating notification status for community notice for user: ${user.uid}');
           await _firestore.collection('notification_status').add({
             'userId': user.uid,
             'notificationId': notificationRef.id,
@@ -1014,13 +1036,15 @@ class NotificationService with WidgetsBindingObserver {
             'read': false,
             'createdAt': FieldValue.serverTimestamp(),
             'requestId': requestId,
-            'type': notificationType,  // Add type for easier filtering
+            'type': notificationType, // Add type for easier filtering
           });
-          debugPrint('Community notice notification status created for user ${user.uid}');
+          debugPrint(
+              'Community notice notification status created for user ${user.uid}');
         }
         // For other notification types, skip self-notifications
         else if (isAuthor && isCommunityNotification) {
-          debugPrint('Skipping notification status creation for author of non-community notice: ${user.uid}');
+          debugPrint(
+              'Skipping notification status creation for author of non-community notice: ${user.uid}');
         } else {
           // Create a status record for this user
           await _firestore.collection('notification_status').add({
@@ -1030,7 +1054,7 @@ class NotificationService with WidgetsBindingObserver {
             'read': false,
             'createdAt': FieldValue.serverTimestamp(),
             'requestId': requestId,
-            'type': notificationType,  // Add type for easier filtering
+            'type': notificationType, // Add type for easier filtering
           });
           debugPrint('Notification status created for user ${user.uid}');
         }
@@ -1740,8 +1764,8 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Mark notification as read and delete from notification_status to save storage
-  // Returns the notification data before deleting so it can still be displayed
+  // Mark notification as read by deleting the notification_status record
+  // Returns the notification data so it can still be displayed as read
   Future<Map<String, dynamic>?> markNotificationAsRead(String statusId) async {
     try {
       // First get the notification status document to retrieve the notificationId and communityId
@@ -1781,6 +1805,10 @@ class NotificationService with WidgetsBindingObserver {
       // Get the notification data
       final notificationData = notificationDoc.data() as Map<String, dynamic>;
 
+      // Delete the notification status record to mark as read
+      await _firestore.collection('notification_status').doc(statusId).delete();
+      debugPrint('Notification status deleted (marked as read): $statusId');
+
       // Create a combined data object with both status and notification data
       final combinedData = {
         ...notificationData,
@@ -1790,10 +1818,6 @@ class NotificationService with WidgetsBindingObserver {
         'communityId': communityId,
       };
 
-      // Delete the notification status document to save storage
-      await _firestore.collection('notification_status').doc(statusId).delete();
-      debugPrint('Notification status deleted to save storage: $statusId');
-
       return combinedData;
     } catch (e) {
       debugPrint('Error marking notification as read: $e');
@@ -1801,7 +1825,7 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Mark all notifications as read for the current user and delete from notification_status
+  // Mark all notifications as read by deleting their notification_status records
   // Returns a list of notification data that can still be displayed
   Future<List<Map<String, dynamic>>> markAllNotificationsAsRead() async {
     final user = _auth.currentUser;
@@ -1820,7 +1844,7 @@ class NotificationService with WidgetsBindingObserver {
         return [];
       }
 
-      // Process each notification to get its data before deleting
+      // Process each notification to get its data before updating
       final List<Map<String, dynamic>> notificationDataList = [];
       final batch = _firestore.batch();
 
@@ -1859,18 +1883,18 @@ class NotificationService with WidgetsBindingObserver {
             }
           }
 
-          // Mark for deletion
+          // Delete the notification status record to mark as read
           batch.delete(doc.reference);
         } catch (e) {
           debugPrint('Error processing notification: $e');
         }
       }
 
-      // Execute the batch delete
+      // Execute the batch update
       await batch.commit();
 
       debugPrint(
-          'Marked and deleted ${unreadNotifications.docs.length} notifications');
+          'Marked ${unreadNotifications.docs.length} notifications as read');
       return notificationDataList;
     } catch (e) {
       debugPrint('Error marking all notifications as read: $e');
@@ -2058,7 +2082,15 @@ class NotificationService with WidgetsBindingObserver {
           .where('userId', isEqualTo: user.uid)
           .where('read', isEqualTo: false)
           .snapshots()
-          .map((snapshot) => snapshot.docs.length);
+          .map((snapshot) {
+        // Create a set of unique notification IDs
+        final uniqueNotificationIds = snapshot.docs
+            .map((doc) => doc.data()['notificationId'] as String)
+            .toSet();
+
+        // Return the count of unique notifications
+        return uniqueNotificationIds.length;
+      });
     } catch (e) {
       debugPrint('Error getting unread notification count stream: $e');
       return Stream.value(0);

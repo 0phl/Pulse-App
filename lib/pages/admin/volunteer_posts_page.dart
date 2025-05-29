@@ -108,9 +108,13 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     );
 
     try {
-      await FirebaseFirestore.instance
+      // Add the post and get the document reference
+      final docRef = await FirebaseFirestore.instance
           .collection('volunteer_posts')
           .add(post.toMap());
+
+      // Update the document with its ID
+      await docRef.update({'id': docRef.id});
 
       if (mounted) {
         Navigator.pop(context);
@@ -184,7 +188,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     }
   }
 
-  void _showCreatePostDialog({bool keepExistingValues = false, BuildContext? context}) {
+  void _showCreatePostDialog(
+      {bool keepExistingValues = false, BuildContext? context}) {
     final currentContext = context ?? this.context;
     if (!keepExistingValues) {
       // Only clear values if we're not keeping existing values
@@ -810,7 +815,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                                                 post.maxVolunteers
                                             : 0,
                                         backgroundColor: Colors.grey[200],
-                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
                                           post.joinedUsers.length >=
                                                   post.maxVolunteers
                                               ? Colors.redAccent
@@ -822,11 +828,13 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                                     Tooltip(
                                       message: 'View interested volunteers',
                                       child: IconButton(
-                                        icon: const Icon(Icons.visibility, size: 18),
+                                        icon: const Icon(Icons.visibility,
+                                            size: 18),
                                         color: const Color(0xFF00C49A),
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
-                                        onPressed: () => _showInterestedUsers(post),
+                                        onPressed: () =>
+                                            _showInterestedUsers(post),
                                       ),
                                     ),
                                   ],
@@ -1025,14 +1033,17 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                               final user = users[index];
                               return ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor: const Color(0xFF00C49A).withOpacity(0.1),
-                                  backgroundImage: user['profileImageUrl'] != null
+                                  backgroundColor:
+                                      const Color(0xFF00C49A).withOpacity(0.1),
+                                  backgroundImage: user['profileImageUrl'] !=
+                                          null
                                       ? NetworkImage(user['profileImageUrl'])
                                       : null,
                                   child: user['profileImageUrl'] == null
                                       ? Text(
                                           user['fullName']?.isNotEmpty == true
-                                              ? user['fullName'][0].toUpperCase()
+                                              ? user['fullName'][0]
+                                                  .toUpperCase()
                                               : '?',
                                           style: const TextStyle(
                                             color: Color(0xFF00C49A),
@@ -1051,11 +1062,13 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(user['email'] ?? 'No email'),
-                                    if (user['mobile'] != null && user['mobile'].isNotEmpty)
+                                    if (user['mobile'] != null &&
+                                        user['mobile'].isNotEmpty)
                                       Text(user['mobile']),
                                   ],
                                 ),
-                                isThreeLine: user['mobile'] != null && user['mobile'].isNotEmpty,
+                                isThreeLine: user['mobile'] != null &&
+                                    user['mobile'].isNotEmpty,
                                 dense: true,
                               );
                             },
@@ -1065,7 +1078,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
               ),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade50,
                   borderRadius: const BorderRadius.only(
@@ -1089,7 +1103,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     );
   }
 
-  Future<List<Map<String, dynamic>>> _fetchVolunteerUsers(List<String> userIds) async {
+  Future<List<Map<String, dynamic>>> _fetchVolunteerUsers(
+      List<String> userIds) async {
     try {
       final List<Map<String, dynamic>> users = [];
 
@@ -1117,7 +1132,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
 
               // Get user's name (handle both formats)
               String fullName = '';
-              if (rtdbData['firstName'] != null && rtdbData['lastName'] != null) {
+              if (rtdbData['firstName'] != null &&
+                  rtdbData['lastName'] != null) {
                 fullName = rtdbData['middleName'] != null &&
                         rtdbData['middleName'].toString().isNotEmpty
                     ? '${rtdbData['firstName']} ${rtdbData['middleName']} ${rtdbData['lastName']}'
@@ -1170,7 +1186,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     _locationController.text = post.location;
     _maxVolunteersController.text = post.maxVolunteers.toString();
     _selectedDate = post.eventDate;
-    _selectedTime = TimeOfDay(hour: post.eventDate.hour, minute: post.eventDate.minute);
+    _selectedTime =
+        TimeOfDay(hour: post.eventDate.hour, minute: post.eventDate.minute);
 
     showDialog(
       context: context,
@@ -1476,7 +1493,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     _selectedDate = DateTime.now().add(const Duration(days: 1));
 
     // Keep the same time from the original post
-    _selectedTime = TimeOfDay(hour: post.eventDate.hour, minute: post.eventDate.minute);
+    _selectedTime =
+        TimeOfDay(hour: post.eventDate.hour, minute: post.eventDate.minute);
 
     // Show the create post dialog with existing values
     _showCreatePostDialog(keepExistingValues: true);

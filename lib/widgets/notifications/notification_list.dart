@@ -34,6 +34,7 @@ class _NotificationListState extends State<NotificationList> {
   String? _error;
   bool _isAdmin = false;
   StreamSubscription? _notificationSubscription;
+  StreamSubscription? _statusSubscription; // Listen to status changes
   String? _communityId;
   final _refreshKey = GlobalKey<RefreshIndicatorState>();
 
@@ -68,18 +69,15 @@ class _NotificationListState extends State<NotificationList> {
           'NOTIFICATION DEBUG: Error getting unread notification count: $e');
     }
 
-    // Subscribe to unread notifications
+    // Subscribe to community notifications and status changes
     _subscribeToNotifications();
-
-    // Load community notifications if we have a community ID
-    if (_communityId != null) {
-      _loadCommunityNotifications();
-    }
+    _subscribeToStatusChanges();
   }
 
   @override
   void dispose() {
     _notificationSubscription?.cancel();
+    _statusSubscription?.cancel();
     super.dispose();
   }
 
@@ -90,18 +88,22 @@ class _NotificationListState extends State<NotificationList> {
     });
 
     try {
-      debugPrint('NOTIFICATION DEBUG: Subscribing to notifications stream');
+      debugPrint('NOTIFICATION DEBUG: Subscribing to community notifications stream');
 
-      // Subscribe to the notifications stream
-      _notificationSubscription =
-          notificationService.getUserNotifications().listen(
+      // Subscribe to community_notifications as the main source
+      _notificationSubscription = FirebaseFirestore.instance
+          .collection('community_notifications')
+          .where('communityId', isEqualTo: _communityId)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .listen(
         (snapshot) async {
           debugPrint(
-              'NOTIFICATION DEBUG: Received notification snapshot with ${snapshot.docs.length} documents');
+              'NOTIFICATION DEBUG: Received community notifications snapshot with ${snapshot.docs.length} documents');
 
           if (!snapshot.docs.isNotEmpty) {
             debugPrint(
-                'NOTIFICATION DEBUG: No notifications found in snapshot');
+                'NOTIFICATION DEBUG: No community notifications found in snapshot');
 
             // Add a small delay for initial load to prevent flash
             if (_isInitialLoad) {
@@ -110,6 +112,7 @@ class _NotificationListState extends State<NotificationList> {
 
             setState(() {
               _notifications = [];
+              _readNotifications = [];
               _isLoading = false;
               _isInitialLoad = false;
               _hasLoadedOnce = true;
@@ -117,86 +120,95 @@ class _NotificationListState extends State<NotificationList> {
             return;
           }
 
-          // Process notifications in batches to avoid loading too many at once
-          final List<NotificationModel> loadedNotifications = [];
-
-          // Log the raw notification status documents for debugging
-          for (final doc in snapshot.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            debugPrint(
-                'NOTIFICATION DEBUG: Raw notification status document: ${doc.id}');
-            debugPrint(
-                'NOTIFICATION DEBUG:   - userId: ${data['userId'] ?? 'null'}');
-            debugPrint(
-                'NOTIFICATION DEBUG:   - notificationId: ${data['notificationId'] ?? 'null'}');
-            debugPrint(
-                'NOTIFICATION DEBUG:   - read: ${data['read'] ?? 'null'}');
-            debugPrint(
-                'NOTIFICATION DEBUG:   - communityId: ${data['communityId'] ?? 'null'}');
+          // Get current user
+          final user = FirebaseAuth.instance.currentUser;
+          if (user == null) {
+            debugPrint('NOTIFICATION DEBUG: No authenticated user found');
+            return;
           }
+
+          // Get all notification status records for this user to check read status
+          final statusSnapshot = await FirebaseFirestore.instance
+              .collection('notification_status')
+              .where('userId', isEqualTo: user.uid)
+              .where('communityId', isEqualTo: _communityId)
+              .get();
+
+          // Create a map of notification IDs to their read status
+          final Map<String, bool> readStatusMap = {};
+          for (final statusDoc in statusSnapshot.docs) {
+            final data = statusDoc.data();
+            final notificationId = data['notificationId'] as String?;
+            if (notificationId != null) {
+              // If status record exists, notification is unread (false)
+              // If no status record exists, notification is considered read (true)
+              readStatusMap[notificationId] = false;
+            }
+          }
+
+          // Process notifications
+          final List<NotificationModel> unreadNotifications = [];
+          final List<NotificationModel> readNotifications = [];
 
           for (final doc in snapshot.docs) {
             try {
               debugPrint(
-                  'NOTIFICATION DEBUG: Loading notification from status doc: ${doc.id}');
-              final notification = await NotificationModel.fromStatusDoc(doc);
+                  'NOTIFICATION DEBUG: Processing community notification: ${doc.id}');
 
-              if (notification != null) {
-                // Log notification details for debugging
-                debugPrint(
-                    'NOTIFICATION DEBUG: Loaded notification: ${notification.title}');
-                debugPrint(
-                    'NOTIFICATION DEBUG:   - Body: ${notification.body}');
-                debugPrint(
-                    'NOTIFICATION DEBUG:   - Type: ${notification.type}');
+              final data = doc.data();
 
-                // Log more details for community notices
-                if (notification.type == 'community_notice' || notification.type == 'communityNotices') {
-                  debugPrint('COMMUNITY NOTICE FOUND: ${notification.title}');
-                  debugPrint('  - CommunityId: ${notification.communityId}');
-                  debugPrint('  - Author: ${notification.data['authorId'] ?? 'unknown'}');
-                  debugPrint('  - Full data: ${notification.data}');
+              // Check if this notification has a status record (unread) or not (read)
+              final isRead = !readStatusMap.containsKey(doc.id);
+
+              // Find the status document ID if it exists
+              String? statusId;
+              if (!isRead) {
+                for (final statusDoc in statusSnapshot.docs) {
+                  final statusData = statusDoc.data();
+                  if (statusData['notificationId'] == doc.id) {
+                    statusId = statusDoc.id;
+                    break;
+                  }
                 }
+              }
 
-                debugPrint(
-                    'NOTIFICATION DEBUG:   - Data: ${notification.data}');
-                debugPrint(
-                    'NOTIFICATION DEBUG:   - Read: ${notification.read}');
-                debugPrint('NOTIFICATION DEBUG:   - ID: ${notification.id}');
-                debugPrint(
-                    'NOTIFICATION DEBUG:   - NotificationID: ${notification.notificationId}');
+              // Create notification model
+              final Map<String, dynamic> completeData = {
+                ...data,
+                'userId': user.uid,
+                'statusId': statusId ?? doc.id, // Use notification ID if no status ID
+                'notificationId': doc.id,
+                'read': isRead,
+                'source': 'community',
+                'communityId': _communityId,
+              };
 
-                // Check if this is a self-notification
-                final isSelfNotif = notification.isSelfNotification();
-                debugPrint('NOTIFICATION DEBUG:   - Is self notification: $isSelfNotif');
+              final notification = NotificationModel.fromMap(completeData);
 
-                // For community notices, always add them to the list regardless of self-notification status
-                if (notification.type == 'community_notice' || notification.type == 'communityNotices') {
-                  debugPrint('NOTIFICATION DEBUG:   - Adding community notice to list');
-                  loadedNotifications.add(notification);
-                }
-                // For other notifications, skip self-notifications
-                else if (!isSelfNotif) {
-                  debugPrint(
-                      'NOTIFICATION DEBUG:   - Adding notification to list');
-                  loadedNotifications.add(notification);
+              // Log notification details for debugging
+              debugPrint(
+                  'NOTIFICATION DEBUG: Processed notification: ${notification.title}');
+              debugPrint(
+                  'NOTIFICATION DEBUG:   - Read: ${notification.read}');
+
+              // Skip self-notifications unless it's a community notice
+              if (!notification.isSelfNotification() ||
+                  notification.type == 'community_notice' ||
+                  notification.type == 'communityNotices' ||
+                  notification.type == 'volunteer') {
+                if (notification.read) {
+                  readNotifications.add(notification);
                 } else {
-                  debugPrint(
-                      'NOTIFICATION DEBUG:   - Skipping self-notification: ${notification.title}');
-                  // Delete self-notifications to clean up the database
-                  notificationService.deleteNotification(notification.id);
+                  unreadNotifications.add(notification);
                 }
               } else {
                 debugPrint(
-                    'NOTIFICATION DEBUG:   - Notification is null, could not load from status doc');
+                    'NOTIFICATION DEBUG: Skipping self-notification: ${notification.title}');
               }
             } catch (e) {
-              debugPrint('NOTIFICATION DEBUG: Error loading notification: $e');
+              debugPrint('NOTIFICATION DEBUG: Error processing notification: $e');
             }
           }
-
-          debugPrint(
-              'NOTIFICATION DEBUG: Loaded ${loadedNotifications.length} notifications');
 
           // Add a small delay for initial load to prevent flash
           if (_isInitialLoad) {
@@ -204,11 +216,15 @@ class _NotificationListState extends State<NotificationList> {
           }
 
           setState(() {
-            _notifications = loadedNotifications;
+            _notifications = unreadNotifications;
+            _readNotifications = readNotifications;
             _isLoading = false;
             _isInitialLoad = false;
             _hasLoadedOnce = true;
           });
+
+          debugPrint(
+              'NOTIFICATION DEBUG: Processed ${unreadNotifications.length} unread and ${readNotifications.length} read notifications');
         },
         onError: (e) {
           setState(() {
@@ -229,52 +245,130 @@ class _NotificationListState extends State<NotificationList> {
     }
   }
 
-  // Load community notifications from Firestore
-  Future<void> _loadCommunityNotifications() async {
+  // Subscribe to notification status changes to detect when notifications are marked as read
+  void _subscribeToStatusChanges() {
+    if (_communityId == null) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      debugPrint('NOTIFICATION DEBUG: Subscribing to notification status changes');
+
+      _statusSubscription = FirebaseFirestore.instance
+          .collection('notification_status')
+          .where('userId', isEqualTo: user.uid)
+          .where('communityId', isEqualTo: _communityId)
+          .snapshots()
+          .listen(
+        (snapshot) {
+          debugPrint('NOTIFICATION DEBUG: Status changes detected, refreshing notifications');
+          // When status changes (records added/deleted), refresh the main notification stream
+          _refreshNotificationData();
+        },
+        onError: (e) {
+          debugPrint('NOTIFICATION DEBUG: Error in status subscription: $e');
+        },
+      );
+    } catch (e) {
+      debugPrint('NOTIFICATION DEBUG: Error setting up status subscription: $e');
+    }
+  }
+
+  // Refresh notification data without showing loading indicators
+  Future<void> _refreshNotificationData() async {
     if (_communityId == null) return;
 
     try {
-      // Get community notifications
-      final notificationData = await notificationService
-          .getCommunityNotifications(_communityId!, limit: 50);
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-      if (notificationData.isNotEmpty) {
-        debugPrint('Loaded ${notificationData.length} community notifications');
+      // Get current community notifications
+      final notificationSnapshot = await FirebaseFirestore.instance
+          .collection('community_notifications')
+          .where('communityId', isEqualTo: _communityId)
+          .orderBy('createdAt', descending: true)
+          .get();
 
-        // Convert to NotificationModel objects and filter out self-notifications
-        final communityNotifications = notificationData
-            .map((data) {
-              // Add required fields for NotificationModel
-              final Map<String, dynamic> completeData = {
-                ...data,
-                'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
-                'statusId': data[
-                    'notificationId'], // Use notification ID as status ID for read notifications
-                'read': true, // Assume read since we're fetching directly
-                'source': 'community',
-              };
+      // Get current status records
+      final statusSnapshot = await FirebaseFirestore.instance
+          .collection('notification_status')
+          .where('userId', isEqualTo: user.uid)
+          .where('communityId', isEqualTo: _communityId)
+          .get();
 
-              return NotificationModel.fromMap(completeData);
-            })
-            .where((notification) => !notification
-                .isSelfNotification()) // Filter out self-notifications
-            .toList();
+      // Create a map of notification IDs to their read status
+      final Map<String, bool> readStatusMap = {};
+      for (final statusDoc in statusSnapshot.docs) {
+        final data = statusDoc.data();
+        final notificationId = data['notificationId'] as String?;
+        if (notificationId != null) {
+          readStatusMap[notificationId] = false; // Has status record = unread
+        }
+      }
 
-        debugPrint(
-            'Loaded ${communityNotifications.length} community notifications after filtering out self-notifications');
+      // Process notifications
+      final List<NotificationModel> unreadNotifications = [];
+      final List<NotificationModel> readNotifications = [];
 
-        // Add to read notifications list
+      for (final doc in notificationSnapshot.docs) {
+        try {
+          final data = doc.data();
+          final isRead = !readStatusMap.containsKey(doc.id);
+
+          // Find the status document ID if it exists
+          String? statusId;
+          if (!isRead) {
+            for (final statusDoc in statusSnapshot.docs) {
+              final statusData = statusDoc.data();
+              if (statusData['notificationId'] == doc.id) {
+                statusId = statusDoc.id;
+                break;
+              }
+            }
+          }
+
+          // Create notification model
+          final Map<String, dynamic> completeData = {
+            ...data,
+            'userId': user.uid,
+            'statusId': statusId ?? doc.id,
+            'notificationId': doc.id,
+            'read': isRead,
+            'source': 'community',
+            'communityId': _communityId,
+          };
+
+          final notification = NotificationModel.fromMap(completeData);
+
+          // Skip self-notifications unless it's a community notice
+          if (!notification.isSelfNotification() ||
+              notification.type == 'community_notice' ||
+              notification.type == 'communityNotices' ||
+              notification.type == 'volunteer') {
+            if (notification.read) {
+              readNotifications.add(notification);
+            } else {
+              unreadNotifications.add(notification);
+            }
+          }
+        } catch (e) {
+          debugPrint('NOTIFICATION DEBUG: Error processing notification in refresh: $e');
+        }
+      }
+
+      // Update state
+      if (mounted) {
         setState(() {
-          _readNotifications = communityNotifications;
-          debugPrint(
-              'Updated read notifications list with ${_readNotifications.length} items');
+          _notifications = unreadNotifications;
+          _readNotifications = readNotifications;
         });
-      } else {
+
         debugPrint(
-            'No community notifications found for community $_communityId');
+            'NOTIFICATION DEBUG: Refreshed data - ${unreadNotifications.length} unread, ${readNotifications.length} read');
       }
     } catch (e) {
-      debugPrint('Error loading community notifications: $e');
+      debugPrint('NOTIFICATION DEBUG: Error refreshing notification data: $e');
     }
   }
 
@@ -286,16 +380,13 @@ class _NotificationListState extends State<NotificationList> {
       });
     }
 
-    // Cancel existing subscription
+    // Cancel existing subscriptions
     await _notificationSubscription?.cancel();
+    await _statusSubscription?.cancel();
 
     // Resubscribe to get fresh data
     _subscribeToNotifications();
-
-    // Reload community notifications
-    if (_communityId != null) {
-      await _loadCommunityNotifications();
-    }
+    _subscribeToStatusChanges();
 
     // Only set loading to false if we were showing loading
     if (!_hasLoadedOnce) {
@@ -489,7 +580,6 @@ class _NotificationListState extends State<NotificationList> {
 
   @override
   Widget build(BuildContext context) {
-
     if (_error != null) {
       return Center(
         child: Column(
@@ -509,11 +599,23 @@ class _NotificationListState extends State<NotificationList> {
       );
     }
 
-    // Combine unread notifications and read community notifications
-    List<NotificationModel> allNotifications = [
-      ..._notifications,
-      ..._readNotifications
-    ];
+    // Combine unread notifications and read community notifications with deduplication
+    final Map<String, NotificationModel> uniqueNotifications = {};
+
+    // Add unread notifications first
+    for (var notification in _notifications) {
+      uniqueNotifications[notification.notificationId] = notification;
+    }
+
+    // Add read notifications, only if they don't already exist
+    for (var notification in _readNotifications) {
+      if (!uniqueNotifications.containsKey(notification.notificationId)) {
+        uniqueNotifications[notification.notificationId] = notification;
+      }
+    }
+
+    List<NotificationModel> allNotifications =
+        uniqueNotifications.values.toList();
 
     // Filter notifications based on admin status
     if (widget.isAdminView) {
@@ -526,7 +628,8 @@ class _NotificationListState extends State<NotificationList> {
         final bool isSelfNotif = notification.isSelfNotification();
 
         // Log for debugging
-        debugPrint('ADMIN NOTIFICATION FILTER: ${notification.title} - isAdminNotification: $isAdminNotification, isSelfNotification: $isSelfNotif');
+        debugPrint(
+            'ADMIN NOTIFICATION FILTER: ${notification.title} - isAdminNotification: $isAdminNotification, isSelfNotification: $isSelfNotif');
         debugPrint('  - Type: ${notification.type}');
         debugPrint('  - Data: ${notification.data}');
 
@@ -539,34 +642,41 @@ class _NotificationListState extends State<NotificationList> {
         return isAdminNotification;
       }).toList();
 
-      debugPrint('ADMIN NOTIFICATION FILTER: Filtered to ${allNotifications.length} admin notifications');
+      debugPrint(
+          'ADMIN NOTIFICATION FILTER: Filtered to ${allNotifications.length} admin notifications');
     } else {
       // For regular user view, filter out admin-specific notifications and self-notifications
       allNotifications = allNotifications.where((notification) {
         // Always include community notices for regular users
-        if (notification.type == 'community_notice' || notification.type == 'communityNotices') {
-          debugPrint('USER NOTIFICATION FILTER: Including community notice: ${notification.title}');
+        if (notification.type == 'community_notice' ||
+            notification.type == 'communityNotices') {
+          debugPrint(
+              'USER NOTIFICATION FILTER: Including community notice: ${notification.title}');
           return true;
         }
 
         // Skip admin-specific notifications for regular users
         if (notification.isAdminNotification()) {
-          debugPrint('USER NOTIFICATION FILTER: Skipping admin notification: ${notification.title}');
+          debugPrint(
+              'USER NOTIFICATION FILTER: Skipping admin notification: ${notification.title}');
           return false;
         }
 
         // Skip self-notifications (except community notices which we already handled)
         if (notification.isSelfNotification()) {
-          debugPrint('USER NOTIFICATION FILTER: Skipping self-notification: ${notification.title}');
+          debugPrint(
+              'USER NOTIFICATION FILTER: Skipping self-notification: ${notification.title}');
           return false;
         }
 
         // Keep all other notifications
-        debugPrint('USER NOTIFICATION FILTER: Including regular notification: ${notification.title}');
+        debugPrint(
+            'USER NOTIFICATION FILTER: Including regular notification: ${notification.title}');
         return true;
       }).toList();
 
-      debugPrint('USER NOTIFICATION FILTER: Filtered to ${allNotifications.length} user notifications');
+      debugPrint(
+          'USER NOTIFICATION FILTER: Filtered to ${allNotifications.length} user notifications');
     }
 
     // Apply filter if provided
@@ -660,10 +770,19 @@ class _NotificationListState extends State<NotificationList> {
           final notification = allNotifications[index];
           return NotificationItem(
             notification: notification,
-            onTap: () {
+            onTap: () async {
+              debugPrint(
+                  'Tapped notification: ${notification.type} - ${notification.title}');
+
               // Mark notification as read when tapped
               if (!notification.read) {
-                notificationService.markNotificationAsRead(notification.id);
+                final updatedData = await notificationService
+                    .markNotificationAsRead(notification.id);
+                if (updatedData != null) {
+                  // The stream will automatically update since we're listening to community_notifications
+                  // and checking notification_status for read state. No manual state update needed.
+                  debugPrint('Notification marked as read: ${notification.id}');
+                }
               }
 
               // Handle tap based on notification type
@@ -680,19 +799,10 @@ class _NotificationListState extends State<NotificationList> {
 
               // If user confirmed deletion, proceed with deletion
               if (shouldDelete) {
-                // Delete notification from the list
-                setState(() {
-                  if (_notifications.contains(notification)) {
-                    _notifications.remove(notification);
-                  } else if (_readNotifications.contains(notification)) {
-                    _readNotifications.remove(notification);
-                  }
-                });
-
-                // Delete from the database
+                // Delete from the database - this will automatically update the stream
                 notificationService.deleteNotification(notification.id);
 
-                // Show snackbar with undo option
+                // Show snackbar
                 if (mounted) {
                   scaffoldMessenger.showSnackBar(
                     SnackBar(
@@ -701,19 +811,6 @@ class _NotificationListState extends State<NotificationList> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
                       duration: const Duration(seconds: 3),
-                      action: SnackBarAction(
-                        label: 'UNDO',
-                        onPressed: () {
-                          // Add notification back to the list
-                          setState(() {
-                            if (notification.read) {
-                              _readNotifications.add(notification);
-                            } else {
-                              _notifications.add(notification);
-                            }
-                          });
-                        },
-                      ),
                     ),
                   );
                 }

@@ -93,6 +93,10 @@ class _VolunteerPageState extends State<VolunteerPage> {
         return;
       }
 
+      debugPrint(
+          'DEBUG: User ${currentUser.uid} attempting to join volunteer post ${post.id}');
+      debugPrint('DEBUG: Post admin ID: ${post.adminId}');
+
       if (post.joinedUsers.contains(currentUser.uid)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -108,6 +112,7 @@ class _VolunteerPageState extends State<VolunteerPage> {
         return;
       }
 
+      debugPrint('DEBUG: Updating volunteer post with new user');
       await FirebaseFirestore.instance
           .collection('volunteer_posts')
           .doc(post.id)
@@ -115,11 +120,13 @@ class _VolunteerPageState extends State<VolunteerPage> {
         'joinedUsers': FieldValue.arrayUnion([currentUser.uid]),
       });
 
+      debugPrint('DEBUG: Successfully updated volunteer post');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Successfully joined the volunteer activity!')),
       );
     } catch (e) {
+      debugPrint('DEBUG: Error joining volunteer post: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error joining activity: $e')),
       );
@@ -141,33 +148,34 @@ class _VolunteerPageState extends State<VolunteerPage> {
 
       if (!post.joinedUsers.contains(currentUser.uid)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('You have not joined this activity')),
+          const SnackBar(content: Text('You have not joined this activity')),
         );
         return;
       }
 
       // Show confirmation dialog
       final bool confirm = await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Cancel Registration'),
-          content: const Text('Are you sure you want to cancel your registration for this volunteer activity?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('No'),
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Cancel Registration'),
+              content: const Text(
+                  'Are you sure you want to cancel your registration for this volunteer activity?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('No'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Yes'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red,
+                  ),
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Yes'),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.red,
-              ),
-            ),
-          ],
-        ),
-      ) ?? false;
+          ) ??
+          false;
 
       if (!confirm) return;
 
@@ -192,7 +200,8 @@ class _VolunteerPageState extends State<VolunteerPage> {
   Widget _buildVolunteerCard(VolunteerPost post) {
     final spotsLeft = post.maxVolunteers - post.joinedUsers.length;
     final currentUser = AuthService().currentUser;
-    final bool hasJoined = currentUser != null && post.joinedUsers.contains(currentUser.uid);
+    final bool hasJoined =
+        currentUser != null && post.joinedUsers.contains(currentUser.uid);
     final bool isFull = spotsLeft <= 0;
 
     return Card(
@@ -228,7 +237,8 @@ class _VolunteerPageState extends State<VolunteerPage> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
@@ -340,7 +350,8 @@ class _VolunteerPageState extends State<VolunteerPage> {
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () => _cancelVolunteerPost(context, post),
+                            onPressed: () =>
+                                _cancelVolunteerPost(context, post),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.redAccent,
                               shape: RoundedRectangleBorder(
@@ -362,7 +373,9 @@ class _VolunteerPageState extends State<VolunteerPage> {
                       ],
                     )
                   : ElevatedButton(
-                      onPressed: isFull ? null : () => _joinVolunteerPost(context, post),
+                      onPressed: isFull
+                          ? null
+                          : () => _joinVolunteerPost(context, post),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF00C49A),
                         disabledBackgroundColor: Colors.grey[300],
@@ -536,7 +549,8 @@ class _VolunteerPageState extends State<VolunteerPage> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
                     ),
                   );
                 }

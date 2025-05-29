@@ -91,9 +91,13 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
     );
 
     try {
-      await FirebaseFirestore.instance
+      // Add the post and get the document reference
+      final docRef = await FirebaseFirestore.instance
           .collection('volunteer_posts')
           .add(post.toMap());
+
+      // Update the document with its ID
+      await docRef.update({'id': docRef.id});
 
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/admin/volunteer-posts');
@@ -229,9 +233,8 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
                 label: 'Title',
                 controller: _titleController,
                 hintText: 'Tree Planting',
-                validator: (value) => value?.isEmpty ?? true
-                    ? 'Please enter a title'
-                    : null,
+                validator: (value) =>
+                    value?.isEmpty ?? true ? 'Please enter a title' : null,
               ),
               const SizedBox(height: 16),
               _buildFormField(
@@ -274,7 +277,8 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
                                     size: 18, color: Color(0xFF00C49A)),
                                 const SizedBox(width: 8),
                                 Text(
-                                  DateFormat('MMM dd, yyyy').format(_selectedDate),
+                                  DateFormat('MMM dd, yyyy')
+                                      .format(_selectedDate),
                                   style: const TextStyle(fontSize: 14),
                                 ),
                               ],
@@ -330,9 +334,8 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
                 label: 'Location',
                 controller: _locationController,
                 hintText: 'Barangay Pulse',
-                validator: (value) => value?.isEmpty ?? true
-                    ? 'Please enter a location'
-                    : null,
+                validator: (value) =>
+                    value?.isEmpty ?? true ? 'Please enter a location' : null,
               ),
               const SizedBox(height: 16),
               _buildFormField(
