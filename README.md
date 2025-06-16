@@ -200,5 +200,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
   <p>Built with ❤️ for stronger communities</p>
-  <p>© 2024 PULSE Community Platform. All rights reserved.</p>
+  <p>© 2025 PULSE Community Platform. All rights reserved.</p>
 </div>
