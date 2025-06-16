@@ -41,7 +41,7 @@ PULSE is a feature-rich community engagement mobile application designed to stre
 ### 📢 Community Reporting
 - **Civic Engagement**: Report community concerns and issues
 - **Status Tracking**: Monitor the progress of reported issues
-- **Location-Based Reporting**: GPS-enabled reporting with map integration
+- **Location-Based Reporting**: GPS-enabled reporting (Needs Location Permission)
 - **Administrative Review**: Streamlined review process for community administrators
 
 ### 💬 Communication
@@ -75,7 +75,7 @@ PULSE is a feature-rich community engagement mobile application designed to stre
 ### Key Dependencies
 - **Firebase Suite**: Core, Auth, Firestore, Realtime Database, Storage, Messaging
 - **Media Processing**: Image picker, cropper, compression, video handling
-- **Maps & Location**: Flutter Map, Geolocator, Geocoding
+- **Location**: Geolocator, Geocoding
 - **UI Components**: Charts (fl_chart), PDF generation, QR codes
 - **Networking**: HTTP, Dio for file downloads
 - **Local Storage**: Shared Preferences, Path Provider
