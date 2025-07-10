@@ -29,7 +29,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   bool _isInitialized = false;
   bool _hasError = false;
   String _errorMessage = '';
-  double _playbackSpeed = 1.0; // Used for restoring playback speed
+  double _playbackSpeed = 1.0;
 
   // For downloading and saving video
   bool _isDownloading = false;
@@ -58,7 +58,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         _downloadProgress = 0.0;
       });
 
-      // Get temporary directory
       final tempDir = await getTemporaryDirectory();
       final fileName = widget.videoUrl.split('/').last;
       final filePath = '${tempDir.path}/$fileName';
@@ -77,7 +76,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       );
 
       if (mounted) {
-        // Save the video directly to gallery
         final mediaSaverService = MediaSaverService();
         await mediaSaverService.saveVideoToGallery(
           filePath: filePath,
@@ -113,7 +111,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   Future<void> _initializePlayer() async {
     try {
-      // Use existing controller if provided, otherwise create a new one
       if (widget.existingController != null) {
         _videoPlayerController = widget.existingController!;
 
@@ -125,18 +122,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           if (mounted) {
             setState(() {
               _isInitialized = true;
-              // Get the current playback speed
               _playbackSpeed = _videoPlayerController.value.playbackSpeed;
             });
           }
           return;
         }
       } else {
-        // Create a new controller if none was provided
         _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
       }
 
-      // Initialize the controller if needed
       await _videoPlayerController.initialize();
 
       _createChewieController();
@@ -158,7 +152,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   void _createChewieController() {
-    // Save current position if controller exists
     Duration? currentPosition;
     bool wasPlaying = false;
     if (_chewieController != null) {
@@ -297,7 +290,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       ),
       allowFullScreen: true,
       allowMuting: true,
-      showControls: true, // Use built-in controls
+              showControls: true,
       showControlsOnInitialize: true,
       hideControlsTimer: const Duration(seconds: 3),
       customControls: const CupertinoControls(
@@ -382,7 +375,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                               // Video player with proper sizing for portrait videos
                               LayoutBuilder(
                                 builder: (context, constraints) {
-                                  // Get video aspect ratio
                                   final aspectRatio = _videoPlayerController.value.aspectRatio;
 
                                   // For fullscreen player, we'll use the video's natural aspect ratio

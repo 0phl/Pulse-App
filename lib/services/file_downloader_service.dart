@@ -28,7 +28,6 @@ class FileDownloaderService {
     Function(double)? onProgress,
   }) async {
     try {
-      // Check and request storage permission
       if (!await _checkPermission()) {
         if (context.mounted) {
           _showSnackBar(
@@ -40,7 +39,6 @@ class FileDownloaderService {
         return false;
       }
 
-      // Show downloading indicator
       if (context.mounted) {
         _showSnackBar(
           context,
@@ -49,7 +47,6 @@ class FileDownloaderService {
         );
       }
 
-      // Get the downloads directory
       final downloadsDir = await _getDownloadsDirectory();
       if (downloadsDir == null) {
         if (context.mounted) {
@@ -62,11 +59,9 @@ class FileDownloaderService {
         return false;
       }
 
-      // Create the file path
       final filePath = path.join(downloadsDir.path, fileName);
       final file = File(filePath);
 
-      // Check if file already exists
       if (await file.exists()) {
         // If file exists, open it directly
         if (context.mounted) {
@@ -97,7 +92,6 @@ class FileDownloaderService {
         ),
       );
 
-      // Show success message
       if (context.mounted) {
         _showSnackBar(
           context,
@@ -151,7 +145,6 @@ class FileDownloaderService {
   /// Checks and requests storage permission
   Future<bool> _checkPermission() async {
     if (Platform.isAndroid) {
-      // Check Android version
       if (await _isAndroid11OrHigher()) {
         // For Android 11+, try both permissions
         // First try MANAGE_EXTERNAL_STORAGE
@@ -199,7 +192,6 @@ class FileDownloaderService {
   /// Helper method to check Android version
   Future<bool> _isAndroid11OrHigher() async {
     if (Platform.isAndroid) {
-      // Use a simpler approach based on Android release date
       // Android 11 was released in September 2020
       // This is a fallback approach since we're not using device_info_plus
       try {
@@ -265,7 +257,6 @@ class FileDownloaderService {
     Function(double)? onProgress,
   }) async {
     try {
-      // Check and request storage permission
       if (!await _checkPermission()) {
         if (context.mounted) {
           _showSnackBar(
@@ -277,7 +268,6 @@ class FileDownloaderService {
         return null;
       }
 
-      // Show downloading indicator
       if (context.mounted) {
         _showSnackBar(
           context,
@@ -286,7 +276,6 @@ class FileDownloaderService {
         );
       }
 
-      // Get temporary directory
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final tempFileName = 'PULSE_temp_${timestamp}_$fileName';
@@ -309,7 +298,6 @@ class FileDownloaderService {
         ),
       );
 
-      // Save to PULSE album
       if (context.mounted) {
         final fileExtension = path.extension(fileName).toLowerCase();
         final isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].contains(fileExtension);

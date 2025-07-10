@@ -52,7 +52,6 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
 
   // Start the authentication process after the loading delay
   void _startAuthenticationProcess() {
-    // Show loading screen for the specified delay
     Future.delayed(_loadingDelay, () {
       if (mounted) {
         _authenticate();
@@ -63,10 +62,8 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
   // Main authentication process
   Future<void> _authenticate() async {
     try {
-      // Check for existing session
       await _getSessionWithTimeout();
 
-      // Get current user
       final user = await _getCurrentUserWithTimeout();
 
       if (user == null) {
@@ -75,11 +72,9 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
         return;
       }
 
-      // Check if user is admin
       final isAdmin = await _checkUserRoleWithTimeout();
 
       if (isAdmin) {
-        // Get admin user data
         final adminUser = await _getAdminUserWithTimeout(user.uid);
 
         if (adminUser == null) {
@@ -88,7 +83,6 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
           return;
         }
 
-        // Check if it's admin's first login
         if (adminUser.isFirstLogin) {
           // Redirect to change password page
           _navigateTo(const ChangePasswordPage());
@@ -129,7 +123,6 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
             rejectionReason: userData['rejectionReason'] as String?,
           ));
         } else if (verificationStatus == 'verified') {
-          // Check if user's community is active
           final communityStatus = await _checkCommunityStatusWithTimeout();
           if (communityStatus.isDeactivated) {
             // Community is deactivated, show deactivated community page
@@ -161,7 +154,6 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
   // Helper method to navigate to a screen
   void _navigateTo(Widget screen) {
     if (mounted) {
-      // Initialize notification service if user is authenticated
       if (screen is! LoginPage) {
         _initializeNotificationService();
       }
@@ -173,7 +165,6 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
     }
   }
 
-  // Initialize notification service
   Future<void> _initializeNotificationService() async {
     // Wait for the auth state to confirm a user is logged in
     await _auth.authStateChanges().firstWhere((user) => user != null);
@@ -262,7 +253,6 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
     }
   }
 
-  // Check if user's community is active with timeout
   Future<CommunityDeactivationStatus> _checkCommunityStatusWithTimeout() async {
     try {
       return await _userService.checkCommunityStatus().timeout(_timeoutDuration,
@@ -285,7 +275,6 @@ class _DelayedAuthWrapperState extends State<DelayedAuthWrapper> {
       );
     }
 
-    // Show the next screen after authentication
     return _nextScreen!;
   }
 }

@@ -45,7 +45,6 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
   }
 
   void _preloadImageDimensions(String imageUrl) {
-    // Get optimized URL for preloading
     final cloudinaryService = CloudinaryService();
     final optimizedUrl = cloudinaryService.getOptimizedImageUrl(imageUrl);
 
@@ -77,7 +76,6 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
       return const SizedBox();
     }
 
-    // Calculate appropriate height based on available images
     double calculatedHeight = widget.height;
     final screenWidth = MediaQuery.of(context).size.width;
     final availableWidth = widget.width ?? screenWidth - 24; // Reduced padding for more space
@@ -143,7 +141,6 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
 
     // For multiple images, use a fixed height that's appropriate for a grid
     if (widget.imageUrls.length > 1) {
-      // Use a height that works well for grids
       if (widget.imageUrls.length == 2) {
         calculatedHeight = 220.0; // Shorter for 2 images side by side
       } else if (widget.imageUrls.length == 3) {
@@ -178,7 +175,6 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
           // Always use cover for all images in tabbed view to fill container completely
           imageFit = BoxFit.cover;
         } else if (isPortrait || isSmallImage || isVerySmallImage || isTinyImage) {
-          // Use cover for portrait and small images to reduce white space
           imageFit = BoxFit.cover;
         }
       }
@@ -219,7 +215,6 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
                   width: double.infinity,
                   height: double.infinity,
                   child: Image.network(
-                    // Use optimized URL for better performance and bandwidth savings
                     CloudinaryService().getOptimizedImageUrl(imageUrl, isListView: false),
                     fit: imageFit,
                     width: double.infinity,
@@ -307,7 +302,6 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
     );
   }
 
-  // Build a grid of images
   Widget _buildImageGrid() {
     final int imageCount = widget.imageUrls.length;
 
@@ -468,7 +462,6 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
     }
   }
 
-  // Build a single grid item
   Widget _buildGridItem(int index, {bool showHero = true, bool disableGesture = false}) {
     final imageUrl = widget.imageUrls[index];
 
@@ -484,7 +477,6 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
             offset: const Offset(0, 1),
           ),
         ],
-        // Add a background color to match the app theme
         color: const Color(0xFF00C49A).withOpacity(0.05),
       ),
       // Ensure the container fills its parent completely
@@ -523,9 +515,7 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
     );
   }
 
-  // Build image with appropriate fit
   Widget _buildImageWithFit(String imageUrl) {
-    // Check if we have dimensions for this image
     final dimensions = _imageDimensions[imageUrl];
     BoxFit imageFit = BoxFit.cover; // Default to cover
 
@@ -537,7 +527,6 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
 
       // For tabbed view (community notices), always use cover to fill the container
       if (widget.isInTabbedView) {
-        // Use cover for all images in tabbed view to eliminate white space
         imageFit = BoxFit.cover;
       } else if (isTinyImage || isVerySmallImage) {
         // For very small images, use fill to avoid white space
@@ -556,7 +545,6 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
       height: double.infinity,
       color: const Color(0xFF00C49A).withOpacity(0.05), // Light teal background to match app theme
       child: Image.network(
-        // Use optimized URL for better performance and bandwidth savings
         CloudinaryService().getOptimizedImageUrl(imageUrl, isListView: true),
         fit: imageFit, // Use the determined fit based on image size
         width: double.infinity, // Force image to take full width

@@ -51,7 +51,6 @@ class PieChartPainter extends CustomPainter {
       return;
     }
 
-    // Calculate the smaller dimension to ensure a perfect circle
     final diameter = size.width < size.height ? size.width : size.height;
     final radius = diameter / 2;
     final center = Offset(size.width / 2, size.height / 2);
@@ -87,7 +86,6 @@ class PieChartPainter extends CustomPainter {
         final percentage = (values[i] / total * 100).toStringAsFixed(0);
         // Only show percentage if it's at least 5% to avoid clutter
         if (values[i] / total >= 0.05) {
-          // Calculate position for text (middle of the segment)
           final segmentAngle = startAngle + (sweepAngle / 2);
           final textRadius = radius * 0.7; // Position at 70% of radius
           final x = center.dx + textRadius * cos(segmentAngle);
@@ -157,13 +155,11 @@ class PieChart extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Calculate appropriate chart height based on available space
         final availableHeight = constraints.maxHeight;
         final double chartHeight = availableHeight > 0 ?
             min(height, availableHeight * 0.7).toDouble() : // Use 70% of available height
             150.0; // Fallback minimum height
 
-        // Calculate appropriate label height
         final double labelHeight = availableHeight > 0 ?
             min(40.0, availableHeight * 0.3).toDouble() : // Use 30% of available height
             40.0; // Fallback minimum height

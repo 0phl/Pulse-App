@@ -10,13 +10,10 @@ import '../models/notification_model.dart';
 // Top-level function to handle notifications with the new fields
 @pragma('vm:entry-point')
 Future<void> handleNotification(RemoteMessage message) async {
-  // Extract the notification type
   final String notificationType = message.data['type'] ?? 'general';
 
-  // Extract the unique request ID we added
   final String requestId = message.data['requestId'] ?? '';
 
-  // Handle social interaction notifications
   if (notificationType == 'socialInteractions') {
     // Make sure to use the new fields and structure
     final String uniqueId = message.data['timestamp'] ??
@@ -27,7 +24,6 @@ Future<void> handleNotification(RemoteMessage message) async {
     debugPrint('Request ID: $requestId');
   }
 
-  // Store notification in Firestore if possible
   try {
     if (Firebase.apps.isNotEmpty) {
       final FirebaseFirestore firestore = FirebaseFirestore.instance;
@@ -35,12 +31,10 @@ Future<void> handleNotification(RemoteMessage message) async {
       final user = auth.currentUser;
 
       if (user != null && message.data.isNotEmpty) {
-        // Check if this is a community notification
         final bool isCommunityNotification =
             message.data.containsKey('communityId');
         final String? communityId = message.data['communityId'];
 
-        // Check if this notification status already exists for this user
         final existingStatusQuery = await firestore
             .collection('notification_status')
             .where('userId', isEqualTo: user.uid)
@@ -54,7 +48,6 @@ Future<void> handleNotification(RemoteMessage message) async {
           return;
         }
 
-        // Check if the current user is the author of the notification
         final String authorId = message.data['authorId'] ?? 'system';
         final bool isAuthor = user.uid == authorId;
 
@@ -64,11 +57,9 @@ Future<void> handleNotification(RemoteMessage message) async {
         debugPrint(
             'Current user: ${user.uid}, Author: $authorId, isAuthor: $isAuthor');
 
-        // Create notification record in the appropriate collection
         DocumentReference notificationRef;
 
         if (isCommunityNotification && communityId != null) {
-          // Check if the notification already exists
           if (message.data.containsKey('notificationId')) {
             final String notificationId = message.data['notificationId'];
             final existingDoc = await firestore
@@ -81,7 +72,6 @@ Future<void> handleNotification(RemoteMessage message) async {
               debugPrint(
                   'Using existing community notification: ${notificationRef.id}');
             } else {
-              // Create a new community notification
               notificationRef =
                   await firestore.collection('community_notifications').add({
                 'title': message.notification?.title ?? message.data['title'],
@@ -99,7 +89,6 @@ Future<void> handleNotification(RemoteMessage message) async {
                   'Created new community notification: ${notificationRef.id}');
             }
           } else {
-            // Create a new community notification without an existing ID
             notificationRef =
                 await firestore.collection('community_notifications').add({
               'title': message.notification?.title ?? message.data['title'],
@@ -117,7 +106,6 @@ Future<void> handleNotification(RemoteMessage message) async {
                 'Created new community notification: ${notificationRef.id}');
           }
         } else {
-          // Create a user notification
           notificationRef =
               await firestore.collection('user_notifications').add({
             'title': message.notification?.title ?? message.data['title'],
@@ -156,7 +144,6 @@ Future<void> handleNotification(RemoteMessage message) async {
           debugPrint(
               'Skipping notification status creation for author of non-community notice: ${user.uid}');
         } else {
-          // Create a status record for this user
           await firestore.collection('notification_status').add({
             'userId': user.uid,
             'notificationId': notificationRef.id,
@@ -194,7 +181,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     debugPrint('==========================================');
   }
 
-  // Process the notification with the new handler
   await handleNotification(message);
 }
 
@@ -222,7 +208,6 @@ class NotificationService with WidgetsBindingObserver {
   String? _token;
   DateTime? _lastTokenRefresh;
 
-  // Handle app lifecycle state changes
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     debugPrint('App lifecycle state changed to: $state');
@@ -233,7 +218,6 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Handle app resumed from background
   Future<void> _onAppResumed() async {
     debugPrint('App resumed from background, checking FCM token...');
 
@@ -265,7 +249,6 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Initialize the notification service
   Future<void> initialize() async {
     if (_initialized) return;
 
@@ -280,12 +263,10 @@ class NotificationService with WidgetsBindingObserver {
       _configureBackgroundMessageHandler();
       _configureMessageOpenedAppHandler();
 
-      // Check if user is logged in
       final user = _auth.currentUser;
       if (user != null) {
         debugPrint('User is logged in: ${user.uid}');
 
-        // Check if user_tokens document exists and if loggedOut flag is set
         try {
           final userTokenDoc =
               await _firestore.collection('user_tokens').doc(user.uid).get();
@@ -320,10 +301,8 @@ class NotificationService with WidgetsBindingObserver {
         debugPrint('No user is logged in');
       }
 
-      // Get and save FCM token
       await _getAndSaveToken();
 
-      // Set last token refresh time
       _lastTokenRefresh = DateTime.now();
 
       // Listen for token refreshes
@@ -416,7 +395,6 @@ class NotificationService with WidgetsBindingObserver {
       if (!docSnapshot.exists) {
         debugPrint(
             'User_tokens document does not exist, creating default document');
-        // Create default document
         await _firestore.collection('user_tokens').doc(user.uid).set({
           'notificationPreferences': {
             'communityNotices': true,
@@ -436,14 +414,11 @@ class NotificationService with WidgetsBindingObserver {
         debugPrint('User_tokens document already exists for user: ${user.uid}');
         final data = docSnapshot.data();
         if (data != null) {
-          // Check if user was previously logged out
           final wasLoggedOut = data['loggedOut'] == true;
 
-          // Check if we need to update the document
           bool needsUpdate = false;
           Map<String, dynamic> updateData = {};
 
-          // Check if notificationPreferences exists
           if (!data.containsKey('notificationPreferences')) {
             debugPrint(
                 'notificationPreferences field missing, will add default preferences');
@@ -478,7 +453,6 @@ class NotificationService with WidgetsBindingObserver {
           final tokens = data['tokens'] as List<dynamic>? ?? [];
           debugPrint('Current tokens count: ${tokens.length}');
 
-          // Check if tokens field is properly initialized
           if (tokens.isEmpty) {
             debugPrint('Tokens array is empty, will get a new token');
             // Force token refresh if the tokens array is empty
@@ -513,7 +487,6 @@ class NotificationService with WidgetsBindingObserver {
       debugPrint(
           'Notification permission status: ${settings.authorizationStatus}');
 
-      // Check if permission was granted
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         debugPrint('User granted permission');
       } else if (settings.authorizationStatus ==
@@ -578,7 +551,6 @@ class NotificationService with WidgetsBindingObserver {
         playSound: true,
       );
 
-      // Create the Android notification channels
       final androidPlugin = _localNotifications!
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
@@ -586,12 +558,10 @@ class NotificationService with WidgetsBindingObserver {
       if (androidPlugin != null) {
         debugPrint('Creating Android notification channels...');
 
-        // Create main channels
         await androidPlugin.createNotificationChannel(channel);
         await androidPlugin.createNotificationChannel(adminChannel);
         await androidPlugin.createNotificationChannel(socialChannel);
 
-        // Create fallback channel for reliability
         const AndroidNotificationChannel fallbackChannel =
             AndroidNotificationChannel(
           'fallback_channel',
@@ -611,7 +581,6 @@ class NotificationService with WidgetsBindingObserver {
 
       _androidChannel = channel;
 
-      // Initialize settings
       const AndroidInitializationSettings initializationSettingsAndroid =
           AndroidInitializationSettings('@drawable/notification_icon');
 
@@ -634,7 +603,6 @@ class NotificationService with WidgetsBindingObserver {
         initializationSettings,
         onDidReceiveNotificationResponse:
             (NotificationResponse response) async {
-          // Handle notification tap
           debugPrint('Notification tapped: ${response.payload}');
 
           // You can navigate to a specific screen based on the payload
@@ -675,7 +643,6 @@ class NotificationService with WidgetsBindingObserver {
       debugPrint('Message data: ${message.data}');
 
       try {
-        // Process the notification with the new handler
         await handleNotification(message);
 
         if (message.notification != null) {
@@ -710,13 +677,10 @@ class NotificationService with WidgetsBindingObserver {
     debugPrint('Improved foreground message handler configured');
   }
 
-  // Process data-only messages
   Future<void> _processDataMessage(RemoteMessage message) async {
-    // Handle data-only messages (no visible notification)
     if (message.data.isNotEmpty) {
       debugPrint('Processing data-only message: ${message.data}');
 
-      // Store in Firestore if needed
       await _storeNotificationInFirestore(message);
     }
   }
@@ -732,7 +696,6 @@ class NotificationService with WidgetsBindingObserver {
       debugPrint('A new onMessageOpenedApp event was published!');
       debugPrint('Message data: ${message.data}');
 
-      // Handle the notification tap
       // For example, navigate to a specific screen based on the message data
       if (message.data.containsKey('type')) {
         final String type = message.data['type'];
@@ -758,7 +721,6 @@ class NotificationService with WidgetsBindingObserver {
     });
   }
 
-  // Store notification in Firestore
   Future<void> _storeNotificationInFirestore(RemoteMessage message) async {
     debugPrint('Storing notification in Firestore...');
 
@@ -769,7 +731,6 @@ class NotificationService with WidgetsBindingObserver {
         return;
       }
 
-      // Extract the notification type and request ID
       final String notificationType = message.data['type'] ?? 'general';
       final String requestId = message.data['requestId'] ?? '';
       final String uniqueId = message.data['timestamp'] ??
@@ -778,7 +739,6 @@ class NotificationService with WidgetsBindingObserver {
       // For social interactions, enhance uniqueness by adding the action type
       String enhancedUniqueId = uniqueId;
       if (notificationType == 'socialInteractions') {
-        // Add action-specific identifiers to the uniqueId for better duplicate prevention
         if (message.data.containsKey('likerId')) {
           enhancedUniqueId = "${uniqueId}_like_${message.data['likerId']}";
           if (message.data.containsKey('noticeId')) {
@@ -798,7 +758,6 @@ class NotificationService with WidgetsBindingObserver {
         debugPrint(
             'Enhanced uniqueId for social interaction: $enhancedUniqueId');
 
-        // Check the debounce cache for this notification
         final now = DateTime.now();
         if (_recentNotifications.containsKey(enhancedUniqueId)) {
           final lastTime = _recentNotifications[enhancedUniqueId]!;
@@ -809,7 +768,6 @@ class NotificationService with WidgetsBindingObserver {
           }
         }
 
-        // Update the cache with the current timestamp
         _recentNotifications[enhancedUniqueId] = now;
 
         // Clean up old cache entries
@@ -817,7 +775,6 @@ class NotificationService with WidgetsBindingObserver {
             now.difference(timestamp) > const Duration(minutes: 30));
       }
 
-      // Check if this notification already exists in Firestore
       // This prevents duplicate notifications when the server sends the same notification
       bool isDuplicate = false;
 
@@ -842,7 +799,6 @@ class NotificationService with WidgetsBindingObserver {
         final String notificationId = message.data['notificationId'];
         debugPrint('Message contains notificationId: $notificationId');
 
-        // Check if a notification status already exists for this notification
         final existingStatus = await _firestore
             .collection('notification_status')
             .where('userId', isEqualTo: user.uid)
@@ -859,12 +815,10 @@ class NotificationService with WidgetsBindingObserver {
 
       // Additional check for social interactions to prevent duplicates
       if (!isDuplicate && notificationType == 'socialInteractions') {
-        // Use a more specific query to check for duplicates in similar social interactions
         // within the last minute (to catch rapid sequential actions)
         final now = DateTime.now();
         final oneMinuteAgo = now.subtract(const Duration(minutes: 1));
 
-        // Build a query with all the specific action identifiers
         Query query = _firestore
             .collection('notification_status')
             .where('userId', isEqualTo: user.uid)
@@ -873,7 +827,6 @@ class NotificationService with WidgetsBindingObserver {
 
         final recentNotifications = await query.get();
 
-        // Check if any recent notification matches this one
         for (final doc in recentNotifications.docs) {
           final Map<String, dynamic>? docData =
               doc.data() as Map<String, dynamic>?;
@@ -900,10 +853,8 @@ class NotificationService with WidgetsBindingObserver {
                 final notificationData = data?['data'] as Map<String, dynamic>?;
 
                 if (notificationData != null) {
-                  // Check if it's the same action type (like/comment) on the same content
                   bool isSameAction = false;
 
-                  // Check for likes on the same content
                   if (message.data.containsKey('likerId') &&
                       notificationData.containsKey('likerId') &&
                       message.data['likerId'] == notificationData['likerId']) {
@@ -921,7 +872,6 @@ class NotificationService with WidgetsBindingObserver {
                     }
                   }
 
-                  // Check for comments on the same content
                   if (message.data.containsKey('commentId') &&
                       notificationData.containsKey('commentId') &&
                       message.data['commentId'] ==
@@ -953,11 +903,9 @@ class NotificationService with WidgetsBindingObserver {
             message.data.containsKey('communityId');
         final String? communityId = message.data['communityId'];
 
-        // Create notification record in the appropriate collection
         DocumentReference notificationRef;
 
         if (isCommunityNotification && communityId != null) {
-          // Check if the notification already exists in community_notifications
           if (message.data.containsKey('notificationId')) {
             final String notificationId = message.data['notificationId'];
             final existingDoc = await _firestore
@@ -970,7 +918,6 @@ class NotificationService with WidgetsBindingObserver {
               debugPrint(
                   'Using existing community notification: ${notificationRef.id}');
             } else {
-              // Create a new community notification
               notificationRef =
                   await _firestore.collection('community_notifications').add({
                 'title': message.notification?.title ?? message.data['title'],
@@ -987,7 +934,6 @@ class NotificationService with WidgetsBindingObserver {
                   'Created new community notification: ${notificationRef.id}');
             }
           } else {
-            // Create a new community notification without an existing ID
             notificationRef =
                 await _firestore.collection('community_notifications').add({
               'title': message.notification?.title ?? message.data['title'],
@@ -1004,7 +950,6 @@ class NotificationService with WidgetsBindingObserver {
                 'Created new community notification: ${notificationRef.id}');
           }
         } else {
-          // Create a user notification
           notificationRef =
               await _firestore.collection('user_notifications').add({
             'title': message.notification?.title ?? message.data['title'],
@@ -1019,7 +964,6 @@ class NotificationService with WidgetsBindingObserver {
           debugPrint('Created user notification: ${notificationRef.id}');
         }
 
-        // Check if the current user is the author of the notification
         final String authorId = message.data['authorId'] ?? 'system';
         final bool isAuthor = user.uid == authorId;
 
@@ -1046,7 +990,6 @@ class NotificationService with WidgetsBindingObserver {
           debugPrint(
               'Skipping notification status creation for author of non-community notice: ${user.uid}');
         } else {
-          // Create a status record for this user
           await _firestore.collection('notification_status').add({
             'userId': user.uid,
             'notificationId': notificationRef.id,
@@ -1072,13 +1015,11 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Show a local notification with improved reliability
   Future<void> _showLocalNotification(RemoteMessage message) async {
     debugPrint('Attempting to show local notification...');
     debugPrint('Message data: ${message.data}');
 
     try {
-      // Store the notification in Firestore first
       await _storeNotificationInFirestore(message);
     } catch (e) {
       debugPrint('Error storing notification in Firestore: $e');
@@ -1104,16 +1045,12 @@ class NotificationService with WidgetsBindingObserver {
       return;
     }
 
-    // Get notification details from the message
     final RemoteNotification? notification = message.notification;
 
-    // Extract the notification type
     final String notificationType = message.data['type'] ?? 'general';
 
-    // Check if this is an admin notification
     final bool isAdminNotification = message.data['isForAdmin'] == 'true';
 
-    // Check if this is a social interaction notification
     final bool isSocialInteraction = notificationType == 'socialInteractions';
 
     try {
@@ -1159,7 +1096,6 @@ class NotificationService with WidgetsBindingObserver {
           ? requestId.hashCode
           : DateTime.now().millisecondsSinceEpoch.remainder(100000);
 
-      // Show the notification with enhanced settings
       await _localNotifications!.show(
         notificationId,
         title,
@@ -1234,7 +1170,6 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Get and save FCM token with improved reliability
   Future<void> _getAndSaveToken() async {
     try {
       debugPrint('Attempting to get FCM token...');
@@ -1250,7 +1185,6 @@ class NotificationService with WidgetsBindingObserver {
           debugPrint('Permission not granted, requesting permission...');
           await _requestPermission();
 
-          // Check permission status again after requesting
           final newSettings = await _messaging.getNotificationSettings();
           debugPrint(
               'FCM Permission status after request: ${newSettings.authorizationStatus}');
@@ -1267,7 +1201,6 @@ class NotificationService with WidgetsBindingObserver {
         // Continue anyway, we'll try to get the token
       }
 
-      // Delete any existing token to force a fresh one
       try {
         debugPrint('Deleting any existing token to ensure a fresh one...');
         await _messaging.deleteToken();
@@ -1311,7 +1244,6 @@ class NotificationService with WidgetsBindingObserver {
         debugPrint('Copy this token to use in Firebase Console');
         debugPrint('==========================================');
 
-        // Save the token with updated logic
         await _updateToken(_token!);
 
         // Verify token was saved by reading it back
@@ -1406,7 +1338,6 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Get FCM token - public method to access the token
   Future<String?> getFcmToken() async {
     try {
       debugPrint('getFcmToken called');
@@ -1445,14 +1376,12 @@ class NotificationService with WidgetsBindingObserver {
         // Continue anyway, we'll try to get the token
       }
 
-      // Get a new token
       try {
         debugPrint('Getting new FCM token...');
         _token = await _messaging.getToken();
         debugPrint('New token obtained: $_token');
 
         if (_token != null) {
-          // Save the token
           await _updateToken(_token!);
           return _token;
         } else {
@@ -1469,7 +1398,6 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Update token in Firestore with improved reliability for real-time notifications
   Future<void> _updateToken(String token) async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -1482,10 +1410,8 @@ class NotificationService with WidgetsBindingObserver {
           'Updating FCM token for user: ${user.uid} at ${DateTime.now().toIso8601String()}');
       debugPrint('Token to save: $token');
 
-      // Update last token refresh time
       _lastTokenRefresh = DateTime.now();
 
-      // Use current timestamp instead of FieldValue.serverTimestamp() for array items
       final now = Timestamp.now();
       final tokenData = {
         'token': token,
@@ -1500,7 +1426,6 @@ class NotificationService with WidgetsBindingObserver {
         },
       };
 
-      // Get existing tokens
       final userTokenDoc =
           await _firestore.collection('user_tokens').doc(user.uid).get();
 
@@ -1508,17 +1433,13 @@ class NotificationService with WidgetsBindingObserver {
         debugPrint('User token document exists, updating...');
         final data = userTokenDoc.data();
 
-        // Check if tokens field exists and is a List
         final tokens = data?['tokens'] as List<dynamic>? ?? [];
         debugPrint('Current tokens count: ${tokens.length}');
 
-        // Remove any expired or duplicate tokens (keep only the most recent 3)
         List<dynamic> updatedTokens = [...tokens];
 
-        // Remove the current token if it exists (we'll add it back as the most recent)
         updatedTokens.removeWhere((t) => t['token'] == token);
 
-        // Add the new token at the beginning (most recent)
         updatedTokens.insert(0, tokenData);
 
         // Keep only the 3 most recent tokens to avoid accumulating old tokens
@@ -1526,10 +1447,8 @@ class NotificationService with WidgetsBindingObserver {
         //   updatedTokens = updatedTokens.sublist(0, 3);
         // }
 
-        // Update document with optimized settings
         debugPrint('Updating document with ${updatedTokens.length} tokens');
 
-        // Check if the user was previously logged out
         final wasLoggedOut = data?['loggedOut'] == true;
         if (wasLoggedOut) {
           debugPrint(
@@ -1554,7 +1473,6 @@ class NotificationService with WidgetsBindingObserver {
       } else {
         debugPrint('User token document does not exist, creating new document');
 
-        // Create new token document with optimized settings
         await _firestore.collection('user_tokens').doc(user.uid).set({
           'tokens': [tokenData],
           'notificationPreferences': {
@@ -1626,14 +1544,12 @@ class NotificationService with WidgetsBindingObserver {
 
       // Fallback to simple update if the detailed update fails
       try {
-        // Create a simple token object
         final simpleTokenData = {
           'token': token,
           'platform': Platform.isAndroid ? 'android' : 'ios',
           'createdAt': Timestamp.now(),
         };
 
-        // Update with minimal data - always set loggedOut to false
         await _firestore.collection('user_tokens').doc(user.uid).set({
           'tokens': [simpleTokenData],
           'lastActive': FieldValue.serverTimestamp(),
@@ -1647,14 +1563,12 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Get user notifications using the new structure
   Stream<QuerySnapshot> getUserNotifications() {
     final user = _auth.currentUser;
     if (user == null) {
       return const Stream.empty();
     }
 
-    // Get notification status records for this user
     return _firestore
         .collection('notification_status')
         .where('userId', isEqualTo: user.uid)
@@ -1663,7 +1577,6 @@ class NotificationService with WidgetsBindingObserver {
         .snapshots();
   }
 
-  // Get notification details by ID
   Future<Map<String, dynamic>?> getNotificationDetails(
       String notificationId, bool isCommunityNotification) async {
     try {
@@ -1692,7 +1605,6 @@ class NotificationService with WidgetsBindingObserver {
     try {
       final user = _auth.currentUser;
       if (user != null) {
-        // Create a single notification record
         final notificationRef =
             await _firestore.collection('user_notifications').add({
           'title': 'Test Notification',
@@ -1705,7 +1617,6 @@ class NotificationService with WidgetsBindingObserver {
           'createdBy': 'system',
         });
 
-        // Create a status record for this user
         await _firestore.collection('notification_status').add({
           'userId': user.uid,
           'notificationId': notificationRef.id,
@@ -1793,7 +1704,6 @@ class NotificationService with WidgetsBindingObserver {
           ? 'community_notifications'
           : 'user_notifications';
 
-      // Get the actual notification document
       final notificationDoc =
           await _firestore.collection(collection).doc(notificationId).get();
 
@@ -1802,14 +1712,11 @@ class NotificationService with WidgetsBindingObserver {
         return null;
       }
 
-      // Get the notification data
       final notificationData = notificationDoc.data() as Map<String, dynamic>;
 
-      // Delete the notification status record to mark as read
       await _firestore.collection('notification_status').doc(statusId).delete();
       debugPrint('Notification status deleted (marked as read): $statusId');
 
-      // Create a combined data object with both status and notification data
       final combinedData = {
         ...notificationData,
         'statusId': statusId,
@@ -1832,7 +1739,6 @@ class NotificationService with WidgetsBindingObserver {
     if (user == null) return [];
 
     try {
-      // Get all unread notifications for this user
       final unreadNotifications = await _firestore
           .collection('notification_status')
           .where('userId', isEqualTo: user.uid)
@@ -1844,7 +1750,6 @@ class NotificationService with WidgetsBindingObserver {
         return [];
       }
 
-      // Process each notification to get its data before updating
       final List<Map<String, dynamic>> notificationDataList = [];
       final batch = _firestore.batch();
 
@@ -1860,7 +1765,6 @@ class NotificationService with WidgetsBindingObserver {
                 ? 'community_notifications'
                 : 'user_notifications';
 
-            // Get the actual notification document
             final notificationDoc = await _firestore
                 .collection(collection)
                 .doc(notificationId)
@@ -1870,7 +1774,6 @@ class NotificationService with WidgetsBindingObserver {
               final notificationData =
                   notificationDoc.data() as Map<String, dynamic>;
 
-              // Create a combined data object
               final combinedData = {
                 ...notificationData,
                 'statusId': doc.id,
@@ -1883,7 +1786,6 @@ class NotificationService with WidgetsBindingObserver {
             }
           }
 
-          // Delete the notification status record to mark as read
           batch.delete(doc.reference);
         } catch (e) {
           debugPrint('Error processing notification: $e');
@@ -1902,7 +1804,6 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Delete notification
   Future<void> deleteNotification(String statusId) async {
     try {
       // Only delete the status record, not the actual notification
@@ -1923,11 +1824,9 @@ class NotificationService with WidgetsBindingObserver {
     if (user == null) return;
 
     try {
-      // Calculate the cutoff date (notifications older than this will be deleted)
       final cutoffDate = DateTime.now().subtract(Duration(days: olderThanDays));
       final cutoffTimestamp = Timestamp.fromDate(cutoffDate);
 
-      // Get all read notifications for this user that are older than the cutoff date
       final readNotifications = await _firestore
           .collection('notification_status')
           .where('userId', isEqualTo: user.uid)
@@ -1942,7 +1841,6 @@ class NotificationService with WidgetsBindingObserver {
         return createdAt != null && createdAt.compareTo(cutoffTimestamp) < 0;
       }).toList();
 
-      // Delete old read notifications
       if (oldNotifications.isNotEmpty) {
         final batch = _firestore.batch();
 
@@ -1961,7 +1859,6 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Get notification preferences
   Future<Map<String, bool>> getNotificationPreferences() async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -2008,24 +1905,20 @@ class NotificationService with WidgetsBindingObserver {
     };
   }
 
-  // Update user notification preferences
   Future<void> updateNotificationPreferences(
       Map<String, bool> preferences) async {
     final user = _auth.currentUser;
     if (user == null) return;
 
     try {
-      // Check if document exists first
       final docSnapshot =
           await _firestore.collection('user_tokens').doc(user.uid).get();
 
       if (docSnapshot.exists) {
-        // Update existing document
         await _firestore.collection('user_tokens').doc(user.uid).update({
           'notificationPreferences': preferences,
         });
       } else {
-        // Create new document with preferences
         await _firestore.collection('user_tokens').doc(user.uid).set({
           'notificationPreferences': preferences,
           'tokens': [],
@@ -2051,7 +1944,6 @@ class NotificationService with WidgetsBindingObserver {
     debugPrint('Unsubscribed from topic: $topic');
   }
 
-  // Get unread notification count for the current user
   Future<int> getUnreadNotificationCount() async {
     final user = _auth.currentUser;
     if (user == null) return 0;
@@ -2071,7 +1963,6 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Get a stream of unread notification counts
   Stream<int> getUnreadNotificationCountStream() {
     final user = _auth.currentUser;
     if (user == null) return Stream.value(0);
@@ -2083,12 +1974,10 @@ class NotificationService with WidgetsBindingObserver {
           .where('read', isEqualTo: false)
           .snapshots()
           .map((snapshot) {
-        // Create a set of unique notification IDs
         final uniqueNotificationIds = snapshot.docs
             .map((doc) => doc.data()['notificationId'] as String)
             .toSet();
 
-        // Return the count of unique notifications
         return uniqueNotificationIds.length;
       });
     } catch (e) {
@@ -2097,15 +1986,12 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Get community notifications stream
   Stream<QuerySnapshot> getCommunityNotificationsStream() {
     final user = _auth.currentUser;
     if (user == null) {
-      // Return an empty stream if no user is logged in
       return const Stream.empty();
     }
 
-    // Get notifications for the current user
     return _firestore
         .collection('notification_status')
         .where('userId', isEqualTo: user.uid)
@@ -2113,7 +1999,6 @@ class NotificationService with WidgetsBindingObserver {
         .snapshots();
   }
 
-  // Get community notifications for the user's community
   // This can be used to display notifications even after they're deleted from notification_status
   Future<List<Map<String, dynamic>>> getCommunityNotifications(
       String communityId,
@@ -2122,7 +2007,6 @@ class NotificationService with WidgetsBindingObserver {
       debugPrint(
           'Fetching community notifications for community: $communityId');
 
-      // Get notifications for the community
       final snapshot = await _firestore
           .collection('community_notifications')
           .where('communityId', isEqualTo: communityId)
@@ -2142,7 +2026,6 @@ class NotificationService with WidgetsBindingObserver {
       for (final doc in snapshot.docs) {
         final data = doc.data();
 
-        // Create a complete notification object
         final notificationData = {
           ...data,
           'notificationId': doc.id,
@@ -2163,7 +2046,6 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Get user's community ID
   Future<String?> getUserCommunityId() async {
     final user = _auth.currentUser;
     if (user == null) return null;
@@ -2200,7 +2082,6 @@ class NotificationService with WidgetsBindingObserver {
         debugPrint('Error deleting token: $e');
       }
 
-      // Get a new token
       String? newToken;
       try {
         newToken = await _messaging.getToken();
@@ -2223,7 +2104,6 @@ class NotificationService with WidgetsBindingObserver {
         'lastActive': now,
       };
 
-      // Update the document with the new token and reset loggedOut flag
       await _firestore.collection('user_tokens').doc(userId).set({
         'tokens': [tokenData],
         'loggedOut': false,
@@ -2270,7 +2150,6 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Check and refresh FCM token if needed
   Future<void> checkAndRefreshToken() async {
     debugPrint('Manually checking FCM token status...');
 
@@ -2281,14 +2160,12 @@ class NotificationService with WidgetsBindingObserver {
     }
 
     try {
-      // Check if we have a token
       if (_token == null) {
         debugPrint('No token exists, getting a new one');
         await _getAndSaveToken();
         return;
       }
 
-      // Check if token is still valid by trying to get the current token
       final currentToken = await _messaging.getToken();
 
       // If tokens don't match, update with the new one
@@ -2319,7 +2196,6 @@ class NotificationService with WidgetsBindingObserver {
       } else {
         debugPrint('Token is still valid, no refresh needed');
 
-        // Update last active time in Firestore
         final user = _auth.currentUser;
         if (user != null) {
           await _firestore.collection('user_tokens').doc(user.uid).update({
@@ -2347,7 +2223,6 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Remove FCM tokens when user logs out
   Future<void> removeUserTokens() async {
     try {
       final user = _auth.currentUser;
@@ -2359,7 +2234,6 @@ class NotificationService with WidgetsBindingObserver {
       final userId = user.uid;
       debugPrint('Removing FCM tokens for user: $userId');
 
-      // Delete the current token from Firebase Messaging first
       try {
         await _messaging.deleteToken();
         debugPrint('FCM token deleted from device');
@@ -2367,12 +2241,10 @@ class NotificationService with WidgetsBindingObserver {
         debugPrint('Error deleting FCM token from device: $e');
       }
 
-      // Get the current token document
       final tokenDoc =
           await _firestore.collection('user_tokens').doc(userId).get();
 
       if (tokenDoc.exists) {
-        // Update the document to clear tokens
         await _firestore.collection('user_tokens').doc(userId).set({
           'tokens': [],
           'lastActive': FieldValue.serverTimestamp(),
@@ -2409,7 +2281,6 @@ class NotificationService with WidgetsBindingObserver {
       } else {
         debugPrint('No token document found for user: $userId');
 
-        // Create a document with loggedOut set to true
         await _firestore.collection('user_tokens').doc(userId).set({
           'tokens': [],
           'loggedOut': true,

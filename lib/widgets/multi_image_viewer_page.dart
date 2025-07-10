@@ -40,9 +40,7 @@ class _MultiImageViewerPageState extends State<MultiImageViewerPage> {
 
   // Download the current image
   Future<void> _downloadCurrentImage() async {
-    // Get original URL for downloading (high quality)
     final imageUrl = widget.imageUrls[_currentIndex];
-    // Use CloudinaryService to get a high-quality version for download
     final cloudinaryService = CloudinaryService();
     final downloadUrl = cloudinaryService.getOptimizedImageUrl(imageUrl, isListView: false);
 
@@ -54,7 +52,6 @@ class _MultiImageViewerPageState extends State<MultiImageViewerPage> {
         _isDownloading = true;
       });
 
-      // Check if we've already downloaded this image
       if (_downloadedImages.containsKey(_currentIndex)) {
         setState(() {
           _tempFilePath = _downloadedImages[_currentIndex];
@@ -63,7 +60,6 @@ class _MultiImageViewerPageState extends State<MultiImageViewerPage> {
         return;
       }
 
-      // Get temporary directory
       final tempDir = await getTemporaryDirectory();
       final filePath = '${tempDir.path}/$fileName';
 
@@ -92,7 +88,6 @@ class _MultiImageViewerPageState extends State<MultiImageViewerPage> {
     }
   }
 
-  // Save the current image to gallery
   Future<void> _saveCurrentImage({String? album}) async {
     if (_tempFilePath == null) {
       await _downloadCurrentImage();
@@ -149,7 +144,6 @@ class _MultiImageViewerPageState extends State<MultiImageViewerPage> {
           PhotoViewGallery.builder(
             scrollPhysics: const BouncingScrollPhysics(),
             builder: (BuildContext context, int index) {
-              // Get optimized URL for better performance and bandwidth savings
               final cloudinaryService = CloudinaryService();
               final optimizedUrl = cloudinaryService.getOptimizedImageUrl(widget.imageUrls[index], isListView: false);
 

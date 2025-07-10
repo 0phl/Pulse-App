@@ -35,7 +35,6 @@ class _DocumentViewerDialogState extends State<DocumentViewerDialog>
     _tabController =
         TabController(length: widget.documents.length, vsync: this);
 
-    // Auto-navigate to PDF viewer for PDF files if it's the only document
     if (widget.documents.length == 1 && _isPdfUrl(widget.documents.first)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _openPdfDirectly(widget.documents.first);
@@ -75,7 +74,6 @@ class _DocumentViewerDialogState extends State<DocumentViewerDialog>
 
   bool _isImageUrl(String url) {
     final lowercaseUrl = url.toLowerCase();
-    // Check for common image extensions
     if (lowercaseUrl.endsWith('.jpg') ||
         lowercaseUrl.endsWith('.jpeg') ||
         lowercaseUrl.endsWith('.png') ||
@@ -83,7 +81,6 @@ class _DocumentViewerDialogState extends State<DocumentViewerDialog>
         lowercaseUrl.endsWith('.webp')) {
       return true;
     }
-    // Check Cloudinary URL format
     return lowercaseUrl.contains('/image/upload/');
   }
 

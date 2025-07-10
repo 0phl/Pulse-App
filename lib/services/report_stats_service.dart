@@ -5,22 +5,17 @@ class ReportStatsService {
   final AdminService _adminService = AdminService();
   
   Future<Map<String, dynamic>> getDetailedReportStats() async {
-    // Get the basic report stats from admin service
     final reportStats = await _adminService.getReportStats();
     
-    // Extract status counts
     final statusCounts = reportStats['statusCounts'] as Map<String, dynamic>;
     
-    // Calculate total reports
     final totalReports = statusCounts['total'] ?? 0;
     
-    // Extract resolved and pending counts
     final resolvedCount = statusCounts['resolved'] ?? 0;
     final pendingCount = statusCounts['pending'] ?? 0;
     final inProgressCount = statusCounts['in_progress'] ?? 0;
     final rejectedCount = statusCounts['rejected'] ?? 0;
     
-    // Calculate resolution rate
     double resolutionRate = 0;
     if (totalReports > 0) {
       resolutionRate = (resolvedCount / totalReports) * 100;

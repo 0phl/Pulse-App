@@ -27,7 +27,6 @@ class RegistrationData {
     required this.registrationId,
   });
 
-  // Get full name by combining first, middle, and last names
   String get fullName {
     if (middleName != null && middleName!.isNotEmpty) {
       return '$firstName $middleName $lastName';
@@ -41,7 +40,7 @@ class RegistrationData {
       'firstName': firstName,
       if (middleName != null && middleName!.isNotEmpty) 'middleName': middleName,
       'lastName': lastName,
-      'fullName': fullName, // Store the combined name for backward compatibility
+      'fullName': fullName,
       'username': username,
       'email': email,
       'mobile': mobile,

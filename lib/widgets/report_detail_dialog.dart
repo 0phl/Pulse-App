@@ -37,7 +37,6 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
 
   Future<void> _fetchUserData() async {
     try {
-      // Check if reporter information is already in the report
       if (widget.report.containsKey('reporterInfo') && widget.report['reporterInfo'] != null) {
         print('Using reporter info from report data');
         setState(() {
@@ -680,7 +679,6 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
       'photo',
     ];
 
-    // Check each possible field
     for (final field in possibleFields) {
       if (_userData!.containsKey(field) &&
           _userData![field] != null &&

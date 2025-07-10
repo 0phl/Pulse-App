@@ -27,13 +27,11 @@ class _UserVerificationPageState extends State<UserVerificationPage> {
     try {
       setState(() => _isLoading = true);
 
-      // Load community name
       final community = await _adminService.getCurrentAdminCommunity();
       if (community != null) {
         _communityName = community.name;
       }
 
-      // Load pending users
       await _loadPendingUsers();
 
       if (mounted) {
@@ -237,7 +235,6 @@ class _UserVerificationPageState extends State<UserVerificationPage> {
           ),
           TextButton(
             onPressed: () {
-              // Show rejection dialog with reason field
               final TextEditingController reasonController = TextEditingController();
               showDialog(
                 context: context,
@@ -415,7 +412,6 @@ class _UserVerificationPageState extends State<UserVerificationPage> {
                     children: [
                       TextButton(
                         onPressed: () {
-                          // Show rejection dialog with reason field
                           final TextEditingController reasonController = TextEditingController();
                           showDialog(
                             context: context,

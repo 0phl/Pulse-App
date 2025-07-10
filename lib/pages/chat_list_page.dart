@@ -40,7 +40,6 @@ class _NotificationBadgeState extends State<_NotificationBadge>
       vsync: this,
     );
 
-    // Create a curved animation
     _animation = TweenSequence<double>([
       TweenSequenceItem(
         tween: Tween<double>(begin: 0.5, end: 1.2)
@@ -237,7 +236,6 @@ class _ChatListPageState extends State<ChatListPage> {
   }
 
   Future<bool> _deleteChat(ChatInfo chat) async {
-    // Show confirmation dialog
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -268,13 +266,11 @@ class _ChatListPageState extends State<ChatListPage> {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return false;
 
-      // Store deletion timestamp for this user
       await _database
           .ref('chats/${chat.chatId}/deletedTimestamps')
           .child(currentUser.uid)
           .set(ServerValue.timestamp);
 
-      // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Chat deleted successfully')),
@@ -325,7 +321,6 @@ class _ChatListPageState extends State<ChatListPage> {
               final chatId = entry.key as String;
               final chatInfo = entry.value as Map<dynamic, dynamic>;
 
-              // Get chat details
               final communityId = chatInfo['communityId'] as String?;
               final itemId = chatInfo['itemId'] as String?;
               final sellerId = chatInfo['sellerId'] as String?;
@@ -336,12 +331,10 @@ class _ChatListPageState extends State<ChatListPage> {
               if (messagesMap == null || messagesMap.isEmpty) {
                 print(
                     'Chat $chatId has no messages or invalid messages format');
-                // Create empty messages map if it's missing
                 await _database.ref('chats/$chatId/messages').set({});
                 continue;
               }
 
-              // Check each required field individually for better error logging
               if (communityId == null) {
                 print('Missing communityId for chat: $chatId');
                 continue;
@@ -376,7 +369,6 @@ class _ChatListPageState extends State<ChatListPage> {
                   continue;
                 }
                 buyerId = firstSenderId;
-                // Store buyerId at chat level for future reference
                 await _database
                     .ref('chats/$chatId')
                     .update({'buyerId': buyerId});
@@ -387,17 +379,14 @@ class _ChatListPageState extends State<ChatListPage> {
                 continue;
               }
 
-              // Get item details (with fallback)
               final itemDetails =
                   await _getItemDetails(itemId) ?? {'title': 'Unknown Item'};
 
-              // Get deletion timestamps
               final deletedTimestamps =
                   (chatInfo['deletedTimestamps'] as Map<dynamic, dynamic>?)
                       ?.cast<String, int>();
               final currentUserDeletedAt = deletedTimestamps?[currentUser.uid];
 
-              // Get messages after filtering out deleted ones
               final validMessages = messagesMap.entries.where((msg) {
                 final timestamp = msg.value['timestamp'] as int;
                 // Include message if no deletion timestamp or message is newer
@@ -418,7 +407,6 @@ class _ChatListPageState extends State<ChatListPage> {
               final otherUserName =
                   await _getUserName(otherUserId) ?? 'Unknown User';
 
-              // Get profile image URL for the other user
               String? profileImageUrl;
               try {
                 final userSnapshot =
@@ -432,14 +420,12 @@ class _ChatListPageState extends State<ChatListPage> {
                 // Continue without profile image
               }
 
-              // Get unread count from chat level
               final unreadSnapshot = await _database
                   .ref('chats/$chatId/unreadCount')
                   .child(currentUser.uid)
                   .get();
               final unreadCount = (unreadSnapshot.value as int?) ?? 0;
 
-              // Check if the last message contains media
               bool hasMedia = false;
               String? mediaType;
 
@@ -518,9 +504,7 @@ class _ChatListPageState extends State<ChatListPage> {
             style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF00C49A),
         foregroundColor: Colors.white,
-        // Add padding to the actions
         actionsIconTheme: const IconThemeData(size: 26),
-        // Add some right padding to the title
         titleSpacing: 16,
       ),
       body: _isLoading
@@ -780,7 +764,6 @@ class _ChatListPageState extends State<ChatListPage> {
           ? philippinesTime.hour - 12
           : philippinesTime.hour;
       final period = philippinesTime.hour >= 12 ? 'PM' : 'AM';
-      // Handle 12 AM/PM case
       final displayHour = hour == 0 ? 12 : hour;
       return '$displayHour:${philippinesTime.minute.toString().padLeft(2, '0')} $period';
     } else if (difference.inDays == 1) {

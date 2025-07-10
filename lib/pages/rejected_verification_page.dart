@@ -25,7 +25,6 @@ class RejectedVerificationPage extends StatelessWidget {
               try {
                 debugPrint('RejectedVerificationPage: Starting logout process with AuthService');
 
-                // Add a 2.5 second delay to show any loading indicators
                 await Future.delayed(const Duration(milliseconds: 2500));
 
                 // Navigate after the delay
@@ -135,7 +134,6 @@ class RejectedVerificationPage extends StatelessWidget {
                 try {
                   debugPrint('RejectedVerificationPage: Starting logout process with AuthService');
 
-                  // Add a 2.5 second delay to show any loading indicators
                   await Future.delayed(const Duration(milliseconds: 2500));
 
                   // Navigate after the delay

@@ -79,7 +79,6 @@ class VolunteerPost {
     }
   }
 
-  // Get formatted time from eventDate (HH:MM)
   String get formattedTime {
     final hour = eventDate.hour;
     final minute = eventDate.minute;

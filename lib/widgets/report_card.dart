@@ -9,7 +9,6 @@ class ReportCard extends StatelessWidget {
   static final Map<String, String> _userNameCache = {};
 
   Future<String> _getUserName(String userId) async {
-    // Check cache first
     if (_userNameCache.containsKey(userId)) {
       return _userNameCache[userId]!;
     }

@@ -35,13 +35,11 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
         _isDownloading = true;
       });
 
-      // Get temporary directory
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'PULSE_temp_$timestamp.jpg';
       final filePath = '${tempDir.path}/$fileName';
 
-      // Get high-quality version for download
       final cloudinaryService = CloudinaryService();
       final downloadUrl = cloudinaryService.getOptimizedImageUrl(widget.imageUrl, isListView: false);
 
@@ -98,7 +96,6 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
         children: [
           PhotoView(
             imageProvider: NetworkImage(
-              // Use optimized URL for better performance and bandwidth savings
               CloudinaryService().getOptimizedImageUrl(widget.imageUrl, isListView: false)
             ),
             minScale: PhotoViewComputedScale.contained,

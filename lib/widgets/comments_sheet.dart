@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:async'; // Add Timer import
+import 'dart:async';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 import '../services/community_notice_service.dart';
@@ -31,33 +31,24 @@ class _CommentsSheetState extends State<CommentsSheet> {
   bool _isRefreshing = false;
   List<Comment> _comments = [];
 
-  // Map to store user profile data
   final Map<String, Map<String, dynamic>> _userProfileCache = {};
 
-  // Timer for auto-refresh
   Timer? _refreshTimer;
-
-  // Track which comment we're replying to (null if not replying)
   Comment? _replyingTo;
-
-  // Track expanded comments (showing replies)
   final Set<String> _expandedComments = {};
 
   @override
   void initState() {
     super.initState();
-    // Add safety check for null or empty comments
     if (widget.notice.comments.isNotEmpty) {
       _comments = List.from(widget.notice.comments);
       _comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     } else {
-      _comments = []; // Ensure _comments is initialized as an empty list if no comments
+      _comments = [];
     }
 
-    // Fetch latest user profiles when page opens
     _refreshUserProfiles();
 
-    // Set up periodic refresh timer (every 30 seconds)
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted && !_isRefreshing) {
         _refreshUserProfiles();
@@ -65,9 +56,8 @@ class _CommentsSheetState extends State<CommentsSheet> {
     });
   }
 
-  // Method to refresh user profiles and comments
   Future<void> _refreshUserProfiles() async {
-    if (_isRefreshing) return; // Prevent multiple simultaneous refreshes
+    if (_isRefreshing) return;
 
     setState(() {
       _isRefreshing = true;
@@ -86,11 +76,9 @@ class _CommentsSheetState extends State<CommentsSheet> {
         final commentsData = commentsSnapshot.value as Map<dynamic, dynamic>;
         final List<Comment> updatedComments = [];
 
-        // Convert Firebase data to Comment objects
         commentsData.forEach((key, value) {
           try {
             final commentData = value as Map<dynamic, dynamic>;
-            // Add the ID to the map since Comment.fromMap expects it in the map
             commentData['id'] = key.toString();
             final comment = Comment.fromMap(commentData);
             updatedComments.add(comment);
@@ -105,17 +93,14 @@ class _CommentsSheetState extends State<CommentsSheet> {
         });
       }
 
-      // Fetch user profiles for all comments and replies
       for (final comment in _comments) {
         try {
-          // Check if user is admin (in Firestore)
           final adminDoc = await FirebaseFirestore.instance
               .collection('users')
               .doc(comment.authorId)
               .get();
 
           if (adminDoc.exists) {
-            // Admin user
             final adminData = adminDoc.data() as Map<String, dynamic>;
             if (mounted) {
               setState(() {
@@ -127,7 +112,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
               });
             }
           } else {
-            // Regular user in RTDB
             final userSnapshot = await FirebaseDatabase.instance
                 .ref()
                 .child('users')
@@ -148,20 +132,16 @@ class _CommentsSheetState extends State<CommentsSheet> {
             }
           }
         } catch (e) {
-          // Handle errors silently
         }
 
-        // Also refresh profiles for replies
         for (final reply in comment.replies) {
           try {
-            // Check if user is admin (in Firestore)
             final adminDoc = await FirebaseFirestore.instance
                 .collection('users')
                 .doc(reply.authorId)
                 .get();
 
             if (adminDoc.exists) {
-              // Admin user
               final adminData = adminDoc.data() as Map<String, dynamic>;
               if (mounted) {
                 setState(() {
@@ -173,7 +153,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
                 });
               }
             } else {
-              // Regular user in RTDB
               final userSnapshot = await FirebaseDatabase.instance
                   .ref()
                   .child('users')
@@ -194,19 +173,16 @@ class _CommentsSheetState extends State<CommentsSheet> {
               }
             }
           } catch (e) {
-            // Handle errors silently
           }
         }
       }
     } catch (e) {
-      // Handle any errors silently
     } finally {
       if (mounted) {
         setState(() {
           _isRefreshing = false;
         });
 
-        // Notify parent widget that comments were refreshed
         widget.onCommentAdded?.call();
       }
     }
@@ -215,11 +191,10 @@ class _CommentsSheetState extends State<CommentsSheet> {
   @override
   void dispose() {
     _commentController.dispose();
-    _refreshTimer?.cancel(); // Cancel the timer when the widget is disposed
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
-  // Toggle expanded state of a comment
   void _toggleExpanded(String commentId) {
     setState(() {
       if (_expandedComments.contains(commentId)) {
@@ -230,9 +205,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
     });
   }
 
-  // Set replying to a comment
   void _setReplyingTo(Comment? comment) {
-    // Add safety check for invalid comment
     if (comment != null && (comment.id.isEmpty || comment.authorName.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cannot reply to this comment. Please try again.')),
@@ -243,36 +216,30 @@ class _CommentsSheetState extends State<CommentsSheet> {
     setState(() {
       _replyingTo = comment;
       if (comment != null) {
-        // If this is a reply to a reply, we need to expand the parent comment
         if (comment.parentId != null && comment.parentId!.isNotEmpty) {
           _expandedComments.add(comment.parentId!);
         } else {
-          // Ensure the comment is expanded when replying to a top-level comment
           _expandedComments.add(comment.id);
         }
       }
     });
   }
 
-  // Like a comment
   Future<void> _likeComment(Comment comment, {String? parentId}) async {
     try {
-      // Add safety check for invalid comment
       if (comment.id.isEmpty || comment.authorName.isEmpty) {
-        return; // Skip liking if comment is invalid
+        return;
       }
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Check if user is admin
       final adminDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
 
       if (adminDoc.exists) {
-        // Admin user
         await _adminService.likeComment(
           widget.notice.id,
           comment.id,
@@ -288,13 +255,10 @@ class _CommentsSheetState extends State<CommentsSheet> {
         );
       }
 
-      // Update UI immediately
       setState(() {
         if (parentId != null) {
-          // Find parent comment
           final parentIndex = _comments.indexWhere((c) => c.id == parentId);
           if (parentIndex >= 0) {
-            // Find reply in parent's replies
             final replyIndex = _comments[parentIndex].replies.indexWhere((r) => r.id == comment.id);
             if (replyIndex >= 0) {
               final reply = _comments[parentIndex].replies[replyIndex];
@@ -350,7 +314,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
   Future<void> _addComment() async {
     if (!_formKey.currentState!.validate() || _isSubmitting) return;
 
-    // Add safety check for replying to an invalid comment
     if (_replyingTo != null && (_replyingTo!.id.isEmpty || _replyingTo!.authorName.isEmpty)) {
       setState(() => _replyingTo = null); // Reset invalid reply target
       ScaffoldMessenger.of(context).showSnackBar(
@@ -404,7 +367,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
           if (commentContent.isEmpty) {
             commentContent = '@${_replyingTo!.authorName}';
           } else {
-            // Add a special delimiter to help identify where the mention ends and the comment begins
             // We'll use a double space as a delimiter
             commentContent = '@${_replyingTo!.authorName}  $commentContent';
 
@@ -429,7 +391,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
           );
         }
 
-        // Create a temporary comment to show immediately
         final newComment = Comment(
           id: commentId,
           content: commentContent,
@@ -443,7 +404,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
 
         setState(() {
           if (_replyingTo != null) {
-            // Check if we're replying to a reply (has parentId) or a top-level comment
             if (_replyingTo!.parentId != null) {
               // We're replying to a reply, so we need to find the parent comment
               final parentIndex = _comments.indexWhere((c) => c.id == _replyingTo!.parentId);
@@ -456,7 +416,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
                 );
               }
             } else {
-              // Add as a reply to an existing top-level comment
               final parentIndex = _comments.indexWhere((c) => c.id == _replyingTo!.id);
 
 
@@ -470,7 +429,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
             // Clear replying state
             _replyingTo = null;
           } else {
-            // Add as a top-level comment
             _comments.insert(0, newComment);
           }
           _commentController.clear();
@@ -581,7 +539,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: EdgeInsets.only(
                             top: 8,
-                            // Add extra padding at the bottom to ensure content isn't hidden behind the keyboard
                             bottom: MediaQuery.of(context).viewInsets.bottom + 120,
                           ),
                           itemCount: _comments.length,
@@ -591,14 +548,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
                             color: Colors.grey[100],
                           ),
                           itemBuilder: (context, index) {
-                            // Add safety check to prevent index out of range errors
                             if (index < 0 || index >= _comments.length) {
-                              return const SizedBox.shrink(); // Return empty widget if index is invalid
+                              return const SizedBox.shrink();
                             }
 
                             final comment = _comments[index];
 
-                            // Add safety check for empty author name
                             if (comment.authorName.isEmpty) {
                               return const SizedBox.shrink(); // Skip this comment if author name is empty
                             }
@@ -616,7 +571,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
                             );
                           },
                         ),
-                        // Show loading indicator when refreshing
                         if (_isRefreshing)
                           const Positioned(
                             top: 0,
@@ -717,7 +671,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
                           final userId = FirebaseAuth.instance.currentUser?.uid;
                           if (userId == null) return {'initial': 'A', 'profileImageUrl': null};
 
-                          // Check Firestore first for admin
                           final adminDoc = await FirebaseFirestore.instance
                               .collection('users')
                               .doc(userId)
@@ -875,9 +828,8 @@ class _CommentItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Add safety check for empty author name
     if (comment.authorName.isEmpty) {
-      return const SizedBox.shrink(); // Return empty widget if author name is empty
+              return const SizedBox.shrink();
     }
 
     final bool isAdmin = comment.authorName.startsWith('Admin');
@@ -1059,7 +1011,6 @@ class _CommentItem extends StatelessWidget {
               margin: const EdgeInsets.only(left: 40),
               child: Column(
                 children: comment.replies.map((reply) {
-                  // Add safety check for empty author name in replies
                   if (reply.authorName.isEmpty) {
                     return const SizedBox.shrink(); // Skip this reply if author name is empty
                   }

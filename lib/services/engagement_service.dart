@@ -33,13 +33,11 @@ class EngagementService {
             FirebaseFirestore.instance.collection('communities'),
         _chatsRef = FirebaseDatabase.instance.ref().child('chats');
 
-  // Check if current user is admin with caching
   Future<bool> isCurrentUserAdmin() async {
     try {
       final user = _auth.currentUser;
       if (user == null) return false;
 
-      // Check cache first
       if (_userRoleCache.containsKey(user.uid)) {
         final role = _userRoleCache[user.uid];
         return role == 'admin' || role == 'super_admin';
@@ -60,10 +58,8 @@ class EngagementService {
     }
   }
 
-  // Get user role with caching
   Future<String?> _getUserRole(String userId) async {
     try {
-      // Check cache first
       if (_userRoleCache.containsKey(userId)) {
         return _userRoleCache[userId];
       }
@@ -83,20 +79,17 @@ class EngagementService {
     }
   }
 
-  // Check if a user is admin with caching
   Future<bool> _isUserAdmin(String userId) async {
     final role = await _getUserRole(userId);
     return role == 'admin' || role == 'super_admin';
   }
 
-  // Calculate community engagement metrics
   Future<Map<String, dynamic>> calculateEngagement(String communityId) async {
     try {
       if (communityId.isEmpty) {
         throw Exception('Community ID is required');
       }
 
-      // Get member count for the community
       int membersCount = 0;
       try {
         final communityDoc =
@@ -121,11 +114,9 @@ class EngagementService {
         membersCount = 4;
       }
 
-      // Calculate engagement metrics for the last 30 days
       final lastMonth = DateTime.now().subtract(const Duration(days: 30));
       final lastMonthTimestamp = Timestamp.fromDate(lastMonth);
 
-      // Initialize counters for engagement components
       Map<String, int> engagementComponents = {
         'userLikesComments': 0,
         'volunteerParticipation': 0,
@@ -142,7 +133,6 @@ class EngagementService {
       // 1. USER INTERACTIONS - Likes and comments on community notices
       try {
 
-        // Get notices directly from RTDB instead of Firestore
         final noticesSnapshot = await _database
             .ref()
             .child('community_notices')
@@ -182,13 +172,11 @@ class EngagementService {
           final noticeId = entry.key.toString();
           final noticeData = entry.value as Map<dynamic, dynamic>;
 
-          // Process likes and comments directly from the notice data
 
           // Count likes
           if (noticeData.containsKey('likes') && noticeData['likes'] != null) {
             final likes = noticeData['likes'] as Map<dynamic, dynamic>;
             totalLikes += likes.length;
-            // Check for admin likes using cache
             for (var userId in likes.keys) {
               try {
                 if (await _isUserAdmin(userId)) {
@@ -205,11 +193,9 @@ class EngagementService {
             final comments = noticeData['comments'] as Map<dynamic, dynamic>;
             totalComments += comments.length;
 
-            // Check for admin comments
             for (var comment in comments.values) {
               if (comment is Map && comment.containsKey('authorId')) {
                 final authorId = comment['authorId'];
-                // Check if the author name contains 'Admin' as a quick check
                 if (comment.containsKey('authorName')) {
                   final authorName = comment['authorName'].toString();
                   if (authorName.contains('Admin')) {
@@ -219,7 +205,6 @@ class EngagementService {
                   }
                 }
 
-                // Check user role using cache
                 try {
                   if (await _isUserAdmin(authorId)) {
                     adminComments++;
@@ -232,7 +217,6 @@ class EngagementService {
           }
         }
 
-        // Calculate user interactions by subtracting admin interactions from total
         int userLikes = totalLikes - adminLikes;
         int userComments = totalComments - adminComments;
         int userInteractions = userLikes + userComments;
@@ -336,7 +320,6 @@ class EngagementService {
           }
         }
 
-        // Add report interactions to admin interactions
         engagementComponents['adminInteractions'] =
             (engagementComponents['adminInteractions'] ?? 0) + reportInteractions;
 
@@ -345,7 +328,6 @@ class EngagementService {
       } catch (e) {
       }
 
-      // Get active users data
       int activeUsers = 0;
       try {
         final userDocs = await _usersCollection
@@ -357,7 +339,6 @@ class EngagementService {
         for (var doc in userDocs.docs) {
           final data = doc.data() as Map<String, dynamic>;
 
-          // Check last login time if available
           if (data['lastLoginAt'] != null) {
             final lastLogin = data['lastLoginAt'] as Timestamp;
             if (lastLogin.toDate().isAfter(lastMonth)) {
@@ -370,10 +351,8 @@ class EngagementService {
         activeUsers = membersCount > 0 ? 1 : 0;
       }
 
-      // Calculate engagement rate
       int engagementRate = 0;
 
-      // Calculate based on activities if we have data
       if (possibleActivities > 0) {
         engagementRate = ((totalActivities / possibleActivities) * 100).round();
         if (engagementRate > 100) engagementRate = 100;
@@ -420,7 +399,6 @@ class EngagementService {
         'possibleActivities': possibleActivities
       };
     } catch (e) {
-      // Return default values
       return {
         'engagementRate': 40,
         'activeUsers': 1,

@@ -14,7 +14,6 @@ class ReportService {
   CollectionReference<Map<String, dynamic>> get _reports =>
       _firestore.collection('reports');
 
-  // Create a new report
   Future<Report> createReport({
     required String userId,
     required String communityId,
@@ -53,14 +52,12 @@ class ReportService {
     );
   }
 
-  // Get a single report by ID
   Future<Report?> getReport(String reportId) async {
     final doc = await _reports.doc(reportId).get();
     if (!doc.exists) return null;
     return Report.fromMap(doc.data()!, doc.id);
   }
 
-  // Get reports for a community with optional filters
   Stream<List<Report>> getReports({
     required String communityId,
     ReportStatus? status,
@@ -95,7 +92,6 @@ class ReportService {
         .toList());
   }
 
-  // Update report status
   Future<void> updateReportStatus(String reportId, ReportStatus newStatus) async {
     await _reports.doc(reportId).update({
       'status': newStatus.value,
@@ -103,7 +99,6 @@ class ReportService {
     });
   }
 
-  // Update report details
   Future<void> updateReport(String reportId, {
     String? description,
     String? address,
@@ -132,7 +127,6 @@ class ReportService {
     return await _cloudinaryService.uploadReportVideos(files);
   }
 
-  // Delete a report
   Future<void> deleteReport(String reportId) async {
     // We're only deleting the report document since Cloudinary URLs are managed separately
     await _reports.doc(reportId).delete();

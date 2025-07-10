@@ -16,7 +16,6 @@ class CommentText extends StatelessWidget {
   Widget build(BuildContext context) {
     // Text processing begins here
 
-    // Check if the text contains a mention
     if (!text.startsWith('@')) {
       return Text(text, style: style);
     }
@@ -45,10 +44,8 @@ class CommentText extends StatelessWidget {
 
       // Special handling for admin mentions
       if (mention.startsWith('@Admin ')) {
-        // Check if this is a full admin mention (e.g., "@Admin Ronan Admin")
         final mentionParts = mention.split(' ');
         if (mentionParts.length >= 3 && mentionParts.last == 'Admin') {
-          // Get the text after the double space delimiter
           final afterDelimiter = text.substring(doubleSpaceIndex + 2);
 
           // This is the actual content of the reply
@@ -74,7 +71,6 @@ class CommentText extends StatelessWidget {
       hasAdditionalText = restOfText.isNotEmpty;
     } else {
       // No delimiter found, use the old approach
-      // Check if the text contains multiple spaces
       final List<int> spaceIndices = [];
       for (int i = 0; i < text.length; i++) {
         if (text[i] == ' ') {
@@ -90,10 +86,8 @@ class CommentText extends StatelessWidget {
         // If we have at least 3 spaces, assume the mention ends at the second space
         // This handles cases like "@First Last rest of comment"
         if (spaceIndices.length >= 3) {
-          // Check if this might be a reply to an admin (which has a special format)
           if (text.startsWith('@Admin ')) {
             // For admin mentions, we need to handle the format "@Admin First Last"
-            // Check if the third word is "Admin" (as in "@Admin Ronan Admin")
             String thirdWord = "";
             if (spaceIndices.length > 2) {
               thirdWord = text.substring(spaceIndices[1] + 1, spaceIndices[2]);
@@ -103,7 +97,6 @@ class CommentText extends StatelessWidget {
               // This is an admin mention with the format "@Admin Name Admin"
               mention = text.substring(0, spaceIndices[2] + 5); // Include "Admin" word
 
-              // Check if there's text after the admin mention
               if (spaceIndices.length > 3) {
                 restOfText = text.substring(spaceIndices[2] + 6); // Skip "Admin" word and space
               } else {
@@ -137,11 +130,9 @@ class CommentText extends StatelessWidget {
       }
     }
 
-    // Process the extracted mention and text
 
     // If there's no additional text, just show the mention
     if (!hasAdditionalText) {
-      // Get the default text style from the context
       final defaultStyle = DefaultTextStyle.of(context).style;
 
       // Apply styling for the mention
@@ -149,11 +140,9 @@ class CommentText extends StatelessWidget {
       // Special handling for mentions
       Color textColor = mentionColor;
       if (text.startsWith('@Admin ')) {
-        // Use green color for admin mentions
         textColor = const Color(0xFF00C49A);
 
       } else if (text.startsWith('@')) {
-        // Use blue color for user mentions (even in admin comments)
         textColor = Colors.blue[700]!;
 
       }
@@ -167,8 +156,6 @@ class CommentText extends StatelessWidget {
       );
     }
 
-    // Create a rich text with different styles
-    // Get the default text style from the context
     final defaultStyle = DefaultTextStyle.of(context).style;
 
     // Apply styling for mentions in rich text
@@ -176,17 +163,13 @@ class CommentText extends StatelessWidget {
     // Special handling for mentions
     Color mentionTextColor = mentionColor;
     if (mention.startsWith('@Admin ')) {
-      // Use green color for admin mentions
       mentionTextColor = const Color(0xFF00C49A);
 
     } else if (mention.startsWith('@')) {
-      // Use blue color for user mentions (even in admin comments)
       mentionTextColor = Colors.blue[700]!;
 
     }
 
-    // Use a Text.rich widget instead of RichText to ensure proper style inheritance
-    // Check if the rest of the text contains any mentions
     List<TextSpan> textSpans = [];
 
     // First add the mention
@@ -200,10 +183,8 @@ class CommentText extends StatelessWidget {
       )
     );
 
-    // Add a space
     textSpans.add(const TextSpan(text: " "));
 
-    // Check if the rest of the text contains any mentions
     if (restOfText.contains('@')) {
       // Split the text by spaces to find mentions
       final words = restOfText.split(' ');
@@ -231,7 +212,6 @@ class CommentText extends StatelessWidget {
           textSpans.add(TextSpan(text: word));
         }
 
-        // Add a space after each word except the last one
         if (i < words.length - 1) {
           textSpans.add(const TextSpan(text: " "));
         }

@@ -58,13 +58,10 @@ class _AdminScaffoldState extends State<AdminScaffold> {
       child: Scaffold(
         appBar: widget.appBar ??
             AppBar(
-              // Use standard title
               title: Text(widget.title),
               // Standard title spacing
               titleSpacing: 16.0,
-              // Add notification icon to actions
               actions: [
-                // Add notification badge with increased padding to move away from the screen edge
                 if (widget.showNotificationIcon)
                   Padding(
                     padding: const EdgeInsets.only(left: 8.0, right: 16.0),
@@ -80,9 +77,7 @@ class _AdminScaffoldState extends State<AdminScaffold> {
                       ),
                     ),
                   ),
-                // Add other actions if provided
                 if (widget.actions != null) ...widget.actions!,
-                // Add extra space after all actions
                 const SizedBox(width: 8),
               ],
               // Customize AppBar to reduce spacing

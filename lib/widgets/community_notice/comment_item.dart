@@ -30,13 +30,11 @@ class CommentItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Add safety checks for null or empty values
     if (comment.authorName.isEmpty) {
-      return const SizedBox.shrink(); // Return empty widget if author name is empty
+      return const SizedBox.shrink();
     }
 
     final bool isAdmin = comment.authorName.startsWith('Admin');
-    // Use updated profile image if available
     final String? updatedProfileUrl = userProfile?['profileImageUrl'] as String?;
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final bool isLiked = currentUserId != null && comment.isLikedBy(currentUserId);
@@ -216,7 +214,6 @@ class CommentItem extends StatelessWidget {
               margin: const EdgeInsets.only(left: 40),
               child: Column(
                 children: comment.replies.map((reply) {
-                  // Add safety check for empty author name
                   if (reply.authorName.isEmpty) {
                     return const SizedBox.shrink(); // Skip this reply if author name is empty
                   }

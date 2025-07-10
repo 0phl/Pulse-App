@@ -20,10 +20,8 @@ class MediaCacheService {
   // Network type tracking
   bool _isMeteredConnection = true;
 
-  // Initialize connectivity monitoring
   Future<void> initConnectivityMonitoring() async {
     try {
-      // Get initial connectivity status
       final connectivityResult = await Connectivity().checkConnectivity();
 
       // Consider mobile connections as metered
@@ -104,7 +102,6 @@ class MediaCacheService {
     return optimizedUrl;
   }
 
-  // Get cached file or download and cache
   Future<String> getCachedMediaUrl(String originalUrl) async {
     try {
       // First, optimize the URL based on network conditions
@@ -113,12 +110,10 @@ class MediaCacheService {
       // Generate cache key from original URL (not optimized) to maintain consistency
       final cacheKey = _generateCacheKey(originalUrl);
 
-      // Check if file exists in cache
       final cacheDir = await _getCacheDirectory();
       final cachedFile = File('${cacheDir.path}/$cacheKey');
 
       if (await cachedFile.exists()) {
-        // Check if cache is still valid
         final fileStats = await cachedFile.stat();
         final fileAge = DateTime.now().difference(fileStats.modified);
 
@@ -128,7 +123,6 @@ class MediaCacheService {
         }
       }
 
-      // Check connectivity before downloading
       bool isOnMobileData = false;
       try {
         final connectivityResult = await Connectivity().checkConnectivity();
@@ -142,7 +136,6 @@ class MediaCacheService {
       if (enableAggressiveCaching &&
           isOnMobileData &&
           !_shouldDownloadOnMobileData(originalUrl)) {
-        // Return optimized URL instead of downloading
         return optimizedUrl;
       }
 
@@ -151,7 +144,6 @@ class MediaCacheService {
       if (response.statusCode == 200) {
         await cachedFile.writeAsBytes(response.bodyBytes);
 
-        // Update cache size tracking
         await _updateCacheSize(response.bodyBytes.length);
 
         return cachedFile.path;
@@ -186,7 +178,6 @@ class MediaCacheService {
     return digest.toString();
   }
 
-  // Get cache directory
   Future<Directory> _getCacheDirectory() async {
     final cacheDir = await getTemporaryDirectory();
     final mediaCacheDir = Directory('${cacheDir.path}/media_cache');
@@ -198,7 +189,6 @@ class MediaCacheService {
     return mediaCacheDir;
   }
 
-  // Update cache size tracking
   Future<void> _updateCacheSize(int newBytes) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -207,7 +197,6 @@ class MediaCacheService {
 
       await prefs.setInt('media_cache_size_bytes', newSize);
 
-      // Check if we need to clean up cache
       if (newSize > maxCacheSizeMb * 1024 * 1024) {
         _cleanupCache();
       }
@@ -230,7 +219,6 @@ class MediaCacheService {
         return 0;
       });
 
-      // Delete oldest files until we're under 50% of max cache size
       int currentSize = 0;
       const targetSize = maxCacheSizeMb * 1024 * 1024 * 0.5;
 
@@ -248,7 +236,6 @@ class MediaCacheService {
         }
       }
 
-      // Update cache size in preferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('media_cache_size_bytes', currentSize);
 

@@ -40,10 +40,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       vsync: this,
     );
 
-    // Add listener for search text changes
     _searchController.addListener(_filterUsers);
 
-    // Load initial data
     debugPrint('UsersPage: initState called');
     _loadCommunity();
     _loadUsers();
@@ -63,7 +61,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // Initialize tab controller if not already initialized
     if (!_isTabControllerInitialized) {
       final arguments =
           ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
@@ -100,7 +97,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
         _isLoading = true;
       });
 
-      // Load data outside of setState to avoid rebuilding too early
       if (_tabController.index == 0) {
         debugPrint('Loading All Users tab data');
         _loadUsers().then((_) {
@@ -536,7 +532,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
             children: [
               OutlinedButton(
                 onPressed: () {
-                  // Show rejection dialog with reason field
                   final TextEditingController reasonController = TextEditingController();
                   showDialog(
                     context: context,
@@ -647,7 +642,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
               const SizedBox(width: 12),
               ElevatedButton(
                 onPressed: () {
-                  // Show confirmation dialog before approving
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
@@ -766,7 +760,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       _filterUsers();
     }
 
-    // Update UI to show loading is complete
     if (mounted) {
       setState(() {
         _isLoading = false;
@@ -1610,7 +1603,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                 children: [
                   OutlinedButton(
                     onPressed: () {
-                      // Show confirmation dialog before rejecting
                       final TextEditingController reasonController = TextEditingController();
                       showDialog(
                         context: context,
@@ -1723,7 +1715,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   const SizedBox(width: 12),
                   ElevatedButton(
                     onPressed: () {
-                      // Show confirmation dialog before approving
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
@@ -1957,7 +1948,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                 children: [
                   ElevatedButton(
                     onPressed: () {
-                      // Show confirmation dialog before approving
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
@@ -2077,7 +2067,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Handle bar
               Container(
                 width: 32,
                 height: 4,

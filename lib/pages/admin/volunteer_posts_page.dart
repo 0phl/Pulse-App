@@ -63,7 +63,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
       return;
     }
 
-    // Get admin's community ID
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
         .doc(currentUser.uid)
@@ -84,7 +83,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     final userData = userDoc.data()!;
     final communityId = userData['communityId'] as String;
 
-    // Create DateTime with both date and time components
     final eventDateTime = DateTime(
       _selectedDate.year,
       _selectedDate.month,
@@ -108,12 +106,10 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     );
 
     try {
-      // Add the post and get the document reference
       final docRef = await FirebaseFirestore.instance
           .collection('volunteer_posts')
           .add(post.toMap());
 
-      // Update the document with its ID
       await docRef.update({'id': docRef.id});
 
       if (mounted) {
@@ -141,7 +137,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
   }
 
   Future<void> _deletePost(String postId, String title) async {
-    // Show confirmation dialog
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -751,7 +746,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                                       ),
                                     ),
                                   if (isPastEvent) const SizedBox(width: 8),
-                                  // Delete button
                                   Tooltip(
                                     message: 'Delete post',
                                     child: GestureDetector(
@@ -1108,7 +1102,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     try {
       final List<Map<String, dynamic>> users = [];
 
-      // Fetch user data for each user ID
       for (final userId in userIds) {
         // First try to get user from Firestore (admin users)
         final userDoc = await FirebaseFirestore.instance
@@ -1130,7 +1123,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
             if (rtdbSnapshot.exists) {
               final rtdbData = rtdbSnapshot.value as Map<dynamic, dynamic>;
 
-              // Get user's name (handle both formats)
               String fullName = '';
               if (rtdbData['firstName'] != null &&
                   rtdbData['lastName'] != null) {
@@ -1151,7 +1143,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                 'profileImageUrl': rtdbData['profileImageUrl'],
               });
             } else {
-              // Add placeholder for users that don't exist
               users.add({
                 'fullName': 'Unknown User',
                 'email': 'User not found',
@@ -1161,7 +1152,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
             }
           } catch (rtdbError) {
             debugPrint('Error fetching user from RTDB: $rtdbError');
-            // Add placeholder for users that don't exist
             users.add({
               'fullName': 'Unknown User',
               'email': 'User not found',
@@ -1180,7 +1170,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
   }
 
   void _showEditPostDialog(VolunteerPost post) {
-    // Initialize controllers with existing post data
     _titleController.text = post.title;
     _descriptionController.text = post.description;
     _locationController.text = post.location;
@@ -1413,7 +1402,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     });
 
     try {
-      // Create DateTime with both date and time components
       final eventDateTime = DateTime(
         _selectedDate.year,
         _selectedDate.month,
@@ -1422,7 +1410,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
         _selectedTime.minute,
       );
 
-      // Update the post in Firestore
       await FirebaseFirestore.instance
           .collection('volunteer_posts')
           .doc(postId)
@@ -1459,7 +1446,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
   }
 
   Future<void> _reuseVolunteerPost(VolunteerPost post) async {
-    // Show confirmation dialog
     final shouldReuse = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1489,14 +1475,12 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     _locationController.text = post.location;
     _maxVolunteersController.text = post.maxVolunteers.toString();
 
-    // Set default date to tomorrow
     _selectedDate = DateTime.now().add(const Duration(days: 1));
 
     // Keep the same time from the original post
     _selectedTime =
         TimeOfDay(hour: post.eventDate.hour, minute: post.eventDate.minute);
 
-    // Show the create post dialog with existing values
     _showCreatePostDialog(keepExistingValues: true);
   }
 }

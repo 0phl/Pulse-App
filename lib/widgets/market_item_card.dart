@@ -71,7 +71,6 @@ class _MarketItemCardState extends State<MarketItemCard> {
         setState(() {
           sellerProfileImage = sellerProfile['profileImage'];
           sellerRating = sellerProfile['averageRating'] ?? 0.0;
-          // Update the seller name if it changed
           // This ensures the displayed name is always current
           sellerName = sellerProfile['name'];
           isLoading = false;
@@ -88,7 +87,6 @@ class _MarketItemCardState extends State<MarketItemCard> {
 
   Future<void> _loadSellerData() async {
     try {
-      // Get seller profile data
       final sellerProfile = await _marketService.getSellerProfile(widget.item.sellerId);
 
       if (mounted) {
@@ -112,22 +110,18 @@ class _MarketItemCardState extends State<MarketItemCard> {
   List<Widget> _buildRatingStars(double rating) {
     List<Widget> stars = [];
 
-    // Calculate full, half, and empty stars
     int fullStars = rating.floor();
     bool hasHalfStar = (rating - fullStars) >= 0.5;
     int emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
 
-    // Add full stars
     for (int i = 0; i < fullStars; i++) {
       stars.add(const Icon(Icons.star, size: 14, color: Colors.amber));
     }
 
-    // Add half star if needed
     if (hasHalfStar) {
       stars.add(const Icon(Icons.star_half, size: 14, color: Colors.amber));
     }
 
-    // Add empty stars
     for (int i = 0; i < emptyStars; i++) {
       stars.add(const Icon(Icons.star_border, size: 14, color: Colors.amber));
     }
@@ -431,7 +425,6 @@ class _MarketItemCardState extends State<MarketItemCard> {
                           color: Color(0xFF00C49A),
                         ),
                       ),
-                      // Add a small description preview with "Read more" option
                       if (widget.item.description.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         GestureDetector(
@@ -640,7 +633,6 @@ class _MarketItemCardState extends State<MarketItemCard> {
               ),
             ),
 
-          // Show rejection reason if item is rejected
           if (widget.item.status == 'rejected' && widget.item.rejectionReason != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -729,7 +721,6 @@ class _MarketItemCardState extends State<MarketItemCard> {
                             ),
                           ),
                         ),
-                        // Delete button with container for larger touch target
                         InkWell(
                           onTap: widget.onDelete,
                           borderRadius: BorderRadius.circular(8),
@@ -950,7 +941,6 @@ class _MarketItemCardState extends State<MarketItemCard> {
     );
   }
 
-  // Show full description dialog
   void _showDescriptionDialog(BuildContext context) {
     showDialog(
       context: context,

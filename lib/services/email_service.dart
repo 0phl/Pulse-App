@@ -42,7 +42,6 @@ class EmailService {
     return digest.toString();
   }
 
-  // Save OTP data to Firebase
   Future<void> _saveOTP(String email, String hashedOTP) async {
     final otpRef = _database.child('otps').child(email.replaceAll('.', '_'));
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -158,13 +157,11 @@ class EmailService {
     final attempts = data['attempts'] as int;
     final storedHash = data['hash'] as String;
 
-    // Check if OTP is expired (3 minutes)
     if (DateTime.now().millisecondsSinceEpoch > expiresAt + (3 * 60 * 1000)) {
       await otpRef.remove();
       return false;
     }
 
-    // Check if too many attempts
     if (attempts >= 3) {
       await otpRef.remove();
       return false;
@@ -193,7 +190,6 @@ class EmailService {
     print('Sending to: $email');
 
     if (kIsWeb) {
-      // Use EmailJS for web platform
       try {
         print('Using EmailJS for web platform');
 
@@ -220,7 +216,6 @@ class EmailService {
         throw Exception('Failed to send email via EmailJS: $e');
       }
     } else {
-      // Use SMTP for non-web platforms
       try {
         final message = Message()
           ..from = Address(_senderEmail, 'PULSE App')
@@ -332,7 +327,6 @@ class EmailService {
     print('Sending to: $email');
 
     if (kIsWeb) {
-      // Use EmailJS for web platform
       try {
         print('Using EmailJS for web platform');
         print('Email: $email');
@@ -368,7 +362,6 @@ class EmailService {
         throw Exception('Failed to send rejection email via EmailJS: $e');
       }
     } else {
-      // Use SMTP for non-web platforms
       try {
         print('Sending rejection notification via SMTP');
         final message = Message()

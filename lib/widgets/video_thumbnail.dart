@@ -90,7 +90,6 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
 
   // Try to extract a thumbnail URL from video URL (for services like Cloudinary)
   String? _getThumbnailUrlFromVideoUrl(String videoUrl) {
-    // Check if it's a Cloudinary URL
     if (videoUrl.contains('cloudinary.com')) {
       try {
         // Method 1: For videos with explicit extensions, replace with jpg
@@ -103,10 +102,8 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
         final uri = Uri.parse(videoUrl);
         final pathSegments = uri.pathSegments;
 
-        // Find the upload segment index
         final uploadIndex = pathSegments.indexOf('upload');
         if (uploadIndex >= 0 && uploadIndex < pathSegments.length - 1) {
-          // Use video thumbnail transformation
           final newPathSegments = List<String>.from(pathSegments);
           newPathSegments.insert(uploadIndex + 1, 'c_thumb,w_300,h_200');
           return uri.replace(pathSegments: newPathSegments).toString();
@@ -208,14 +205,12 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
 
             if (uploadIndex >= 0 && uploadIndex < pathSegments.length - 1) {
               final newPathSegments = List<String>.from(pathSegments);
-              // Use a different transformation
               newPathSegments.insert(uploadIndex + 1, 'w_300,h_200,c_fill,g_auto');
 
               final alternativeThumbnailUrl = uri.replace(
                 pathSegments: newPathSegments,
               ).toString();
 
-              // Return a new CachedNetworkImage with the alternative URL
               return CachedNetworkImage(
                 imageUrl: alternativeThumbnailUrl,
                 fit: BoxFit.cover,

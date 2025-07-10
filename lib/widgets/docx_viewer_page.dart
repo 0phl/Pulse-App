@@ -40,7 +40,6 @@ class _DocxViewerPageState extends State<DocxViewerPage> {
         _hasError = false;
       });
 
-      // Get temporary directory
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'PULSE_temp_$timestamp.docx';

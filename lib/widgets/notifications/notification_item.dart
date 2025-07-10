@@ -24,7 +24,6 @@ class _NotificationItemState extends State<NotificationItem>
   late Animation<double> _scaleAnimation;
   final DismissDirection _dismissDirection = DismissDirection.endToStart;
 
-  // Use UniqueKey for the dismissible
   final Key _dismissibleKey = UniqueKey();
 
   @override

@@ -26,7 +26,6 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
-  // Add timeout duration
   static const Duration _timeoutDuration = Duration(seconds: 15);
   final _adminService = AdminService();
   final _userService = UserService();
@@ -51,7 +50,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
           // We'll let the auth state stream handle this case
         }
 
-        // Use a FutureBuilder with timeout instead of StreamBuilder for auth state
         return FutureBuilder<User?>(
           future: _getCurrentUserWithTimeout(),
           builder: (context, snapshot) {
@@ -67,7 +65,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
             print('AuthWrapper: User logged in: ${user.email}');
 
-            // Check if user is admin with timeout
             return FutureBuilder<dynamic>(
               future: _checkUserRoleWithTimeout(),
               builder: (context, roleSnapshot) {
@@ -94,7 +91,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 }
 
                 if (roleSnapshot.data == true) {
-                  // Check if it's admin's first login
                   return FutureBuilder<AdminUser?>(
                     future: _getAdminUserWithTimeout(_auth.currentUser!.uid),
                     builder: (context, adminSnapshot) {
@@ -164,7 +160,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
                     print(
                         'AuthWrapper: User verification status: $verificationStatus');
 
-                    // Check verification status
                     if (verificationStatus == 'pending') {
                       print(
                           'AuthWrapper: User account is pending verification');
@@ -184,7 +179,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
                       print(
                           'AuthWrapper: User is verified, checking community status');
 
-                      // Check if user's community is active
                       return FutureBuilder<CommunityDeactivationStatus>(
                         future: _checkCommunityStatusWithTimeout(),
                         builder: (context, communitySnapshot) {
@@ -241,7 +235,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<User?> _getCurrentUserWithTimeout() async {
     try {
-      // Get current user with timeout
       return await Future.delayed(const Duration(milliseconds: 500), () {
         return _auth.currentUser;
       }).timeout(_timeoutDuration, onTimeout: () {
@@ -306,12 +299,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
       return result;
     } catch (e) {
       print('Error getting user document: $e');
-      // Return a dummy snapshot that doesn't exist
       return null;
     }
   }
 
-  // Check if user's community is active with timeout
   Future<CommunityDeactivationStatus> _checkCommunityStatusWithTimeout() async {
     try {
       return await _userService

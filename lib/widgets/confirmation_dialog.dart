@@ -32,11 +32,9 @@ class ConfirmationDialog extends StatelessWidget {
   }) async {
     debugPrint('ConfirmationDialog: Showing dialog');
 
-    // Use completer to ensure we always get a response
     bool dialogResult = false;
 
     try {
-      // Use await to ensure we get a proper response
       final result = await showDialog<bool>(
         context: context,
         barrierDismissible: false, // Prevent dismissing by tapping outside
@@ -55,7 +53,6 @@ class ConfirmationDialog extends StatelessWidget {
         ),
       );
 
-      // Set the result, defaulting to false if null
       dialogResult = result ?? false;
       debugPrint('ConfirmationDialog: Dialog closed with result: $dialogResult');
     } catch (e) {
@@ -63,7 +60,6 @@ class ConfirmationDialog extends StatelessWidget {
       dialogResult = false;
     }
 
-    // Return explicit result
     return dialogResult;
   }
 

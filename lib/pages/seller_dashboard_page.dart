@@ -115,7 +115,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
     _tabController = TabController(
         length: 4, vsync: this, initialIndex: widget.initialTabIndex);
 
-    // Add listener to track tab changes
     _tabController.addListener(() => handleTabChange(_tabController));
 
     _initializeStreams();
@@ -132,7 +131,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // Check if we have arguments with an initialTabIndex
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (arguments != null && arguments.containsKey('initialTabIndex')) {
@@ -160,12 +158,10 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
     }
   }
 
-  // Update the daily sales stream based on the current time period
   void _updateDailySalesStream() {
     final now = DateTime.now();
     DateTime? startDate;
 
-    // Calculate start date based on time period
     switch (_currentTimePeriod) {
       case TimePeriod.week:
         startDate = now.subtract(const Duration(days: 6)); // Last 7 days
@@ -184,10 +180,8 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
         break;
     }
 
-    // Get the number of days in the selected period
     final daysDifference = now.difference(startDate).inDays + 1;
 
-    // Initialize the stream with the calculated date range
     _dailySalesStream = _marketService.getDailySalesDataStream(
       customStartDate: startDate,
       customEndDate: now,
@@ -209,7 +203,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
 
   Future<void> _loadSellerData() async {
     try {
-      // Store current tab index before loading
       final currentTab = _tabController.index;
 
       // Lock the tab to prevent unwanted changes during data loading
@@ -224,7 +217,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
         _isLoading = true;
       });
 
-      // Load seller dashboard stats
       final stats = await _marketService.getSellerDashboardStats();
 
       // Ensure dailySales data exists for chart
@@ -237,7 +229,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
           final date = now.subtract(Duration(days: i));
           final dateString = DateFormat('yyyy-MM-dd').format(date);
 
-          // Create random sales values between 0 and 500
           final saleValue = i == 3
               ? 350.0
               : // Higher value in the middle
@@ -249,11 +240,9 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
           sampleDailySales[dateString] = saleValue;
         }
 
-        // Add sample data to stats
         stats['dailySales'] = sampleDailySales;
       }
 
-      // Load items by status
       final pendingItems =
           await _marketService.getSellerItemsByStatus('pending');
       final approvedItems =
@@ -262,11 +251,9 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
           await _marketService.getSellerItemsByStatus('rejected');
       final soldItems = await _marketService.getSellerSoldItems();
 
-      // Load seller rating info
       final ratingInfo = await _marketService.getSellerRatingInfo();
 
       if (mounted) {
-        // Check if tab changed during data loading
         final tabChanged = _tabController.index != currentTab;
 
         if (tabChanged) {
@@ -303,7 +290,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
 
         // Double-check that we're still on the correct tab after data reload
         if (_tabController.index != currentTab) {
-          // Use a post-frame callback to ensure the tab change happens after the state update
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               _tabController.index = currentTab;
@@ -313,7 +299,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
 
         // Only unlock the tab if we locked it in this method
         if (!wasTabAlreadyLocked) {
-          // Use a post-frame callback to ensure any pending tab changes are processed
           WidgetsBinding.instance.addPostFrameCallback((_) async {
             if (mounted) {
               await Future.delayed(const Duration(milliseconds: 100));
@@ -770,7 +755,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
                                           color: textSecondaryColor,
                                         ),
                                       ),
-                                      // Add debug info for dates
                                       if (item.isSold && item.soldAt != null)
                                         Text(
                                           'Sold: ${DateFormat('MMM d, yyyy').format(item.soldAt!)}',
@@ -797,7 +781,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
     );
   }
 
-  // Extract the sales chart into a separate widget with StreamBuilder
   Widget _buildSalesChartSection() {
     return StreamBuilder<Map<String, dynamic>>(
       stream: _dailySalesStream,
@@ -862,10 +845,8 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
           );
         }
 
-        // Use sales data from stream or fallback to dashboard stats
         final dailySales = snapshot.data ?? _dashboardStats['dailySales'] ?? {};
 
-        // Create a modified dashboardStats with real-time sales data
         final updatedDashboardStats =
             Map<String, dynamic>.from(_dashboardStats);
         updatedDashboardStats['dailySales'] = dailySales;
@@ -1079,7 +1060,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
   }
 
   void _openImageGallery(List<String> imageUrls, int initialIndex) {
-    // Store the current tab index before navigating
     final currentTab = _tabController.index;
 
     // Lock the tab to prevent unwanted changes
@@ -1114,7 +1094,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
       }
     });
 
-    // Set a post-frame callback to check if the tab changed immediately
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final tabChanged = _tabController.index != currentTab;
@@ -1127,7 +1106,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
   }
 
   Future<void> _resubmitItem(MarketItem item) async {
-    // Store the current tab index before proceeding
     final currentTab = _tabController.index;
 
     // Lock the tab to prevent unwanted changes
@@ -1135,7 +1113,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
     setLockedTabIndex(currentTab);
 
     try {
-      // Create a new item with the same details but reset the status
       final updatedItem = MarketItem(
         id: item.id,
         title: item.title,
@@ -1152,7 +1129,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
       await _marketService.updateMarketItem(updatedItem);
 
       if (mounted) {
-        // Check if tab changed unexpectedly
         final tabChanged = _tabController.index != currentTab;
         if (tabChanged) {
           _tabController.index =
@@ -1203,7 +1179,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
   }
 
   Future<void> _confirmRemoveItem(MarketItem item) async {
-    // Store the current tab index before showing the dialog
     final currentTab = _tabController.index;
 
     // Lock the tab to prevent unwanted changes
@@ -1222,7 +1197,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
       iconBackgroundColor: const Color(0xFFEF4444),
     );
 
-    // Check if the tab changed during dialog display
     if (mounted) {
       final tabChanged = _tabController.index != currentTab;
       if (tabChanged) {

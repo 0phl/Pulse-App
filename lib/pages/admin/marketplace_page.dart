@@ -94,7 +94,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
           _marketItems = snapshot.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
 
-            // Handle both old and new image formats
             List<String> imageUrls = [];
             if (data['imageUrls'] != null) {
               // New format with multiple images
@@ -146,7 +145,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
           _pendingItems = snapshot.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
 
-            // Handle both old and new image formats
             List<String> imageUrls = [];
             if (data['imageUrls'] != null) {
               // New format with multiple images
@@ -190,7 +188,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
 
       final stats = await _adminService.getMarketStats(community.id);
 
-      // Add pending items count to stats
       stats['pendingItems'] = _pendingItems.length;
 
       if (mounted) {
@@ -223,7 +220,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
   // Method to handle image taps and open the image viewer
   void _handleImageTap(dynamic imageData) {
     if (imageData is List<String>) {
-      // Handle multiple images
       if (imageData.isEmpty) return;
 
       Navigator.push(
@@ -236,7 +232,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
         ),
       );
     } else if (imageData is String) {
-      // Handle single image
       if (imageData.isEmpty) return;
 
       Navigator.push(
@@ -318,7 +313,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                     children: [
                       GestureDetector(
                         onTap: () {
-                          // Check if we have multiple images
                           if (item['imageUrls'] != null && (item['imageUrls'] as List).isNotEmpty) {
                             _handleImageTap(item['imageUrls']);
                           } else if (item['imageUrl'] != null && item['imageUrl'].toString().isNotEmpty) {
@@ -779,7 +773,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
           child: ListTile(
             leading: GestureDetector(
               onTap: () {
-                // Check if we have multiple images
                 if (transaction['imageUrls'] != null && (transaction['imageUrls'] as List).isNotEmpty) {
                   _handleImageTap(transaction['imageUrls']);
                 } else if (transaction['imageUrl'] != null && transaction['imageUrl'].toString().isNotEmpty) {
@@ -1211,7 +1204,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                                     children: [
                                       GestureDetector(
                                         onTap: () {
-                                          // Check if we have multiple images
                                           if (item['imageUrls'] != null && (item['imageUrls'] as List).isNotEmpty) {
                                             _handleImageTap(item['imageUrls']);
                                           } else if (imageUrl.isNotEmpty) {
@@ -1352,9 +1344,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
 
   // Helper method to build item image
   Widget _buildItemImage(Map<String, dynamic> item) {
-    // Check if we have multiple images
     if (item['imageUrls'] != null && (item['imageUrls'] as List).isNotEmpty) {
-      // Use the first image from the list
       final imageUrl = (item['imageUrls'] as List<String>)[0];
       return Image.network(
         imageUrl,
@@ -1367,7 +1357,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
         },
       );
     } else if (item['imageUrl'] != null && item['imageUrl'].toString().isNotEmpty) {
-      // Use the single image
       return Image.network(
         item['imageUrl'],
         fit: BoxFit.cover,
@@ -1389,9 +1378,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
 
   // Helper method to build transaction image
   Widget _buildTransactionImage(Map<String, dynamic> transaction) {
-    // Check if we have multiple images
     if (transaction['imageUrls'] != null && (transaction['imageUrls'] as List).isNotEmpty) {
-      // Use the first image from the list
       final imageUrl = (transaction['imageUrls'] as List<String>)[0];
       return Image.network(
         imageUrl,
@@ -1404,7 +1391,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
         },
       );
     } else if (transaction['imageUrl'] != null && transaction['imageUrl'].toString().isNotEmpty) {
-      // Use the single image
       return Image.network(
         transaction['imageUrl'],
         fit: BoxFit.cover,
@@ -1524,7 +1510,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                                 children: [
                                   GestureDetector(
                                     onTap: () {
-                                      // Check if we have multiple images
                                       if (item['imageUrls'] != null && (item['imageUrls'] as List).isNotEmpty) {
                                         _handleImageTap(item['imageUrls']);
                                       } else if (imageUrl.isNotEmpty) {
