@@ -29,7 +29,6 @@ PULSE is a feature-rich community engagement mobile application designed to stre
 ### 🛒 Local Marketplace
 - **Buy & Sell Platform**: Connect with local businesses and community members
 - **Seller Dashboard**: Manage listings, track sales, and view analytics
-- **Advanced Search & Filtering**: Find items by category, location, and price
 - **Seller Ratings & Reviews**: Build trust through community feedback
 - **Real-time Chat**: Direct messaging between buyers and sellers
 
@@ -45,7 +44,6 @@ PULSE is a feature-rich community engagement mobile application designed to stre
 - **Administrative Review**: Streamlined review process for community administrators
 
 ### 💬 Communication
-- **Real-time Chat**: Instant messaging between community members
 - **Push Notifications**: Stay updated with Firebase Cloud Messaging (FCM)
 - **Notification Management**: Customizable notification preferences
 
@@ -88,7 +86,6 @@ PULSE is a feature-rich community engagement mobile application designed to stre
 - **Dart SDK**: 3.0 or higher
 - **Development Environment**:
   - Android Studio / VS Code
-  - Xcode (for iOS development)
 - **Firebase Project**: With Authentication, Firestore, and Storage enabled
 
 ### Installation
