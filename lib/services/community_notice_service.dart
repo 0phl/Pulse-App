@@ -5,7 +5,6 @@ import '../models/community_notice.dart';
 class CommunityNoticeService {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
 
-  // Get all notices for a community
   Stream<List<CommunityNotice>> getNotices(String communityId) {
     return _database
         .child('community_notices')
@@ -14,10 +13,8 @@ class CommunityNoticeService {
         .onValue
         .map((event) {
       final data = event.snapshot.value;
-      // Handle null data or empty data
       if (data == null) return [];
 
-      // Handle case when data is not a Map
       if (data is! Map<dynamic, dynamic>) return [];
 
       final notices = <CommunityNotice>[];
@@ -68,7 +65,6 @@ class CommunityNoticeService {
     });
   }
 
-  // Create a new notice
   Future<String> createNotice({
     required String title,
     required String content,
@@ -119,7 +115,6 @@ class CommunityNoticeService {
     }
   }
 
-  // Add a comment
   Future<String> addComment(
     String noticeId,
     String content,
@@ -140,7 +135,6 @@ class CommunityNoticeService {
 
       String actualParentId = parentCommentId;
 
-      // Check if the parent comment exists
       if (parentCommentSnapshot.exists) {
         // Parent comment exists as a top-level comment
       } else {
@@ -160,11 +154,9 @@ class CommunityNoticeService {
           for (var commentEntry in allComments.entries) {
             final comment = commentEntry.value as Map<dynamic, dynamic>;
 
-            // Check if this comment has replies
             if (comment['replies'] is Map) {
               final replies = comment['replies'] as Map<dynamic, dynamic>;
 
-              // Check if our target reply is in this comment's replies
               if (replies.containsKey(parentCommentId)) {
                 // Found the actual parent comment
                 actualParentId = commentEntry.key.toString();
@@ -201,7 +193,6 @@ class CommunityNoticeService {
 
       return newReplyRef.key!;
     } else {
-      // Add as a top-level comment
       // Debug print to help diagnose issues
       debugPrint('Adding top-level comment, Content: "$content"');
 
@@ -273,7 +264,6 @@ class CommunityNoticeService {
     String userId,
     {bool allowMultipleChoices = false}
   ) async {
-    // Get the current poll data
     final pollRef = _database
         .child('community_notices')
         .child(noticeId)
@@ -288,12 +278,10 @@ class CommunityNoticeService {
     final options = pollData['options'] as List<dynamic>;
     final selectedOption = options[int.parse(optionId)];
 
-    // Check if the user has already voted for this option
     final hasVoted = selectedOption['votedBy'] != null &&
                      (selectedOption['votedBy'] as Map<dynamic, dynamic>?)?.containsKey(userId) == true;
 
     if (hasVoted) {
-      // Remove the vote if already voted
       await pollRef
           .child('options')
           .child(optionId)
@@ -315,7 +303,6 @@ class CommunityNoticeService {
         }
       }
 
-      // Add the new vote
       await pollRef
           .child('options')
           .child(optionId)
@@ -327,7 +314,6 @@ class CommunityNoticeService {
     }
   }
 
-  // Create a poll for a notice
   Future<void> createPoll(
     String noticeId,
     String question,
@@ -354,7 +340,6 @@ class CommunityNoticeService {
     await pollRef.set(pollData);
   }
 
-  // Delete a notice (only by author or admin)
   Future<void> deleteNotice(String noticeId) async {
     try {
       debugPrint('Starting deletion of notice: $noticeId');
@@ -368,7 +353,6 @@ class CommunityNoticeService {
 
       debugPrint('Notice found, proceeding with deletion');
 
-      // Use a direct reference to the notice
       final noticeRef = _database.child('community_notices').child(noticeId);
 
       // We'll use direct deletion since Firebase RTDB transactions are complex
@@ -380,7 +364,6 @@ class CommunityNoticeService {
         await noticeRef.set(null);
         debugPrint('Notice removal command sent using set(null)');
 
-        // Add a small delay to ensure the deletion is processed
         await Future.delayed(const Duration(milliseconds: 500));
 
         // Verify deletion was successful
@@ -413,10 +396,8 @@ class CommunityNoticeService {
     }
   }
 
-  // Update all comments by a user when their profile changes
   Future<void> updateUserCommentsInfo(String userId, String newFullName, String? newProfileImageUrl) async {
     try {
-      // Get all notices
       final noticesSnapshot = await _database.child('community_notices').get();
       if (!noticesSnapshot.exists) return;
 
@@ -432,12 +413,10 @@ class CommunityNoticeService {
 
         final comments = noticeData['comments'] as Map<dynamic, dynamic>;
 
-        // Check each top-level comment
         for (var commentEntry in comments.entries) {
           final commentId = commentEntry.key.toString();
           final commentData = commentEntry.value as Map<dynamic, dynamic>;
 
-          // Update top-level comment if it's by this user
           if (commentData['authorId'] == userId) {
             await _database
                 .child('community_notices')
@@ -450,7 +429,6 @@ class CommunityNoticeService {
             });
           }
 
-          // Check and update replies
           if (commentData['replies'] != null && commentData['replies'] is Map) {
             final replies = commentData['replies'] as Map<dynamic, dynamic>;
 
@@ -458,7 +436,6 @@ class CommunityNoticeService {
               final replyId = replyEntry.key.toString();
               final replyData = replyEntry.value as Map<dynamic, dynamic>;
 
-              // Update reply if it's by this user
               if (replyData['authorId'] == userId) {
                 await _database
                     .child('community_notices')

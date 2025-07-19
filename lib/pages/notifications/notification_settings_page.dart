@@ -142,7 +142,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     }
   }
 
-  // Show FCM token
   Future<void> _showFcmToken() async {
     setState(() {
       _isLoading = true;
@@ -158,7 +157,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       });
 
       if (mounted) {
-        // Show a dialog with the token
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
@@ -384,7 +382,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // Show FCM token
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: ElevatedButton(

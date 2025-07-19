@@ -50,7 +50,6 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
           _profileImageUrl = null;
         });
 
-        // Load fresh data
         _loadCommunity();
       }
     }
@@ -62,13 +61,10 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
     setState(() => _isLoading = true);
 
     try {
-      // Add a small delay to ensure Firebase connection is stable
       await Future.delayed(const Duration(milliseconds: 300));
 
-      // Load community data
       final community = await _adminService.getCurrentAdminCommunity();
 
-      // Load admin profile data
       final user = _authService.currentUser;
       if (user != null) {
         try {
@@ -102,7 +98,6 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('AdminDrawer: Error loading community: $e');
       if (mounted) {
-        // Set a default community name instead of showing an error
         setState(() {
           _communityName = 'Community';
           _isLoading = false;
@@ -113,7 +108,6 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Get current route to determine which menu item is active
     final String currentRoute = ModalRoute.of(context)?.settings.name ?? '';
 
     // Debug the current route
@@ -149,12 +143,10 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               shape: BoxShape.circle,
-                              // Add a subtle border to indicate it's clickable
                               border: Border.all(
                                 color: Colors.white,
                                 width: 2,
                               ),
-                              // Show profile image if available
                               image: _profileImageUrl != null && _profileImageUrl!.isNotEmpty
                                   ? DecorationImage(
                                       image: NetworkImage(_profileImageUrl!),
@@ -162,7 +154,6 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
                                     )
                                   : null,
                             ),
-                            // Show icon only if no profile image is available
                             child: (_profileImageUrl == null || _profileImageUrl!.isEmpty)
                                 ? const Icon(
                                     Icons.person,
@@ -400,13 +391,11 @@ class _AdminDrawerState extends State<AdminDrawer> with WidgetsBindingObserver {
   }
 
   Future<void> _logout() async {
-    // Show loading state immediately
     setState(() {
       _isLoggingOut = true;
     });
 
     try {
-      // Add a 2.5 second delay to show the logout loading screen
       await Future.delayed(const Duration(milliseconds: 2500));
 
       // Navigate after the delay

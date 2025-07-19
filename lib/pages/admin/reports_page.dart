@@ -623,7 +623,6 @@ class _AnalyticsTabState extends State<AnalyticsTab> with AutomaticKeepAliveClie
   String get avgResolutionTime =>
       widget.reportStats['avgResolutionTime'] as String? ?? '0.0';
 
-  // Calculate percentage for pie chart labels
   String _getPercentage(int value, int total) {
     if (total == 0) return '0.0';
     return ((value / total) * 100).toStringAsFixed(1);

@@ -27,7 +27,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   Future<void> _initializePlayer() async {
     try {
-      // Use the MediaCacheService to optimize video URL based on network conditions
       final mediaCacheService = MediaCacheService();
       final optimizedUrl = mediaCacheService.getOptimizedUrl(widget.videoUrl, isVideo: true);
       _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(optimizedUrl));
@@ -38,7 +37,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         aspectRatio: _videoPlayerController.value.aspectRatio,
         autoPlay: false, // Disable autoplay to save bandwidth
         looping: false, // Disable looping to save bandwidth
-        // Add quality options to allow users to select lower quality
         // when on mobile data
         placeholder: Container(
           color: Colors.grey[200],
@@ -46,7 +44,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         ),
         // Limit buffering to reduce bandwidth
         allowedScreenSleep: false,
-        // Add a data saver option
         additionalOptions: (context) => [
           OptionItem(
             onTap: (context) => _toggleDataSaver(context),
@@ -96,7 +93,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
     await prefs.setBool('video_data_saver', !isDataSaverOn);
 
-    // Show a confirmation message
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

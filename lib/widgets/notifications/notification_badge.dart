@@ -39,7 +39,6 @@ class _NotificationBadgeState extends State<NotificationBadge>
       vsync: this,
     );
 
-    // Create a curved animation
     _animation = TweenSequence<double>([
       TweenSequenceItem(
         tween: Tween<double>(begin: 0.5, end: 1.2)

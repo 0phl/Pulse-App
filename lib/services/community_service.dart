@@ -5,7 +5,6 @@ import '../models/community.dart';
 class CommunityService {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
 
-  // Check if a community exists by location
   Future<bool> checkCommunityExists({
     required String regionCode,
     required String provinceCode,
@@ -29,7 +28,6 @@ class CommunityService {
     return snapshot.exists;
   }
 
-  // Get community by location
   Future<Community?> getCommunityByLocation({
     required String regionCode,
     required String provinceCode,
@@ -56,7 +54,6 @@ class CommunityService {
     return Community.fromMap(entry.key, entry.value as Map<dynamic, dynamic>);
   }
 
-  // Fetch all communities
   Stream<List<Community>> getCommunities() {
     return _database.child('communities').onValue.map((event) {
       final data = event.snapshot.value as Map<dynamic, dynamic>?;
@@ -69,7 +66,6 @@ class CommunityService {
     });
   }
 
-  // Get a single community
   Future<Community?> getCommunity(String id) async {
     try {
       final snapshot = await _database.child('communities').child(id).get();
@@ -91,7 +87,6 @@ class CommunityService {
     }
   }
 
-  // Create a new community
   Future<String> createCommunity({
     required String name,
     required String description,
@@ -101,7 +96,6 @@ class CommunityService {
     required String barangayCode,
     String? adminId,
   }) async {
-    // Check if community already exists
     final exists = await checkCommunityExists(
       regionCode: regionCode,
       provinceCode: provinceCode,
@@ -146,14 +140,12 @@ class CommunityService {
     return newCommunityRef.key!;
   }
 
-  // Update current user's community
   Future<void> updateUserCommunity(String userId, String communityId) async {
     await _database.child('users').child(userId).update({
       'communityId': communityId,
     });
   }
 
-  // Get user's current community
   Future<Community?> getUserCommunity(String userId) async {
     try {
       final userSnapshot = await _database.child('users').child(userId).get();
@@ -162,7 +154,6 @@ class CommunityService {
       final userData = userSnapshot.value as Map<dynamic, dynamic>;
       final communityId = userData['communityId'];
 
-      // Handle null or non-string communityId
       if (communityId == null) return null;
 
       // Ensure communityId is a string

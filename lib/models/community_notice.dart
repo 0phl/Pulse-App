@@ -22,32 +22,32 @@ class Poll {
 
   factory Poll.fromMap(Map<dynamic, dynamic> map) {
     try {
-      // Ensure question is a string
+      
       final String question = map['question']?.toString() ?? 'Poll Question';
 
-      // Ensure options is a list
+      
       final List<dynamic> optionsList = map['options'] is List ? map['options'] as List<dynamic> : [];
 
-      // Ensure expiresAt is a valid DateTime
+      
       final DateTime expiresAt = map['expiresAt'] is Timestamp
           ? (map['expiresAt'] as Timestamp).toDate()
           : map['expiresAt'] is int
               ? DateTime.fromMillisecondsSinceEpoch(map['expiresAt'] as int)
               : DateTime.now().add(const Duration(days: 7));
 
-      // Ensure allowMultipleChoices is a boolean
+      
       final bool allowMultiple = map['allowMultipleChoices'] == true;
 
-      // Parse imageUrls if available
+      
       List<String>? imageUrls;
       if (map['imageUrls'] is List) {
         imageUrls = (map['imageUrls'] as List).map((url) => url.toString()).toList();
       }
 
-      // Parse videoUrl if available
+      
       final String? videoUrl = map['videoUrl']?.toString();
 
-      // Parse attachments if available
+      
       List<FileAttachment>? attachments;
       if (map['attachments'] is List) {
         try {
@@ -61,7 +61,7 @@ class Poll {
         }
       }
 
-      // Parse options safely
+      
       final List<PollOption> options = [];
       for (var option in optionsList) {
         try {
@@ -87,7 +87,7 @@ class Poll {
       );
     } catch (e) {
       debugPrint('Error parsing poll data: $e');
-      // Return a default poll instead of rethrowing to prevent app crashes
+      
       return Poll(
         question: 'Error loading poll',
         options: [PollOption(id: '0', text: 'Option')],
@@ -122,13 +122,13 @@ class PollOption {
 
   factory PollOption.fromMap(Map<dynamic, dynamic> map) {
     try {
-      // Ensure id is a string
+      
       final String id = map['id']?.toString() ?? '0';
 
-      // Ensure text is a string
+      
       final String text = map['text']?.toString() ?? 'Option';
 
-      // Ensure votedBy is a list
+      
       List<String> votedBy = [];
       if (map['votedBy'] is Map) {
         try {
@@ -149,7 +149,7 @@ class PollOption {
       );
     } catch (e) {
       debugPrint('Error parsing poll option data: $e');
-      // Return a default option instead of rethrowing to prevent app crashes
+      
       return PollOption(
         id: '0',
         text: 'Option',
@@ -174,7 +174,7 @@ class FileAttachment {
   final String name;
   final String url;
   final String type;
-  final int size; // in bytes
+  final int size;
 
   FileAttachment({
     required this.id,
@@ -195,7 +195,7 @@ class FileAttachment {
       );
     } catch (e) {
       debugPrint('Error parsing file attachment: $e');
-      // Return a default attachment instead of throwing to prevent app crashes
+      
       return FileAttachment(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         name: 'Error loading file',
@@ -224,7 +224,7 @@ class CommunityNotice {
   final String authorId;
   final String authorName;
   final String? authorAvatar;
-  final List<String>? imageUrls; // Changed from single imageUrl to list
+  final List<String>? imageUrls;
   final String? videoUrl;
   final Poll? poll;
   final List<FileAttachment>? attachments;
@@ -254,7 +254,7 @@ class CommunityNotice {
       [Map<dynamic, dynamic>? data]) {
     try {
       if (data != null) {
-        // Handle case where id and data are passed separately
+        
         String id = '';
         try {
           id = source.toString();
@@ -302,7 +302,7 @@ class CommunityNotice {
         );
       }
 
-      // Handle case where everything is in a single map
+      
       if (source is! Map) {
         throw FormatException('Source is not a Map: $source');
       }
@@ -361,7 +361,7 @@ class CommunityNotice {
       );
     } catch (e) {
       debugPrint('Error in CommunityNotice.fromMap: $e');
-      // Return a fallback notice to prevent app crashes
+      
       return CommunityNotice(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         title: 'Error loading notice',
@@ -399,7 +399,7 @@ class CommunityNotice {
 
   int get likesCount => likedBy.length;
 
-  // Get total comments count including replies
+  
   int get commentsCount {
     int totalCount = comments.length;
     for (var comment in comments) {
@@ -481,17 +481,17 @@ class Comment {
             .toList();
       }
 
-      // Parse replies
+      
       List<Comment> replies = [];
       if (map['replies'] is Map) {
 
         replies = (map['replies'] as Map<dynamic, dynamic>).entries.map((entry) {
           if (entry.value is! Map) return null;
           try {
-            // Get the original data
+            
             final replyData = entry.value as Map<dynamic, dynamic>;
 
-            // Check if this is a reply to another reply (has replyToId)
+            
             final String? replyToId = replyData['replyToId']?.toString();
 
             return Comment.fromMap({
@@ -501,7 +501,7 @@ class Comment {
               'replyToId': replyToId,
             });
           } catch (e) {
-            // Return null on error to filter out invalid replies
+            
             return null;
           }
         }).whereType<Comment>().toList();
@@ -522,7 +522,7 @@ class Comment {
         replyToId: map['replyToId'] != null ? map['replyToId'].toString() : null,
       );
     } catch (e) {
-      // Return a fallback comment to prevent app crashes
+      
       return Comment(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         content: 'Error loading comment',
@@ -545,9 +545,9 @@ class Comment {
       'createdAt': createdAt,
       'parentId': parentId,
       'replyToId': replyToId,
-      // Convert likes to map format for Firebase
+      
       'likes': likedBy.isEmpty ? null : {for (var userId in likedBy) userId: true},
-      // Convert replies to map format for Firebase
+      
       'replies': replies.isEmpty ? null : {for (var reply in replies) reply.id: reply.toMap()},
     };
   }

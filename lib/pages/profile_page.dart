@@ -75,7 +75,6 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _userData = userData;
 
-        // Handle both new format (firstName, lastName) and old format (fullName)
         if (userData['firstName'] != null) {
           _firstNameController.text = userData['firstName'] ?? '';
           _middleNameController.text = userData['middleName'] ?? '';
@@ -114,7 +113,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _pickImage() async {
     try {
-      // Show a dialog to choose between camera and gallery
       await showModalBottomSheet(
         context: context,
         builder: (BuildContext context) {
@@ -240,7 +238,6 @@ class _ProfilePageState extends State<ProfilePage> {
       // Compress the image before uploading to reduce file size
       final File compressedFile = await _compressImage(_newProfileImage!);
 
-      // Use the dedicated profile image uploader with the compressed image
       return await _cloudinaryService.uploadProfileImage(compressedFile);
     } catch (e) {
       if (mounted) {
@@ -254,12 +251,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Helper method to compress images before uploading
   Future<File> _compressImage(File file) async {
-    // Get file path and name
     final String filePath = file.path;
     final int lastIndex = filePath.lastIndexOf(Platform.isWindows ? '\\' : '/');
     final String fileName = filePath.substring(lastIndex + 1);
 
-    // Get temporary directory for storing compressed image
     final tempDir = await path_provider.getTemporaryDirectory();
     final targetPath = '${tempDir.path}${Platform.isWindows ? '\\' : '/'}compressed_$fileName';
 
@@ -311,7 +306,6 @@ class _ProfilePageState extends State<ProfilePage> {
         'address': _addressController.text.trim(),
       };
 
-      // Add middle name if provided
       if (_middleNameController.text.trim().isNotEmpty) {
         updateData['middleName'] = _middleNameController.text.trim();
       }
@@ -322,12 +316,10 @@ class _ProfilePageState extends State<ProfilePage> {
           : '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
       updateData['fullName'] = fullName;
 
-      // Add profile image URL if available
       if (profileImageUrl != null) {
         updateData['profileImageUrl'] = profileImageUrl;
       }
 
-      // Update user profile
       await _authService.updateUserProfile(user.uid, updateData);
 
       if (mounted) {
@@ -446,7 +438,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                             ),
                           ),
-                          // Show loading overlay when processing image
                           if (_isProcessingImage)
                             Positioned.fill(
                               child: Container(

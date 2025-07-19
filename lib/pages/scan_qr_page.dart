@@ -60,7 +60,6 @@ class _ScanQRPageState extends State<ScanQRPage> {
                       _isScanning = false;
                     });
 
-                    // Return the scanned code to the previous screen
                     Navigator.of(context).pop(code);
                   }
                 }

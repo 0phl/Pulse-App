@@ -28,7 +28,6 @@ class _DeactivatedAccountPageState extends State<DeactivatedAccountPage> {
     _adminData = _loadAdminData();
   }
 
-  // Load additional admin data
   Future<Map<String, dynamic>> _loadAdminData() async {
     try {
       final user = _auth.currentUser;
@@ -546,7 +545,6 @@ class _DeactivatedAccountPageState extends State<DeactivatedAccountPage> {
 
   Future<void> _signOut() async {
     try {
-      // Add a 2.5 second delay to show any loading indicators
       await Future.delayed(const Duration(milliseconds: 2500));
 
       // Navigate after the delay
@@ -563,7 +561,6 @@ class _DeactivatedAccountPageState extends State<DeactivatedAccountPage> {
     } catch (e) {
       debugPrint('Error signing out: $e');
 
-      // Show error message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

@@ -1,14 +1,12 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class UserSessionService {
-  // Keys for SharedPreferences
   static const String _keyUserId = 'user_id';
   static const String _keyUserEmail = 'user_email';
   static const String _keyUserType = 'user_type';
   static const String _keyIsLoggedIn = 'is_logged_in';
   static const String _keyRememberMe = 'remember_me';
 
-  // Save user session data
   Future<void> saveUserSession({
     required String userId,
     required String email,
@@ -23,13 +21,11 @@ class UserSessionService {
     await prefs.setBool(_keyRememberMe, rememberMe);
   }
 
-  // Check if user is logged in
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_keyIsLoggedIn) ?? false;
   }
 
-  // Get user session data
   Future<Map<String, dynamic>> getUserSession() async {
     final prefs = await SharedPreferences.getInstance();
     return {
@@ -41,7 +37,6 @@ class UserSessionService {
     };
   }
 
-  // Clear user session data
   Future<void> clearUserSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyUserId);

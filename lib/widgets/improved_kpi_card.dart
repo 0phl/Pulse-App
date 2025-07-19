@@ -24,12 +24,10 @@ class ImprovedKpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Calculate trend values dynamically
     Color trendColor = Colors.grey;
     IconData trendIcon = Icons.trending_flat;
 
     if (trend != null) {
-      // Extract numeric value from trend string (removing + or - prefix and % suffix)
       final trendValue =
           double.tryParse(trend!.replaceAll(RegExp(r'[+\-]'), '').replaceAll('%', '')) ?? 0;
 

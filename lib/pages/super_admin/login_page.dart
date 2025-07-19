@@ -48,20 +48,17 @@ class _SuperAdminLoginPageState extends State<SuperAdminLoginPage> with TickerPr
         password: _passwordController.text,
       );
 
-      // Check if user is super admin
       final isSuperAdmin = await _superAdminService.isSuperAdmin();
       if (!isSuperAdmin) {
         throw 'This account does not have super admin privileges';
       }
 
-      // Save super admin session data
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         await _sessionService.saveUserSession(
           userId: user.uid,
           email: user.email!,
           userType: 'super_admin',
-          // Save remember me preference
           rememberMe: _rememberMe,
         );
       }
@@ -523,7 +520,6 @@ class _SuperAdminLoginPageState extends State<SuperAdminLoginPage> with TickerPr
       ),
     );
 
-    // Add listener to shake back and forth
     _shakeController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         _shakeController.reverse();
@@ -532,11 +528,9 @@ class _SuperAdminLoginPageState extends State<SuperAdminLoginPage> with TickerPr
       }
     });
 
-    // Check for saved credentials
     _loadSavedCredentials();
   }
 
-  // Load saved credentials if "Remember Me" was selected
   Future<void> _loadSavedCredentials() async {
     final sessionData = await _sessionService.getUserSession();
     final rememberMe = sessionData['rememberMe'] as bool? ?? false;

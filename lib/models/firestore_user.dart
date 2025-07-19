@@ -19,7 +19,6 @@ class FirestoreUser {
   final String registrationId;
   final String verificationStatus;
 
-  // Get full name by combining first, middle, and last names
   String get fullName {
     if (middleName != null && middleName!.isNotEmpty) {
       return '$firstName $middleName $lastName';
@@ -97,7 +96,6 @@ class FirestoreUser {
         // Try other date formats if needed
         return DateTime.tryParse(dateTimeValue) ?? DateTime.now();
       } else if (dateTimeValue is int) {
-        // Handle timestamp in milliseconds
         return DateTime.fromMillisecondsSinceEpoch(dateTimeValue);
       }
     } catch (e) {
@@ -108,7 +106,6 @@ class FirestoreUser {
   }
 
   factory FirestoreUser.fromMap(Map<String, dynamic> map) {
-    // Handle both new format (firstName, lastName) and old format (fullName)
     String firstName = map['firstName'] ?? '';
     String? middleName = map['middleName'];
     String lastName = map['lastName'] ?? '';

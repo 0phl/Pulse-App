@@ -755,7 +755,6 @@ class _BarangayProfileDetailPageState extends State<BarangayProfileDetailPage> {
       }
     }
 
-    // Add "Others" category if there are small categories
     final legendItems = <MapEntry<String, int>>[];
     legendItems.addAll(mainCategories);
     if (othersTotal > 0) {
@@ -991,7 +990,6 @@ class _BarangayProfileDetailPageState extends State<BarangayProfileDetailPage> {
       }
     }
 
-    // Add "Others" category if there are small categories
     final sectionsToShow = <MapEntry<String, int>>[];
     sectionsToShow.addAll(mainCategories);
     if (othersTotal > 0) {

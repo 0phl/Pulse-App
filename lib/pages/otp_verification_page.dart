@@ -30,7 +30,7 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
   int _timeLeft = 180; // 3 minutes in seconds
   bool _isLoading = false;
   bool _canResend = false;
-  bool _emailVerified = false; // Track if email is verified
+  bool _emailVerified = false;
 
   @override
   void initState() {
@@ -111,7 +111,6 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
         _isLoading = false;
       });
 
-      // Get all communities to check
       final communitiesRef =
           FirebaseDatabase.instance.ref().child('communities');
       final allCommunitiesSnapshot = await communitiesRef.get();
@@ -121,14 +120,12 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
         final allCommunities =
             allCommunitiesSnapshot.value as Map<dynamic, dynamic>;
 
-        // Get barangay code from registration data
         final barangayCode = widget.registrationData.location['barangayCode'];
 
         // Manually check each community since we can't query by locationStatusId without an index
         for (var entry in allCommunities.entries) {
           final community = entry.value as Map<dynamic, dynamic>;
 
-          // Check if this community matches our barangay code and is active
           if (community['barangayCode'] == barangayCode &&
               community['status'] == 'active' &&
               community['adminId'] != null) {
@@ -178,7 +175,6 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
     }
   }
 
-  // Widget to show pending status with QR code
   Widget _buildPendingStatusScreen() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
@@ -353,7 +349,6 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
     );
   }
 
-  // Widget to show OTP verification UI
   Widget _buildOTPVerificationScreen() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),

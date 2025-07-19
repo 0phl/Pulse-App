@@ -14,7 +14,6 @@ import 'login_page.dart';
 import 'profile_page.dart';
 
 class HomePage extends StatefulWidget {
-  // Use a global key that can be accessed from outside
   static final GlobalKey<HomePageState> homeKey = GlobalKey<HomePageState>();
 
   // Constructor without const keyword
@@ -42,7 +41,6 @@ class HomePageState extends State<HomePage> {
   bool _isLoading = true;
   String _communityName = '';
 
-  // Method to scroll to top with animation
   void scrollToTop() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -259,13 +257,10 @@ class HomePageState extends State<HomePage> {
     _refreshNotices();
   }
 
-  // Method to handle notice deletion with proper context management
   Future<void> _deleteNotice(
       String noticeId, BuildContext contextFromCaller) async {
-    // Store the context locally to avoid issues with async gaps
     final BuildContext context = contextFromCaller;
 
-    // Show a loading dialog
     if (context.mounted) {
       showDialog(
         context: context,
@@ -282,7 +277,6 @@ class HomePageState extends State<HomePage> {
     }
 
     try {
-      // Delete the notice
       debugPrint('Deleting notice: $noticeId');
       await _noticeService.deleteNotice(noticeId);
       debugPrint('Notice deleted successfully');
@@ -292,7 +286,6 @@ class HomePageState extends State<HomePage> {
         Navigator.of(context).pop();
       }
 
-      // Show success message
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -309,7 +302,6 @@ class HomePageState extends State<HomePage> {
         Navigator.of(context).pop();
       }
 
-      // Show error message
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -488,13 +480,11 @@ class HomePageState extends State<HomePage> {
               PopupMenuItem(
                 child: const Text('Logout'),
                 onTap: () async {
-                  // Show loading state immediately using global state
                   _globalState.setLogoutState(true);
 
                   try {
                     debugPrint('HomePage: Starting logout process with AuthService');
 
-                    // Add a 2.5 second delay to show the logout loading screen
                     await Future.delayed(const Duration(milliseconds: 2500));
 
                     // Navigate after the delay
@@ -606,7 +596,6 @@ class HomePageState extends State<HomePage> {
                                 debugPrint(
                                     'HomePage: Delete function called for notice ${notice.id}');
 
-                                // Use a more direct approach to delete the notice
                                 // This avoids issues with the stream refreshing during deletion
                                 _deleteNotice(notice.id, context);
                               }

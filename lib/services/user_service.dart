@@ -32,7 +32,6 @@ class UserService {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
   final CommunityService _communityService = CommunityService();
 
-  // Check if the current user's community is active
   Future<CommunityDeactivationStatus> checkCommunityStatus() async {
     try {
       final user = _auth.currentUser;
@@ -40,14 +39,12 @@ class UserService {
         return CommunityDeactivationStatus.active();
       }
 
-      // Get user's community
       final community = await _communityService.getUserCommunity(user.uid);
       if (community == null) {
         // If no community is found, consider it active (to avoid false positives)
         return CommunityDeactivationStatus.active();
       }
 
-      // Check if community is active
       final communityRef = _database.child('communities').child(community.id);
       final snapshot = await communityRef.get();
 
@@ -86,7 +83,6 @@ class UserService {
     }
 
     try {
-      // Get the user's community
       final community = await _communityService.getUserCommunity(user.uid);
       if (community == null) {
         yield CommunityDeactivationStatus.active();
@@ -130,7 +126,6 @@ class UserService {
     }
   }
 
-  // Get user's community ID
   Future<String?> getUserCommunityId() async {
     try {
       final user = _auth.currentUser;
@@ -147,7 +142,6 @@ class UserService {
     }
   }
 
-  // Get user data from Firestore
   Future<Map<String, dynamic>?> getUserData() async {
     try {
       final user = _auth.currentUser;

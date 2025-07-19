@@ -82,7 +82,6 @@ class _SuperAdminAnalyticsDashboardPageState
     });
 
     try {
-      // Get analytics data from the service
       final data =
           await _superAdminService.getAnalyticsData(_selectedTimeRange);
 
@@ -104,12 +103,10 @@ class _SuperAdminAnalyticsDashboardPageState
 
   Future<void> _generatePdfReport() async {
     try {
-      // Show loading indicator
       setState(() {
         _isLoading = true;
       });
 
-      // Create PDF document
       final pdf = pw.Document();
 
       // Define theme colors
@@ -122,11 +119,9 @@ class _SuperAdminAnalyticsDashboardPageState
       final PdfColor successColor = PdfColor.fromHex('4CAF50');
       final PdfColor dangerColor = PdfColor.fromHex('F44336');
 
-      // Get current date
       final now = DateTime.now();
       final dateStr = '${now.day}/${now.month}/${now.year}';
 
-      // Add formatted pages
       pdf.addPage(
         pw.MultiPage(
           pageTheme: pw.PageTheme(
@@ -429,7 +424,6 @@ class _SuperAdminAnalyticsDashboardPageState
     final sortedRegions = regionData.entries.toList()
       ..sort((a, b) => (b.value as int).compareTo(a.value as int));
 
-    // Return only regions with at least 1 community
     return sortedRegions
         .where((entry) => entry.value > 0)
         .take(3)
@@ -522,23 +516,19 @@ class _SuperAdminAnalyticsDashboardPageState
       );
     }
 
-    // Get growth data for the report
     final currentTotal = _analyticsData['totalCommunities'] ?? 0;
     final growth = _analyticsData['communityGrowth'] ?? 0.0;
     final growthFormatted = _formatGrowth(_analyticsData['communityGrowth']);
     final direction = growth >= 0 ? 'increase' : 'decrease';
 
-    // Get user related metrics
     final totalUsers = _analyticsData['totalUsers'] ?? 0;
     final userGrowth = _analyticsData['userGrowth'] ?? 0.0;
     final newUsers = totalUsers -
         (data.isNotEmpty ? data.first : 0) *
             15; // Estimate if not directly available
 
-    // Get new communities in this period
     final newCommunities = _analyticsData['newCommunitiesInPeriod'] ?? 0;
 
-    // Get engagement metrics
     final avgEngagement = _analyticsData['userEngagementRate'] ?? 0.0;
 
     // Define explicit colors for backgrounds
@@ -861,14 +851,12 @@ class _SuperAdminAnalyticsDashboardPageState
       );
     }
 
-    // Create a list of region entries sorted by count
     final entries = regionData.entries.toList()
       ..sort((a, b) => (b.value as int).compareTo(a.value as int));
 
     // Take top 5 regions
     final topRegions = entries.take(5).toList();
 
-    // Calculate total communities
     final total =
         regionData.values.fold<int>(0, (sum, value) => sum + (value as int));
 
@@ -884,7 +872,6 @@ class _SuperAdminAnalyticsDashboardPageState
     // Define header background color
     final headerBgColor = PdfColor.fromHex('F5F7FA'); // Light gray for header
 
-    // Create a simple table representation of the pie chart data
     return pw.Container(
       height: 200,
       padding: const pw.EdgeInsets.all(10),
@@ -1072,14 +1059,12 @@ class _SuperAdminAnalyticsDashboardPageState
     PdfColor bgColor,
     PdfColor textColor,
   ) {
-    // Calculate total communities
     final int total =
         regions.values.fold<int>(0, (sum, value) => sum + (value as int));
 
     // Define light background color for all rows
     final headerBgColor = PdfColor.fromHex('F5F7FA'); // Light gray for header
 
-    // Create table rows
     List<pw.TableRow> rows = [
       // Header row
       pw.TableRow(
@@ -1092,7 +1077,6 @@ class _SuperAdminAnalyticsDashboardPageState
       ),
     ];
 
-    // Add data rows for each region
     regions.forEach((region, count) {
       final percentage =
           total > 0 ? (count / total * 100).toStringAsFixed(1) : '0.0';
@@ -1497,7 +1481,6 @@ class _SuperAdminAnalyticsDashboardPageState
                     color: Color(0xFF2D3748),
                   ),
                 ),
-                // Add info tooltip icon
                 Tooltip(
                   message:
                       'Shows community growth over the selected time period',
@@ -1687,7 +1670,6 @@ class _SuperAdminAnalyticsDashboardPageState
         }
       }
 
-      // Check if the data is flat (all values are the same)
       bool isFlat = maxValue == minValue;
 
       if (isFlat) {
@@ -1736,9 +1718,7 @@ class _SuperAdminAnalyticsDashboardPageState
   }
 
   LineChartBarData _createLineChartBarData(List<dynamic>? data, Color color) {
-    // Handle null or empty data
     if (data == null || data.isEmpty) {
-      // Return a flat line at 0 if no data
       return LineChartBarData(
         spots: List.generate(
           10,
@@ -1830,7 +1810,6 @@ class _SuperAdminAnalyticsDashboardPageState
 
   Widget _buildRegionDistributionChart() {
     final regions = _analyticsData['communityByRegion'] as Map<String, dynamic>;
-    // Use totalCommunities instead of calculating from regions to ensure consistency
     final total = _analyticsData['totalCommunities'] as int;
 
     return Card(
@@ -1916,7 +1895,6 @@ class _SuperAdminAnalyticsDashboardPageState
       ];
     }
 
-    // Create sections for non-zero regions
     return nonZeroRegions.map((entry) {
       final regionName = entry.key;
       final value = entry.value as int;
@@ -1924,9 +1902,7 @@ class _SuperAdminAnalyticsDashboardPageState
 
       return PieChartSectionData(
         color: regionColors[regionName] ?? Colors.grey,
-        // Use value for the size of the pie slice
         value: value.toDouble(),
-        // Show percentage based on total communities
         title: '$percentage%',
         radius: 80,
         titleStyle: const TextStyle(
@@ -1961,7 +1937,6 @@ class _SuperAdminAnalyticsDashboardPageState
       'Other': Colors.grey,
     };
 
-    // Use totalCommunities for consistent percentage calculation
     final totalCommunities = _analyticsData['totalCommunities'] as int;
 
     // Filter out regions with zero values
@@ -1985,7 +1960,6 @@ class _SuperAdminAnalyticsDashboardPageState
       );
     }
 
-    // Create a grid of legend items
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 16.0,
@@ -1993,7 +1967,6 @@ class _SuperAdminAnalyticsDashboardPageState
       children: nonZeroRegions.map((entry) {
         final regionName = entry.key;
         final value = entry.value as int;
-        // Calculate percentage based on total communities
         final percentage = totalCommunities > 0
             ? (value / totalCommunities * 100).toStringAsFixed(1)
             : '0.0';

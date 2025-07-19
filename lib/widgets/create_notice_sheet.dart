@@ -90,7 +90,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
     // For polls: show only Poll tab if it's primarily a poll, otherwise show both tabs
     int tabCount = isNewPost ? 2 : (isPrimaryPoll ? 1 : (isPoll ? 2 : 1));
 
-    // Initialize tab controller with appropriate length
     _tabController = TabController(length: tabCount, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging &&
@@ -101,7 +100,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
       }
     });
 
-    // Set initial tab for polls
     if (isPrimaryPoll) {
       _currentTabIndex = 0; // Only one tab (Poll)
     } else if (isPoll && tabCount > 1) {
@@ -116,7 +114,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
       _titleController.text = widget.notice!.title;
       _contentController.text = widget.notice!.content;
 
-      // Initialize existing media if available
       if (widget.notice!.imageUrls != null &&
           widget.notice!.imageUrls!.isNotEmpty) {
         _existingImageUrls = List<String>.from(widget.notice!.imageUrls!);
@@ -133,50 +130,30 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
             .toList();
       }
 
-      // Initialize poll data if exists
       if (widget.notice!.poll != null) {
         _showPollCreator = true;
         _pollQuestionController.text = widget.notice!.poll!.question;
         _pollExpiryDate = widget.notice!.poll!.expiresAt;
         _allowMultipleChoices = widget.notice!.poll!.allowMultipleChoices;
 
-        // Initialize poll options
         _pollOptionControllers.clear();
         for (var option in widget.notice!.poll!.options) {
           _pollOptionControllers.add(TextEditingController(text: option.text));
         }
 
-        // Load poll images if available
         if (widget.notice!.poll!.imageUrls != null &&
             widget.notice!.poll!.imageUrls!.isNotEmpty) {
-          // Store poll images in _existingPollImageUrls
           _existingPollImageUrls =
               List<String>.from(widget.notice!.poll!.imageUrls!);
-
-          // We will now display directly from _existingPollImageUrls when on the poll tab,
-          // so no need to copy them to _existingImageUrls.
-          // _existingImageUrls =
-          //     List<String>.from(widget.notice!.poll!.imageUrls!);
         }
 
-        // Load poll video if available
         if (widget.notice!.poll!.videoUrl != null) {
           _existingPollVideoUrl = widget.notice!.poll!.videoUrl;
-          _existingVideoUrl =
-              widget.notice!.poll!.videoUrl; // For display purposes
+          _existingVideoUrl = widget.notice!.poll!.videoUrl;
         }
-
-        // Load poll attachments if available
-        // _existingPollAttachments = widget.notice!.poll!.attachments!
-        //     .map((attachment) => attachment.toMap())
-        //     .toList();
-
-        // Always set tab to Poll when editing a poll
         if (_tabController.length == 1) {
-          // Single tab poll (primary poll)
           _currentTabIndex = 0;
         } else {
-          // Two tabs - select the poll tab
           _tabController.animateTo(1);
           _currentTabIndex = 1;
         }
@@ -196,7 +173,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
     super.dispose();
   }
 
-  // Pick multiple images
   Future<void> _pickImages() async {
     try {
       final images = await _imagePicker.pickMultiImage(
@@ -216,7 +192,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
     }
   }
 
-  // Pick a video
   Future<void> _pickVideo() async {
     try {
       final video = await _imagePicker.pickVideo(
@@ -224,12 +199,10 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
         maxDuration: const Duration(minutes: 5),
       );
       if (video != null) {
-        // Check file size
         final File videoFile = File(video.path);
         final int fileSizeInBytes = await videoFile.length();
         final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
-        // Allow larger videos since we'll compress them
         if (fileSizeInMB > 100) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -241,7 +214,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
           return;
         }
 
-        // Check file extension
         final String fileName =
             video.path.split(Platform.isWindows ? '\\' : '/').last;
         final String fileExtension = fileName.contains('.')
@@ -281,11 +253,8 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
     }
   }
 
-  // Pick file attachments
   Future<void> _pickAttachments() async {
     try {
-      // Use file_picker to pick documents and other files
-      // Only allow PDF, DOCX, and image files
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: [
@@ -348,7 +317,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
         maxDuration: const Duration(minutes: 5),
       );
       if (video != null) {
-        // Check file size
         final File videoFile = File(video.path);
         final int fileSizeInBytes = await videoFile.length();
         final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
@@ -365,7 +333,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
           return;
         }
 
-        // Check file extension
         final String fileName =
             video.path.split(Platform.isWindows ? '\\' : '/').last;
         final String fileExtension = fileName.contains('.')
@@ -438,7 +405,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
     try {
       final videoFile = File(_selectedVideo!.path);
 
-      // Get file info for debugging if needed
       // final String fileName = videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
       // final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
       // final int fileSizeInBytes = await videoFile.length();
@@ -583,7 +549,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
       // Poll tab requires question and at least 2 options
       bool hasValidationErrors = false;
 
-      // Check poll question
       if (_pollQuestionController.text.isEmpty) {
         setState(() {
           _pollQuestionError = true;
@@ -591,7 +556,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
         });
       }
 
-      // Check poll options
       int validOptions = 0;
       for (int i = 0; i < _pollOptionControllers.length; i++) {
         // Ensure _pollOptionErrors has enough entries
@@ -609,7 +573,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
         }
       }
 
-      // Show a message if we need more options
       if (validOptions < 2) {
         // If we have fewer than 2 valid options, show a message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -653,7 +616,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
             _selectedImages.map((xFile) => File(xFile.path)).toList();
         final List<String> newImageUrls =
             await _cloudinaryService.uploadNoticeImages(imageFiles);
-        // Add new images to existing ones instead of replacing them
         imageUrls.addAll(newImageUrls);
         setState(() => _isUploadingMedia = false);
       }
@@ -664,7 +626,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
         try {
           final videoFile = File(_selectedVideo!.path);
 
-          // Get file info for debugging if needed
           // final String fileName = videoFile.path.split(Platform.isWindows ? '\\' : '/').last;
           // final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
           // final int fileSizeInBytes = await videoFile.length();
@@ -724,9 +685,7 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
         setState(() => _isUploadingMedia = false);
       }
 
-      // Create poll data based on current tab or if poll creator is shown
       if (_currentTabIndex == 1 || _showPollCreator) {
-        // Get existing poll options if editing
         final Map<String, Map<dynamic, dynamic>> existingVotes = {};
         if (widget.notice?.poll != null) {
           for (var option in widget.notice!.poll!.options) {
@@ -764,7 +723,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
               _pollSelectedImages.map((xFile) => File(xFile.path)).toList();
           final List<String> newPollImageUrls =
               await _cloudinaryService.uploadNoticeImages(imageFiles);
-          // Add new images to list
           pollImageUrls = newPollImageUrls;
           setState(() => _isUploadingMedia = false);
         }
@@ -792,7 +750,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
           }
         }
 
-        // Handle poll images with separate tracking
         List<String> finalPollImageUrls = [];
 
         if (_pollSelectedImages.isNotEmpty) {
@@ -800,30 +757,24 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
           finalPollImageUrls = List<String>.from(_existingPollImageUrls);
           finalPollImageUrls.addAll(pollImageUrls);
         } else if (_existingPollImageUrls.isNotEmpty) {
-          // Use the current state of _existingPollImageUrls which already reflects removals
           finalPollImageUrls = List<String>.from(_existingPollImageUrls);
         }
 
-        // Handle poll video with separate tracking
         String? finalPollVideoUrl = pollVideoUrl;
 
         if (pollVideoUrl == null && _existingPollVideoUrl != null) {
-          // Use the current state of _existingPollVideoUrl which already reflects removals
           finalPollVideoUrl = _existingPollVideoUrl;
         }
 
-        // Handle poll attachments with separate tracking
         List<Map<String, dynamic>> finalPollAttachmentsData =
             pollAttachmentsData;
 
         if (pollAttachmentsData.isEmpty &&
             _existingPollAttachments.isNotEmpty) {
-          // Use the current state of _existingPollAttachments which already reflects removals
           finalPollAttachmentsData =
               List<Map<String, dynamic>>.from(_existingPollAttachments);
         }
 
-        // Create the poll data with proper handling of media
         pollData = {
           'question': _pollQuestionController.text,
           'options': options,
@@ -995,7 +946,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      // Show a thumbnail of the video file if possible
                       if (snapshot.hasData && snapshot.data != null)
                         Image.memory(
                           snapshot.data!,
@@ -1085,7 +1035,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                 children: [
                   // Video placeholder with network image
                   Image.network(
-                    // Extract thumbnail from video URL if possible
                     videoUrl.replaceFirst('.mp4', '.jpg'),
                     height: 100,
                     width: 100,
@@ -1138,7 +1087,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
     );
   }
 
-  // Get video thumbnail using VideoCompress
   Future<Uint8List?> _getVideoThumbnail(String videoPath) async {
     try {
       final thumbnail = await VideoCompress.getByteThumbnail(
@@ -1540,7 +1488,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                     ],
                   ),
                   const SizedBox(height: 2),
-                  // Show tabs based on the type of post
                   TabBar(
                     controller: _tabController,
                     tabs: _buildTabsBasedOnNoticeType(),
@@ -2231,7 +2178,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                       return _buildExistingImagePreview(
                                         imageUrl,
                                         () => setState(() {
-                                          // Remove directly from the poll list
                                           _existingPollImageUrls
                                               .removeAt(index);
                                         }),
@@ -2323,9 +2269,7 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                       child: _buildExistingVideoPreview(
                         _existingVideoUrl!,
                         () => setState(() {
-                          // Remove from the appropriate list based on current tab
                           if (_currentTabIndex == 1) {
-                            // Remove from poll video
                             _existingPollVideoUrl = null;
                           }
                           // Always remove from display variable

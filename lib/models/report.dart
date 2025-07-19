@@ -8,13 +8,13 @@ class Report {
   final String issueType;
   final String description;
   final String address;
-  final Map<String, dynamic> location; // Contains lat, lng, street, locality, subAdministrativeArea
+  final Map<String, dynamic> location;
   final List<String> photoUrls;
   final List<String> videoUrls;
   final ReportStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final String? resolutionDetails; // Added field for resolution details
+  final String? resolutionDetails;
 
   Report({
     required this.id,
@@ -32,9 +32,7 @@ class Report {
     this.resolutionDetails,
   });
 
-  // Create from Firestore document
   factory Report.fromMap(Map<String, dynamic> map, String documentId) {
-    // Handle potential null timestamps by providing default values
     final createdAt = map['createdAt'] is Timestamp
         ? (map['createdAt'] as Timestamp).toDate()
         : DateTime.now();
@@ -60,10 +58,9 @@ class Report {
     );
   }
 
-  // Convert to Firestore document
   Map<String, dynamic> toMap() {
     final map = {
-      'id': id, // Include the ID in the map
+      'id': id,
       'userId': userId,
       'communityId': communityId,
       'issueType': issueType,
@@ -77,7 +74,6 @@ class Report {
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
 
-    // Add resolution details if available
     if (resolutionDetails != null) {
       map['resolutionDetails'] = resolutionDetails!;
     }
@@ -85,7 +81,6 @@ class Report {
     return map;
   }
 
-  // Create a copy of the report with modified fields
   Report copyWith({
     String? id,
     String? userId,

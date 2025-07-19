@@ -70,7 +70,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
   final Color _secondaryChartColor = Colors.tealAccent.shade700;
   final Color _highlightColor = Colors.amber;
 
-  // Map of time periods to their display names
   final Map<TimePeriod, String> _timePeriodLabels = {
     TimePeriod.week: '7 Days',
     TimePeriod.month: '30 Days',
@@ -115,20 +114,17 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
   }
 
   void _processData() {
-    // Extract daily sales data from dashboardStats
     final Map<String, dynamic> dailySales = widget.dashboardStats['dailySales'] ?? {};
 
     // Debug: Print raw sales data to identify inconsistencies
     debugPrint('Sales Trend - Raw daily sales data: $dailySales');
 
-    // Get the dates in chronological order
     final dateStrings = dailySales.keys.toList();
     dateStrings.sort(); // Sort dates
 
     // Debug: Print sorted dates
     debugPrint('Sales Trend - Sorted dates: $dateStrings');
 
-    // Get the number of days based on the time period
     final int maxDaysToShow = _getMaxDaysForTimePeriod(_currentTimePeriod);
 
     // If we have more data than we need, take only the most recent ones
@@ -174,7 +170,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
 
     // If no data is available, create some fallback data
     if (rawData.isEmpty) {
-      // Get the number of days to show based on time period
       final int daysToShow = _getMaxDaysForTimePeriod(_currentTimePeriod);
 
       // Generate dates for the selected time period
@@ -189,7 +184,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
         final formattedDate = DateFormat('MMM d, yyyy').format(date);
         final formattedMonth = DateFormat('MMM').format(date);
 
-        // Add a spot with minimum value (1) to show a baseline chart
         final value = i == 0 ? 1.0 : 0.0;
 
         rawData.add(_SalesDataPoint(
@@ -214,7 +208,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
       _salesData[i] = _salesData[i].copyWith(index: i);
     }
 
-    // Find max value and highest value index
     _maxValue = 0;
     _highestValueIndex = 0;
     _todayIndex = -1;
@@ -228,7 +221,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
         _highestValueIndex = i;
       }
 
-      // Check if this is today's data
       if (data.date == today) {
         _todayIndex = i;
       }
@@ -236,10 +228,9 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
 
     // If all values are zero, set a default max value
     if (_maxValue == 0) {
-      _maxValue = 50; // Set a default max value
+              _maxValue = 50;
     }
 
-    // Calculate total sales
     _totalSales = rawData.fold(0, (sum, item) => sum + item.value);
 
     // If total sales is provided directly, use that instead
@@ -247,7 +238,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
       _totalSales = (widget.dashboardStats['totalSales'] as num).toDouble();
     }
 
-    // Calculate growth percentage based on actual data
     _calculateGrowthPercentage(dailySales);
   }
 
@@ -279,7 +269,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
       groupedData[key]!.add(point);
     }
 
-    // Create aggregated data points
     List<_SalesDataPoint> sampledData = [];
 
     // Sort keys to maintain chronological order
@@ -288,14 +277,11 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
     for (String key in sortedKeys) {
       var points = groupedData[key]!;
 
-      // Calculate average value for this group
       double totalValue = points.fold(0.0, (sum, point) => sum + point.value);
       double avgValue = points.isNotEmpty ? totalValue / points.length : 0;
 
-      // Use the middle point's date for display
       var representativePoint = points[points.length ~/ 2];
 
-      // Create a new data point with aggregated value
       sampledData.add(_SalesDataPoint(
         date: representativePoint.date,
         value: avgValue,
@@ -320,7 +306,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
     return sampledData;
   }
 
-  // Get a key for grouping data points based on time period
   String _getGroupKey(DateTime date, TimePeriod period) {
     switch (period) {
       case TimePeriod.month:
@@ -344,7 +329,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
     }
   }
 
-  // Get target number of data points based on time period
   int _getTargetPointCount(TimePeriod period) {
     switch (period) {
       case TimePeriod.week:
@@ -371,7 +355,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
     // Always include first and last point
     result.add(data.first);
 
-    // Calculate step size for uniform sampling
     double step = (data.length - 2) / (targetCount - 2);
 
     for (int i = 1; i < targetCount - 1; i++) {
@@ -380,7 +363,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
       result.add(data[index]);
     }
 
-    // Add last point
     result.add(data.last);
 
     return result;
@@ -404,7 +386,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Calculate responsive height based on screen width
         final screenWidth = constraints.maxWidth;
         final chartHeight = screenWidth < 360 ? 180.0 : 220.0;
 
@@ -768,7 +749,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
           showTitles: true,
           reservedSize: 35,
           getTitlesWidget: (value, meta) {
-            // Show abbreviated price on y-axis
             String text = '';
             if (value == 0) {
               text = '₱0';
@@ -810,7 +790,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
           return touchedBarSpots.map((barSpot) {
             final flSpot = barSpot;
 
-            // Get data for this spot
             final dateIndex = flSpot.x.toInt();
             if (dateIndex >= 0 && dateIndex < _salesData.length) {
               final data = _salesData[dateIndex];
@@ -846,7 +825,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
         },
       ),
       touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
-        // Handle tap events for future enhancements
         if (event is FlTapUpEvent) {
           final spotIndex = touchResponse?.lineBarSpots?.first.spotIndex;
           if (spotIndex != null && spotIndex >= 0 && spotIndex < _salesData.length) {
@@ -924,7 +902,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
     }
   }
 
-  // Calculate growth percentage based on actual sales data
   void _calculateGrowthPercentage(Map<String, dynamic> dailySales) {
     // If no sales data is available, set growth to 0
     if (dailySales.isEmpty) {
@@ -933,7 +910,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
       return;
     }
 
-    // Get dates in chronological order
     final dateStrings = dailySales.keys.toList();
     dateStrings.sort();
 
@@ -967,26 +943,21 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
     }
   }
 
-  // Calculate growth for weekly view (compare most recent days to previous days)
   void _calculateWeeklyGrowth(List<String> dateStrings, Map<String, dynamic> dailySales) {
     // For weekly view, we'll use a more balanced approach to avoid extreme fluctuations
 
     // If we have a full week of data, compare with previous week
     if (dateStrings.length >= 7) {
-      // Calculate total sales for current period (most recent 7 days)
       double currentPeriodSales = 0.0;
 
-      // Get the last 7 days (or all available days if less than 7)
       int daysToUse = min(7, dateStrings.length);
 
-      // Calculate current period (most recent days)
       for (int i = dateStrings.length - 1; i >= dateStrings.length - daysToUse; i--) {
         if (i < 0) break;
         final value = (dailySales[dateStrings[i]] ?? 0).toDouble();
         currentPeriodSales += value;
       }
 
-      // Calculate previous period sales
       double previousPeriodSales = 0.0;
 
       // If we have data for the previous period
@@ -1000,12 +971,10 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
         }
       }
 
-      // Calculate average daily sales for both periods to normalize the comparison
       double avgCurrentDailySales = currentPeriodSales / daysToUse;
       double avgPreviousDailySales = previousPeriodSales > 0 ?
           previousPeriodSales / min(daysToUse, dateStrings.length - daysToUse) : 0;
 
-      // Use the average daily sales for growth calculation
       _calculateAndLogGrowth(
         avgCurrentDailySales,
         avgPreviousDailySales,
@@ -1013,11 +982,9 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
       );
     } else {
       // If we have less than 7 days, use the original approach
-      // Calculate total sales for current period (most recent days)
       double currentPeriodSales = 0.0;
       int currentDays = 0;
 
-      // Use half of available days for current period
       int daysPerPeriod = max(1, dateStrings.length ~/ 2);
 
       // Start from the most recent day
@@ -1027,7 +994,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
         currentDays++;
       }
 
-      // Calculate total sales for previous period
       double previousPeriodSales = 0.0;
       int previousDays = 0;
 
@@ -1046,7 +1012,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
     }
   }
 
-  // Calculate growth for monthly view
   void _calculateMonthlyGrowth(List<String> dateStrings, Map<String, dynamic> dailySales) {
     // For monthly view, we need a more accurate approach
 
@@ -1055,11 +1020,9 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
 
     // If we have a full month of data
     if (dateStrings.length >= 30) {
-      // Calculate total sales for current period (most recent 15 days)
       double currentPeriodSales = 0.0;
       List<String> currentPeriodDates = [];
 
-      // Get the last 15 days
       for (int i = dateStrings.length - 1; i >= dateStrings.length - 15; i--) {
         if (i < 0) break;
         final dateString = dateStrings[i];
@@ -1068,7 +1031,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
         currentPeriodDates.add(dateString);
       }
 
-      // Calculate total sales for previous period (previous 15 days)
       double previousPeriodSales = 0.0;
       List<String> previousPeriodDates = [];
 
@@ -1088,7 +1050,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
     }
     // If we have less than a full month but more than 15 days
     else if (dateStrings.length > 15) {
-      // Calculate total sales for current period (most recent half)
       int halfPoint = dateStrings.length ~/ 2;
 
       double currentPeriodSales = 0.0;
@@ -1098,7 +1059,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
         currentPeriodSales += value;
       }
 
-      // Calculate total sales for previous period (first half)
       double previousPeriodSales = 0.0;
       for (int i = dateStrings.length - halfPoint - 1; i >= 0; i--) {
         if (i < 0) break;
@@ -1124,7 +1084,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
         currentPeriodSales += value;
       }
 
-      // Calculate total sales for previous period (remaining days)
       double previousPeriodSales = 0.0;
       for (int i = dateStrings.length - recentDays - 1; i >= 0; i--) {
         final value = (dailySales[dateStrings[i]] ?? 0).toDouble();
@@ -1139,19 +1098,16 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
     }
   }
 
-  // Calculate growth for other time periods
   void _calculateDefaultGrowth(List<String> dateStrings, Map<String, dynamic> dailySales) {
     // For other periods, compare first half with second half
     int halfPoint = dateStrings.length ~/ 2;
 
-    // Calculate total sales for current period (second half - most recent)
     double currentPeriodSales = 0.0;
     for (int i = halfPoint; i < dateStrings.length; i++) {
       final value = (dailySales[dateStrings[i]] ?? 0).toDouble();
       currentPeriodSales += value;
     }
 
-    // Calculate total sales for previous period (first half - older)
     double previousPeriodSales = 0.0;
     for (int i = 0; i < halfPoint; i++) {
       final value = (dailySales[dateStrings[i]] ?? 0).toDouble();
@@ -1168,7 +1124,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
     debugPrint('  - Current period sales: ₱${currentPeriodSales.toStringAsFixed(2)}');
     debugPrint('  - Previous period sales: ₱${previousPeriodSales.toStringAsFixed(2)}');
 
-    // Calculate growth percentage
     if (previousPeriodSales > 0) {
       _growthPercentage = ((currentPeriodSales - previousPeriodSales) / previousPeriodSales) * 100;
       debugPrint('  - Formula used: ((current - previous) / previous) * 100');
@@ -1183,7 +1138,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
       debugPrint('  - Both periods have zero sales: Setting to 0%');
     }
 
-    // Store the uncapped value for debugging
     double originalGrowth = _growthPercentage;
 
     // Cap growth percentage at 200% for display purposes
@@ -1198,7 +1152,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
     debugPrint('  - Previous period total: ₱${previousPeriodSales.toStringAsFixed(2)}');
   }
 
-  // Get tooltip message for growth percentage
   String _getGrowthTooltipMessage() {
     String periodType = '';
     String comparison = '';
@@ -1227,7 +1180,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
         break;
     }
 
-    // Add additional info for high growth rates
     if (_growthPercentage >= 100) {
       additionalInfo = '\n\nNote: High growth rates may occur when comparing to periods with low sales.';
 
@@ -1235,7 +1187,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
       debugPrint('Sales Trend - Showing high growth rate tooltip: $_growthPercentage%');
     }
 
-    // Add additional info for capped growth rates
     if (_growthPercentage == 200) {
       additionalInfo = '\n\nNote: Actual growth exceeds 200% and has been capped for display purposes.';
 
@@ -1243,7 +1194,6 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
       debugPrint('Sales Trend - Growth was capped at 200% for display');
     }
 
-    // Add additional info for 30-day view with limited data
     if (_currentTimePeriod == TimePeriod.month) {
       // We don't have access to dateStrings here, so we'll just add a general note
       additionalInfo += '\n\nNote: Growth calculation depends on available data in the selected period.';
@@ -1280,7 +1230,6 @@ class _SalesDataPoint {
     required this.dateTime,
   });
 
-  // Create a copy with new index
   _SalesDataPoint copyWith({int? index}) {
     return _SalesDataPoint(
       date: date,

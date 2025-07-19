@@ -43,7 +43,6 @@ class _SellerProfilePageState extends State<SellerProfilePage>
 
   Future<void> _loadSellerData() async {
     try {
-      // Load seller profile
       final profile = await _marketService.getSellerProfile(widget.sellerId);
 
       if (mounted) {
@@ -53,11 +52,9 @@ class _SellerProfilePageState extends State<SellerProfilePage>
         });
       }
 
-      // Check if current user is viewing their own profile
       final currentUser = FirebaseAuth.instance.currentUser;
       final isCurrentUser = currentUser != null && currentUser.uid == widget.sellerId;
 
-      // Set up streams for items and ratings
       // For other sellers' profiles, this will only show active (not sold) items
       _marketService.getSellerItemsStream(widget.sellerId, isCurrentUser: isCurrentUser).listen((items) {
         if (mounted) {

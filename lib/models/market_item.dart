@@ -40,13 +40,13 @@ class MarketItem {
   factory MarketItem.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
-    // Handle both old format (single imageUrl) and new format (imageUrls array)
+    
     List<String> imageUrls = [];
     if (data['imageUrls'] != null) {
-      // New format with multiple images
+      
       imageUrls = List<String>.from(data['imageUrls']);
     } else if (data['imageUrl'] != null) {
-      // Old format with single image
+      
       imageUrls = [data['imageUrl']];
     }
 
@@ -111,13 +111,13 @@ class MarketItem {
   }
 
   factory MarketItem.fromJson(Map<String, dynamic> json) {
-    // Handle both old format (single imageUrl) and new format (imageUrls array)
+    
     List<String> imageUrls = [];
     if (json['imageUrls'] != null) {
-      // New format with multiple images
+
       imageUrls = List<String>.from(json['imageUrls']);
     } else if (json['imageUrl'] != null) {
-      // Old format with single image
+
       imageUrls = [json['imageUrl']];
     }
 

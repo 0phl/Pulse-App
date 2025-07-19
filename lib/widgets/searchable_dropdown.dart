@@ -44,7 +44,6 @@ class _SearchableDropdownState extends State<SearchableDropdown> {
   void _onFocusChange() {
     if (!_focusNode.hasFocus && widget.allowCustomValue) {
       // When focus is lost and custom values are allowed,
-      // use the current text as the selected value
       if (widget.controller.text.isNotEmpty) {
         widget.onItemSelected(widget.controller.text);
       }

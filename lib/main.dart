@@ -54,10 +54,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         "Message notification: ${message.notification!.title} - ${message.notification!.body}");
   }
 
-  // Extract the notification type
   final String notificationType = message.data['type'] ?? 'general';
 
-  // Extract the unique request ID we added
   final String requestId = message.data['requestId'] ?? '';
 
   debugPrint("Notification type: $notificationType, Request ID: $requestId");
@@ -77,7 +75,6 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      // Set persistence to SESSION for web
       await FirebaseAuth.instance.setPersistence(Persistence.SESSION);
     } catch (e) {
       debugPrint('Firebase initialization error: $e');
@@ -87,10 +84,8 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      // Set persistence to LOCAL for mobile
       await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
 
-      // Set up background message handler for FCM
       FirebaseMessaging.onBackgroundMessage(
           _firebaseMessagingBackgroundHandler);
     } catch (e) {
@@ -101,7 +96,6 @@ void main() async {
   FirebaseDatabase.instance.databaseURL =
       'https://pulse-app-ea5be-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-  // Check if there's a saved session
   final sessionService = UserSessionService();
   final isLoggedIn = await sessionService.isLoggedIn();
 
@@ -110,7 +104,6 @@ void main() async {
     await FirebaseAuth.instance.signOut();
   }
 
-  // Initialize media cache service for optimized Cloudinary usage
   try {
     final mediaCacheService = MediaCacheService();
     await mediaCacheService.initConnectivityMonitoring();
@@ -119,7 +112,6 @@ void main() async {
     debugPrint('Error initializing MediaCacheService: $e');
   }
 
-  // Initialize notification service for mobile devices
   // We'll initialize it after login in DelayedAuthWrapper instead
   // to avoid the duplicate Firebase initialization error
 
@@ -138,7 +130,6 @@ class MyApp extends StatelessWidget {
         primaryColor: const Color(0xFF00C49A),
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00C49A)),
         useMaterial3: true,
-        // Use page transitions for smoother navigation
         pageTransitionsTheme: const PageTransitionsTheme(
           builders: {
             TargetPlatform.android: ZoomPageTransitionsBuilder(),
@@ -231,7 +222,6 @@ class _MainScreenState extends State<MainScreen> {
     // Start monitoring community status
     _startCommunityStatusMonitoring();
 
-    // Initialize comprehensive activity tracking
     _activityService.initialize();
 
     // Track that user opened the main screen
@@ -306,7 +296,6 @@ class _MainScreenState extends State<MainScreen> {
         _selectedIndex = index;
       });
 
-      // Add a delayed refresh to ensure the badge appears
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) {
           _globalState.refreshUnreadCount();

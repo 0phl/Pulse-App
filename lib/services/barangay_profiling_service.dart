@@ -9,7 +9,6 @@ class BarangayProfilingService {
   final FirebaseDatabase _database = FirebaseDatabase.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Get all barangay profiles with analytics
   Stream<List<BarangayProfile>> getBarangayProfilesStream() {
     return _database.ref().child('communities').onValue.asyncMap((event) async {
       final data = event.snapshot.value as Map<dynamic, dynamic>?;
@@ -22,11 +21,9 @@ class BarangayProfilingService {
           final communityData = entry.value as Map<dynamic, dynamic>;
           final communityId = entry.key as String;
 
-          // Calculate analytics for this barangay
           final analytics =
               await _calculateBarangayAnalytics(communityId, communityData);
 
-          // Create barangay profile
           final profile = BarangayProfile(
             id: communityId,
             name: communityData['name']?.toString() ?? 'Unknown Barangay',
@@ -60,7 +57,6 @@ class BarangayProfilingService {
     });
   }
 
-  // Get single barangay profile
   Future<BarangayProfile?> getBarangayProfile(String communityId) async {
     try {
       final snapshot =
@@ -95,35 +91,26 @@ class BarangayProfilingService {
     }
   }
 
-  // Calculate analytics for a specific barangay
   Future<BarangayAnalytics> _calculateBarangayAnalytics(
       String communityId, Map<dynamic, dynamic> communityData) async {
     try {
-      // Get total registered users for this barangay
       final totalUsers = await _getTotalRegisteredUsers(
           communityData['barangayCode']?.toString());
 
-      // Get active users (active in last 30 days)
       final activeUsers =
           await _getActiveUsers(communityData['barangayCode']?.toString());
 
-      // Get public posts count
       final publicPosts = await _getPublicPostsCount(communityId);
 
-      // Get reports submitted
       final reportsCount = await _getReportsCount(communityId);
 
-      // Get volunteer participants
       final volunteerCount = await _getVolunteerParticipants(communityId);
 
-      // Get monthly user growth
       final monthlyGrowth = await _getMonthlyUserGrowth(
           communityData['barangayCode']?.toString());
 
-      // Get weekly volunteers
       final weeklyVolunteers = await _getWeeklyVolunteers(communityId);
 
-      // Get category reports
       final categoryReports = await _getCategoryReports(communityId);
 
       return BarangayAnalytics(

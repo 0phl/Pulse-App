@@ -393,7 +393,6 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                           () {}); // Trigger rebuild to update error message
                       // Cancel previous debounced call
                       _emailCheckDebouncer?.cancel();
-                      // Create new debounced call
                       if (value.contains('@') && value.contains('.')) {
                         _emailCheckDebouncer = Timer(
                           const Duration(milliseconds: 500),
@@ -657,7 +656,6 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                                 });
 
                                 try {
-                                  // Check if community exists
                                   final exists = await _communityService
                                       .checkCommunityExists(
                                     regionCode: _selectedRegion!.code,
@@ -685,7 +683,6 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
                                   // Upload files first
                                   final uploadedUrls = await _uploadFiles();
 
-                                  // Create the community first
                                   final communityId =
                                       await _communityService.createCommunity(
                                     name:

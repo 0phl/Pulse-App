@@ -32,7 +32,6 @@ class Community {
   factory Community.fromMap(dynamic source, [Map<dynamic, dynamic>? data]) {
     try {
       if (data != null) {
-        // Handle case where id and data are passed separately
         String id = source.toString();
         String name = data['name']?.toString() ?? 'Unknown Community';
         String adminId = data['adminId']?.toString() ?? '';
@@ -60,7 +59,7 @@ class Community {
         );
       }
 
-      // Handle case where everything is in a single map
+      
       if (source is! Map) {
         throw FormatException('Source is not a Map: $source');
       }
@@ -91,7 +90,7 @@ class Community {
       );
     } catch (e) {
       debugPrint('Error in Community.fromMap: $e');
-      // Return a fallback community to prevent app crashes
+      
       return Community(
         id: 'error',
         name: 'Error Loading Community',

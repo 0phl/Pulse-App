@@ -36,9 +36,7 @@ class GlobalState {
   bool get isLoggingOut => _isLoggingOut;
   Stream<bool> get logoutStream => _logoutController.stream;
 
-  // Initialize the global state
   void _initialize() async {
-    // Load initial unread count from SharedPreferences
     _unreadChatCount = await _getStoredUnreadCount();
 
     // Start listening for changes
@@ -48,7 +46,6 @@ class GlobalState {
     debugPrint('GlobalState initialized with unread count: $_unreadChatCount');
   }
 
-  // Get stored unread count from SharedPreferences
   Future<int> _getStoredUnreadCount() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -62,7 +59,6 @@ class GlobalState {
     return 0;
   }
 
-  // Save unread count to SharedPreferences
   Future<void> _saveUnreadCount(int count) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -92,7 +88,6 @@ class GlobalState {
     });
   }
 
-  // Update unread count from snapshot
   void _updateUnreadCount(DataSnapshot snapshot) async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -107,7 +102,6 @@ class GlobalState {
 
           if (chatInfo == null) continue;
 
-          // Extract chat details
           final buyerId = chatInfo['buyerId'] as String?;
           final sellerId = chatInfo['sellerId'] as String?;
           final communityId = chatInfo['communityId'] as String?;
@@ -115,7 +109,6 @@ class GlobalState {
           // Skip if user is not part of this chat
           if (user.uid != sellerId && user.uid != buyerId) continue;
 
-          // Get unread count for this user
           if (chatInfo.containsKey('unreadCount')) {
             final unreadCountMap = chatInfo['unreadCount'] as Map<dynamic, dynamic>?;
             if (unreadCountMap != null && unreadCountMap.containsKey(user.uid)) {
@@ -137,7 +130,6 @@ class GlobalState {
     }
   }
 
-  // Fetch unread count from Firebase
   Future<void> _fetchUnreadCount() async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -168,7 +160,6 @@ class GlobalState {
     debugPrint('Refreshed unread count: $_unreadChatCount');
   }
 
-  // Set logout state
   void setLogoutState(bool isLoggingOut) {
     _isLoggingOut = isLoggingOut;
     if (!_logoutController.isClosed) {

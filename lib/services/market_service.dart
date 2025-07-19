@@ -17,7 +17,6 @@ class MarketService {
   final CollectionReference _usersCollection =
       FirebaseFirestore.instance.collection('users');
 
-  // Get all market items for a community
   Stream<List<MarketItem>> getMarketItemsStream(String communityId) {
     return _marketItemsCollection
         .where('communityId', isEqualTo: communityId)
@@ -28,7 +27,6 @@ class MarketService {
             snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList());
   }
 
-  // Get market items for a specific seller
   Stream<List<MarketItem>> getSellerItemsStream(String sellerId,
       {bool isCurrentUser = false}) {
     // If viewing own profile, show all items including pending
@@ -48,7 +46,6 @@ class MarketService {
             snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList());
   }
 
-  // Get a specific market item
   Future<MarketItem?> getMarketItem(String itemId) async {
     final doc = await _marketItemsCollection.doc(itemId).get();
     if (doc.exists) {
@@ -57,7 +54,6 @@ class MarketService {
     return null;
   }
 
-  // Get a specific market item as a stream for real-time updates
   Stream<MarketItem?> getMarketItemStream(String itemId) {
     return _marketItemsCollection
         .doc(itemId)
@@ -65,18 +61,15 @@ class MarketService {
         .map((doc) => doc.exists ? MarketItem.fromFirestore(doc) : null);
   }
 
-  // Add a new market item
   Future<String> addMarketItem(MarketItem item) async {
     final docRef = await _marketItemsCollection.add(item.toFirestore());
     return docRef.id;
   }
 
-  // Update a market item
   Future<void> updateMarketItem(MarketItem item) async {
     await _marketItemsCollection.doc(item.id).update(item.toFirestore());
   }
 
-  // Delete a market item
   Future<void> deleteMarketItem(String itemId) async {
     await _marketItemsCollection.doc(itemId).delete();
   }
@@ -104,7 +97,6 @@ class MarketService {
     }
   }
 
-  // Get seller ratings
   Stream<List<SellerRating>> getSellerRatingsStream(String sellerId) {
     return _sellerRatingsCollection
         .where('sellerId', isEqualTo: sellerId)
@@ -115,14 +107,12 @@ class MarketService {
             .toList());
   }
 
-  // Add a rating for a seller
   Future<String> addSellerRating(SellerRating rating) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
       throw Exception('User must be logged in to rate a seller');
     }
 
-    // Check if user has already rated this seller for this specific transaction
     final existingRatings = await _sellerRatingsCollection
         .where('sellerId', isEqualTo: rating.sellerId)
         .where('buyerId', isEqualTo: currentUser.uid)
@@ -130,20 +120,17 @@ class MarketService {
         .get();
 
     if (existingRatings.docs.isNotEmpty) {
-      // Update existing rating instead of creating a new one
       final existingRatingId = existingRatings.docs.first.id;
       await _sellerRatingsCollection
           .doc(existingRatingId)
           .update(rating.toFirestore());
       return existingRatingId;
     } else {
-      // Create new rating
       final docRef = await _sellerRatingsCollection.add(rating.toFirestore());
       return docRef.id;
     }
   }
 
-  // Check if a user has already rated a transaction
   Future<bool> hasUserRatedTransaction(
       String sellerId, String buyerId, String marketItemId) async {
     if (buyerId.isEmpty) return false;
@@ -157,7 +144,6 @@ class MarketService {
     return existingRatings.docs.isNotEmpty;
   }
 
-  // Get average rating for a seller
   Future<double> getSellerAverageRating(String sellerId) async {
     final ratingsSnapshot = await _sellerRatingsCollection
         .where('sellerId', isEqualTo: sellerId)
@@ -176,7 +162,6 @@ class MarketService {
     return totalRating / ratingsSnapshot.docs.length;
   }
 
-  // Get seller profile data
   Future<Map<String, dynamic>> getSellerProfile(String sellerId) async {
     final userDoc = await _usersCollection.doc(sellerId).get();
     if (!userDoc.exists) {
@@ -202,9 +187,7 @@ class MarketService {
     };
   }
 
-  // Get seller profile data as a stream for real-time updates
   Stream<Map<String, dynamic>> getSellerProfileStream(String sellerId) {
-    // Create a stream that combines user data and ratings
     return _usersCollection.doc(sellerId).snapshots().asyncMap((userDoc) async {
       if (!userDoc.exists) {
         throw Exception('Seller not found');
@@ -212,10 +195,8 @@ class MarketService {
 
       final userData = userDoc.data() as Map<String, dynamic>;
 
-      // Get the latest average rating
       final averageRating = await getSellerAverageRating(sellerId);
 
-      // Get the latest ratings count
       final ratingsCount = await _sellerRatingsCollection
           .where('sellerId', isEqualTo: sellerId)
           .count()
@@ -234,7 +215,6 @@ class MarketService {
     });
   }
 
-  // Check if current user can rate a seller
   Future<bool> canRateSeller(String sellerId) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return false;
@@ -245,19 +225,16 @@ class MarketService {
     return true;
   }
 
-  // Get seller dashboard statistics
   Future<Map<String, dynamic>> getSellerDashboardStats() async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
       throw Exception('User must be logged in to view seller dashboard');
     }
 
-    // Get all items for this seller
     final itemsSnapshot = await _marketItemsCollection
         .where('sellerId', isEqualTo: currentUser.uid)
         .get();
 
-    // Calculate statistics
     int totalItems = 0;
     int itemsSold = 0;
     double totalRevenue = 0.0;
@@ -277,13 +254,10 @@ class MarketService {
       averagePrice = totalRevenue / itemsSold;
     }
 
-    // Get daily sales data
     final dailySales = await getDailySalesData();
 
-    // Get recent activity (last 10 events)
     List<Map<String, dynamic>> recentActivity = [];
 
-    // Add recent item status changes
     final recentItemsSnapshot = await _marketItemsCollection
         .where('sellerId', isEqualTo: currentUser.uid)
         .orderBy('createdAt', descending: true)
@@ -294,7 +268,6 @@ class MarketService {
       final data = doc.data() as Map<String, dynamic>;
       final title = data['title'] as String? ?? 'Unknown item';
 
-      // Add item approval event
       if (data['approvedAt'] != null) {
         recentActivity.add({
           'type': 'item_approved',
@@ -304,7 +277,6 @@ class MarketService {
         });
       }
 
-      // Add item rejection event
       if (data['rejectedAt'] != null) {
         recentActivity.add({
           'type': 'item_rejected',
@@ -315,7 +287,6 @@ class MarketService {
         });
       }
 
-      // Add item sold event
       if (data['isSold'] == true) {
         recentActivity.add({
           'type': 'item_sold',
@@ -327,7 +298,6 @@ class MarketService {
       }
     }
 
-    // Add recent ratings
     final recentRatingsSnapshot = await _sellerRatingsCollection
         .where('sellerId', isEqualTo: currentUser.uid)
         .orderBy('createdAt', descending: true)
@@ -370,7 +340,6 @@ class MarketService {
     };
   }
 
-  // Get daily sales data for a specified date range (defaults to last 7 days)
   Future<Map<String, dynamic>> getDailySalesData({
     DateTime? customStartDate,
     DateTime? customEndDate,
@@ -382,7 +351,6 @@ class MarketService {
       throw Exception('User must be logged in to view sales data');
     }
 
-    // Calculate date range (default to last 7 days if not specified)
     final now = DateTime.now();
     final endDate = customEndDate ?? now;
     final startDate = customStartDate ??
@@ -390,11 +358,9 @@ class MarketService {
 
     debugPrint('Date range: ${DateFormat('yyyy-MM-dd').format(startDate)} to ${DateFormat('yyyy-MM-dd').format(endDate)}');
 
-    // Calculate number of days in the range
     final daysDifference = endDate.difference(startDate).inDays + 1;
     final Map<String, dynamic> dailySales = {};
 
-    // Initialize all dates in the range with zero values
     for (int i = 0; i < daysDifference; i++) {
       final date = startDate.add(Duration(days: i));
       final dateString = DateFormat('yyyy-MM-dd').format(date);
@@ -403,7 +369,6 @@ class MarketService {
 
     debugPrint('Initialized ${dailySales.length} days with zero values');
 
-    // Get all sold items in the date range
     final soldItemsSnapshot = await _marketItemsCollection
         .where('sellerId', isEqualTo: currentUser.uid)
         .where('isSold', isEqualTo: true)
@@ -411,7 +376,6 @@ class MarketService {
 
     debugPrint('Found ${soldItemsSnapshot.docs.length} sold items for seller ${currentUser.uid}');
 
-    // Process each sold item
     for (var doc in soldItemsSnapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
 
@@ -419,7 +383,6 @@ class MarketService {
       debugPrint('  - soldAt: ${data['soldAt']}');
       debugPrint('  - createdAt: ${data['createdAt']}');
 
-      // Get sold date (use soldAt if available, otherwise createdAt)
       final timestamp = data['soldAt'] ?? data['createdAt'];
       if (timestamp == null) {
         debugPrint('  - No timestamp found, skipping item');
@@ -429,7 +392,6 @@ class MarketService {
       final soldDate = (timestamp as Timestamp).toDate();
       debugPrint('  - Using date: $soldDate');
 
-      // Check if the sale occurred within our date range window
       if (soldDate.isAfter(startDate.subtract(const Duration(days: 1))) &&
           soldDate.isBefore(endDate.add(const Duration(days: 1)))) {
         final dateString = DateFormat('yyyy-MM-dd').format(soldDate);
@@ -437,7 +399,6 @@ class MarketService {
 
         debugPrint('  - Sale falls within date range, adding ₱$price to $dateString');
 
-        // Add to the corresponding date
         if (dailySales.containsKey(dateString)) {
           dailySales[dateString] = (dailySales[dateString] as double) + price;
           debugPrint('  - Updated total for $dateString: ₱${dailySales[dateString]}');
@@ -453,7 +414,6 @@ class MarketService {
     return dailySales;
   }
 
-  // Get daily sales data as a stream for real-time updates with optional date range
   Stream<Map<String, dynamic>> getDailySalesDataStream({
     DateTime? customStartDate,
     DateTime? customEndDate,
@@ -464,46 +424,38 @@ class MarketService {
       throw Exception('User must be logged in to view sales data');
     }
 
-    // Get stream of sold items
     return _marketItemsCollection
         .where('sellerId', isEqualTo: currentUser.uid)
         .where('isSold', isEqualTo: true)
         .snapshots()
         .map((snapshot) {
-      // Calculate date range (default to last 7 days if not specified)
       final now = DateTime.now();
       final endDate = customEndDate ?? now;
       final startDate = customStartDate ??
           DateTime(now.year, now.month, now.day - (defaultDays - 1));
 
-      // Calculate number of days in the range
       final daysDifference = endDate.difference(startDate).inDays + 1;
       final Map<String, dynamic> dailySales = {};
 
-      // Initialize all dates in the range with zero values
       for (int i = 0; i < daysDifference; i++) {
         final date = startDate.add(Duration(days: i));
         final dateString = DateFormat('yyyy-MM-dd').format(date);
         dailySales[dateString] = 0.0;
       }
 
-      // Process each sold item
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
 
-        // Get sold date (use soldAt if available, otherwise createdAt)
         final timestamp = data['soldAt'] ?? data['createdAt'];
         if (timestamp == null) continue;
 
         final soldDate = (timestamp as Timestamp).toDate();
 
-        // Check if the sale occurred within our date range window
         if (soldDate.isAfter(startDate.subtract(const Duration(days: 1))) &&
             soldDate.isBefore(endDate.add(const Duration(days: 1)))) {
           final dateString = DateFormat('yyyy-MM-dd').format(soldDate);
           final price = (data['price'] as num).toDouble();
 
-          // Add to the corresponding date
           if (dailySales.containsKey(dateString)) {
             dailySales[dateString] = (dailySales[dateString] as double) + price;
           }
@@ -514,7 +466,6 @@ class MarketService {
     });
   }
 
-  // Get seller items by status
   Future<List<MarketItem>> getSellerItemsByStatus(String status) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -531,7 +482,6 @@ class MarketService {
     return snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList();
   }
 
-  // Get seller items by status as stream
   Stream<List<MarketItem>> getSellerItemsByStatusStream(String status) {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -548,7 +498,6 @@ class MarketService {
             snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList());
   }
 
-  // Get seller sold items
   Future<List<MarketItem>> getSellerSoldItems() async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -564,7 +513,6 @@ class MarketService {
     return snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList();
   }
 
-  // Get seller sold items as stream
   Stream<List<MarketItem>> getSellerSoldItemsStream() {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -580,7 +528,6 @@ class MarketService {
             snapshot.docs.map((doc) => MarketItem.fromFirestore(doc)).toList());
   }
 
-  // Get seller rating information
   Future<Map<String, dynamic>> getSellerRatingInfo() async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -603,7 +550,6 @@ class MarketService {
   Future<int> fixSoldItemsWithMissingSoldAt(String communityId) async {
     int fixedCount = 0;
 
-    // Get all sold items in the community that don't have a soldAt timestamp
     final snapshot = await _marketItemsCollection
         .where('communityId', isEqualTo: communityId)
         .where('isSold', isEqualTo: true)
@@ -612,7 +558,6 @@ class MarketService {
     for (var doc in snapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
       if (data['soldAt'] == null) {
-        // Set soldAt to current time
         await _marketItemsCollection.doc(doc.id).update({
           'soldAt': Timestamp.now(),
         });

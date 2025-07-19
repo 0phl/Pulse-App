@@ -32,19 +32,15 @@ class _PollAllVotersDialogState extends State<PollAllVotersDialog> {
     try {
       final Map<String, List<Map<String, dynamic>>> votersByOption = {};
 
-      // Process each option
       for (final option in widget.poll.options) {
         final List<Map<String, dynamic>> optionVoters = [];
 
-        // Process each voter ID for this option
         for (final voterId in option.votedBy) {
-          // Get user data from RTDB
           final userSnapshot = await _database.child('users/$voterId').get();
 
           if (userSnapshot.exists) {
             final userData = userSnapshot.value as Map<dynamic, dynamic>;
 
-            // Get user's name (handle both formats)
             String fullName = '';
             if (userData['firstName'] != null && userData['lastName'] != null) {
               fullName = userData['middleName'] != null &&
@@ -57,7 +53,6 @@ class _PollAllVotersDialogState extends State<PollAllVotersDialog> {
               fullName = 'User $voterId';
             }
 
-            // Add to voters list
             optionVoters.add({
               'id': voterId,
               'name': fullName,
@@ -110,7 +105,6 @@ class _PollAllVotersDialogState extends State<PollAllVotersDialog> {
           }
         }
 
-        // Add this option's voters to the map
         if (optionVoters.isNotEmpty) {
           votersByOption[option.text] = optionVoters;
         }
@@ -134,7 +128,6 @@ class _PollAllVotersDialogState extends State<PollAllVotersDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // Calculate total votes
     int totalVotes = 0;
     _votersByOption.forEach((_, voters) {
       totalVotes += voters.length;

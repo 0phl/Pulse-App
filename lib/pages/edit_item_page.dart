@@ -46,7 +46,6 @@ class _EditItemPageState extends State<EditItemPage> {
   }
 
   Future<void> _pickImage() async {
-    // Check if we've already reached the maximum number of images (5)
     if (_newImages.length + _currentImageUrls.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -61,13 +60,10 @@ class _EditItemPageState extends State<EditItemPage> {
     final List<XFile>? images = await _picker.pickMultiImage();
     if (images != null && images.isNotEmpty) {
       setState(() {
-        // Calculate how many more images we can add
         final int remainingSlots = 5 - (_newImages.length + _currentImageUrls.length);
         if (remainingSlots > 0) {
-          // Add only up to the remaining slots
           _newImages.addAll(images.take(remainingSlots));
 
-          // Show a message if some images were not added
           if (images.length > remainingSlots) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -82,7 +78,6 @@ class _EditItemPageState extends State<EditItemPage> {
   }
 
   Future<void> _takePicture() async {
-    // Check if we've already reached the maximum number of images
     if (_newImages.length + _currentImageUrls.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -103,9 +98,7 @@ class _EditItemPageState extends State<EditItemPage> {
   }
 
   void _removeImage(int index) {
-    // Check if this would remove the last image
     if (_newImages.length + _currentImageUrls.length <= 1) {
-      // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('At least one image is required'),
@@ -118,10 +111,8 @@ class _EditItemPageState extends State<EditItemPage> {
 
     setState(() {
       if (index < _newImages.length) {
-        // Remove from new images
         _newImages.removeAt(index);
       } else {
-        // Remove from existing images
         final existingIndex = index - _newImages.length;
         if (existingIndex < _currentImageUrls.length) {
           _currentImageUrls.removeAt(existingIndex);
@@ -321,7 +312,6 @@ class _EditItemPageState extends State<EditItemPage> {
                           ),
                           const SizedBox(width: 15),
 
-                          // Save button
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () => Navigator.of(context).pop(true),
@@ -361,7 +351,6 @@ class _EditItemPageState extends State<EditItemPage> {
 
   void _handleSubmit() {
     if (_formKey.currentState!.validate()) {
-      // Check if there's at least one image
       if (_currentImageUrls.isEmpty && _newImages.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -377,7 +366,6 @@ class _EditItemPageState extends State<EditItemPage> {
         _isSubmitting = true;
       });
 
-      // Create the updated item with current images
       final updatedItem = MarketItem(
         id: widget.item.id,
         title: _titleController.text,
@@ -562,7 +550,6 @@ class _EditItemPageState extends State<EditItemPage> {
                                                     },
                                                   ),
                                           ),
-                                          // Delete button - only show if there's more than one image
                                           if (_newImages.length + _currentImageUrls.length > 1)
                                             Positioned(
                                               top: 5,
@@ -767,7 +754,6 @@ class _EditItemPageState extends State<EditItemPage> {
                       ),
                     ),
 
-                    // Save button
                     SizedBox(
                       height: 55,
                       child: ElevatedButton(

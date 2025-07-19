@@ -208,7 +208,6 @@ class ItemCardWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
 
-                // Show rejection reason if item is rejected
                 if (item.status == 'rejected' && item.rejectionReason != null)
                   Container(
                     margin: const EdgeInsets.only(top: 12),

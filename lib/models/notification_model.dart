@@ -29,14 +29,12 @@ class NotificationModel {
     this.communityId,
   });
 
-  // Create from Firestore notification status document
   static Future<NotificationModel?> fromStatusDoc(DocumentSnapshot statusDoc) async {
     try {
       debugPrint('NOTIFICATION MODEL DEBUG: Loading notification from status doc: ${statusDoc.id}');
       final statusData = statusDoc.data() as Map<String, dynamic>;
       final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
-      // Get the notification ID from the status document
       final notificationId = statusData['notificationId'] as String;
       final communityId = statusData['communityId'] as String?;
       final read = statusData['read'] ?? false;
@@ -47,7 +45,6 @@ class NotificationModel {
       final collection = communityId != null ? 'community_notifications' : 'user_notifications';
       debugPrint('NOTIFICATION MODEL DEBUG: Looking for notification in collection: $collection');
 
-      // Get the actual notification document
       final notificationDoc = await firestore.collection(collection).doc(notificationId).get();
 
       if (!notificationDoc.exists) {
@@ -114,11 +111,9 @@ class NotificationModel {
     }
   }
 
-  // Create from Firestore document (for backward compatibility)
   factory NotificationModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
-    // Check if this is a status document
     if (data.containsKey('notificationId')) {
       // This is a status document, but we can't load the actual notification here
       // because this is a synchronous factory method
@@ -170,7 +165,6 @@ class NotificationModel {
     };
   }
 
-  // Create a copy with updated fields
   NotificationModel copyWith({
     String? id,
     String? notificationId,
@@ -199,7 +193,6 @@ class NotificationModel {
     );
   }
 
-  // Create from a Map (useful for creating from combined data)
   static NotificationModel fromMap(Map<String, dynamic> map) {
     return NotificationModel(
       id: map['statusId'] ?? map['id'] ?? '',
@@ -218,27 +211,22 @@ class NotificationModel {
     );
   }
 
-  // Check if this notification is relevant for admins
   bool isAdminNotification() {
-    // Check if the notification type is admin-specific
     if (type == 'admin_notification' ||
         type == 'admin_test' ||
         type.startsWith('admin_')) {
       return true;
     }
 
-    // Check if the notification data indicates it's for admins
     if (data.containsKey('isForAdmin') &&
         (data['isForAdmin'] == true || data['isForAdmin'] == 'true')) {
       return true;
     }
 
-    // Check if the notification is about admin-specific features
     if (type == 'reports' || type == 'report') {
       return true;
     }
 
-    // Check if the notification is about community management
     if (data.containsKey('adminAction') &&
         (data['adminAction'] == true || data['adminAction'] == 'true')) {
       return true;
@@ -279,7 +267,6 @@ class NotificationModel {
       }
     }
 
-    // Check if this is a social interaction related to admin content
     if (type == 'social_interaction' || type == 'socialInteractions') {
       // If the notification is about admin content
       if (data.containsKey('targetIsAdmin') &&
@@ -303,7 +290,6 @@ class NotificationModel {
     return false;
   }
 
-  // Check if this notification is a self-notification (user is seeing their own action)
   bool isSelfNotification() {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null) return false;
@@ -315,25 +301,21 @@ class NotificationModel {
       return false;
     }
 
-    // For social interactions, check if the user is the one who performed the action
     if (type == 'socialInteractions' || type == 'social_interaction') {
       // IMPORTANT: Notifications about someone liking YOUR content are NOT self-notifications
       // These should be shown to you, as they're actions others took on your content
 
-      // Check for likes - if the current user is the liker (you liked someone else's content)
       if (data.containsKey('likerId') && data['likerId'] == currentUserId) {
         debugPrint('SELF-NOTIFICATION: You liked someone else\'s content');
         return true;
       }
 
-      // Check for comments/replies - if the current user is the author (you commented on someone else's content)
       if (data.containsKey('authorId') && data['authorId'] == currentUserId &&
           !(data.containsKey('targetUserId') && data['targetUserId'] == currentUserId)) {
         debugPrint('SELF-NOTIFICATION: You commented on someone else\'s content');
         return true;
       }
 
-      // Check for mentions - if the current user is the one who mentioned someone
       if (data.containsKey('mentionedBy') && data['mentionedBy'] == currentUserId) {
         debugPrint('SELF-NOTIFICATION: You mentioned someone');
         return true;
@@ -371,14 +353,12 @@ class NotificationModel {
           return false;
         }
 
-        // Get the actor name (the person who performed the action)
         String? actorName;
         if (bodyText.contains(' liked ') || bodyText.contains(' replied ') || bodyText.contains(' mentioned ')) {
           final parts = body!.split(' ');
           actorName = parts.isNotEmpty ? parts.first : null;
         }
 
-        // Check if YOU are the actor (the person who performed the action)
         if (actorName != null && actorName.isNotEmpty) {
           // If the notification starts with your name and doesn't contain "your",
           // it's likely about an action YOU performed on someone else's content

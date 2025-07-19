@@ -127,7 +127,6 @@ class _AdminApplicationsListState extends State<AdminApplicationsList>
                   itemBuilder: (context, index) {
                     final application = filteredApplications[index];
 
-                    // Create a staggered animation for each item
                     final itemAnimation =
                         Tween<double>(begin: 0.0, end: 1.0).animate(
                       CurvedAnimation(
@@ -611,7 +610,6 @@ class _AdminApplicationsListState extends State<AdminApplicationsList>
         break;
     }
 
-    // Check if we're on a small screen
     final isSmallScreen = MediaQuery.of(context).size.width < 600;
 
     return Card(
@@ -1161,7 +1159,6 @@ class _AdminApplicationsListState extends State<AdminApplicationsList>
 
     if (result != null && result['confirm'] == true) {
       try {
-        // Create a custom method in SuperAdminService to handle rejection with reason
         await _superAdminService.rejectAdminApplication(
           application.id,
           application.email,

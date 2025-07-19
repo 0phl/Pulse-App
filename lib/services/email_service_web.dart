@@ -67,7 +67,6 @@ class EmailPlatform {
         throw Exception('to_email is required');
       }
 
-      // Create EmailJS parameters based on template type
       dynamic emailParams;
       if (templateId == 'template_cjg4pne') {  // Approval template
         // Validate approval-specific parameters
