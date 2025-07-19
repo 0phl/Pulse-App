@@ -378,7 +378,6 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage>
                         label: const Text('Logout'),
                         onPressed: () async {
                           try {
-                            // Show confirmation dialog
                             final shouldLogout = await showDialog<bool>(
                               context: context,
                               builder: (context) => AlertDialog(

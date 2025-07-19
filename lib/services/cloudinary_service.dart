@@ -89,17 +89,14 @@ class CloudinaryService {
 
   Future<String> uploadNoticeVideo(File file) async {
     try {
-      // Get file info
       final String fileName = file.path.split(Platform.isWindows ? '\\' : '/').last;
       final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
 
-      // Check if file is a supported video format
       final List<String> supportedFormats = ['mp4', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm'];
       if (!supportedFormats.contains(fileExtension)) {
         throw Exception('Unsupported video format: $fileExtension. Supported formats are: ${supportedFormats.join(', ')}');
       }
 
-      // Check file size
       final int fileSizeInBytes = await file.length();
       final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
@@ -107,7 +104,6 @@ class CloudinaryService {
       File videoFile = file;
       if (fileSizeInMB > 5) {
         try {
-          // Show compression info
           debugPrint('Compressing video: $fileName, original size: ${fileSizeInMB.toStringAsFixed(2)}MB');
 
           // Compress video
@@ -132,7 +128,6 @@ class CloudinaryService {
         }
       }
 
-      // Create cloudinary file with proper settings
       final cloudinaryFile = CloudinaryFile.fromFile(
         videoFile.path,
         folder: 'notices/videos',
@@ -165,7 +160,6 @@ class CloudinaryService {
 
   // Helper method to print debug messages
   void debugPrint(String message) {
-    // Use Flutter's debugPrint which is automatically stripped in release mode
     if (kDebugMode) {
       print(message);
     }
@@ -177,7 +171,6 @@ class CloudinaryService {
       final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
       const String folder = 'notices/attachments';
 
-      // Check if file is a supported format (PDF, DOCX, or image)
       final List<String> supportedFormats = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'gif'];
       if (!supportedFormats.contains(fileExtension)) {
         throw Exception('Unsupported file format: $fileExtension. Supported formats are: ${supportedFormats.join(', ')}');
@@ -220,7 +213,6 @@ class CloudinaryService {
 
   Future<String> uploadFile(File file) async {
     try {
-      // Create a different Cloudinary instance for PDFs
       final isPdf = file.path.toLowerCase().endsWith('.pdf');
       final fileFolder = isPdf ? 'Admin_docs/pdfs' : 'Admin_docs';
 
@@ -284,17 +276,14 @@ class CloudinaryService {
 
   Future<String> uploadReportVideo(File file) async {
     try {
-      // Get file info
       final String fileName = file.path.split(Platform.isWindows ? '\\' : '/').last;
       final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
 
-      // Check if file is a supported video format
       final List<String> supportedFormats = ['mp4', 'mov', 'avi', 'wmv', 'flv', 'mkv', 'webm'];
       if (!supportedFormats.contains(fileExtension)) {
         throw Exception('Unsupported video format: $fileExtension. Supported formats are: ${supportedFormats.join(', ')}');
       }
 
-      // Check file size
       final int fileSizeInBytes = await file.length();
       final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
@@ -302,7 +291,6 @@ class CloudinaryService {
       File videoFile = file;
       if (fileSizeInMB > 5) {
         try {
-          // Show compression info
           debugPrint('Compressing report video: $fileName, original size: ${fileSizeInMB.toStringAsFixed(2)}MB');
 
           // Compress video
@@ -327,7 +315,6 @@ class CloudinaryService {
         }
       }
 
-      // Create cloudinary file with proper settings
       final cloudinaryFile = CloudinaryFile.fromFile(
         videoFile.path,
         folder: 'reports/videos',
@@ -388,14 +375,12 @@ class CloudinaryService {
 
   // Optimize image URLs for bandwidth using the MediaCacheService
   String getOptimizedImageUrl(String originalUrl, {bool isListView = false}) {
-    // Use the MediaCacheService for consistent optimization
     final mediaCacheService = MediaCacheService();
     return mediaCacheService.getOptimizedUrl(originalUrl, isListView: isListView);
   }
 
   // Optimize video URLs for bandwidth using the MediaCacheService
   String getOptimizedVideoUrl(String originalUrl, {bool isPreview = false}) {
-    // Use the MediaCacheService for consistent optimization
     final mediaCacheService = MediaCacheService();
     return mediaCacheService.getOptimizedUrl(originalUrl, isVideo: true);
   }
@@ -430,7 +415,6 @@ class CloudinaryService {
   // Compress image before upload to reduce bandwidth
   Future<File> _compressImage(File file) async {
     try {
-      // Check if the file is an image
       final String fileName = file.path.split(Platform.isWindows ? '\\' : '/').last;
       final String fileExtension = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
 
@@ -439,7 +423,6 @@ class CloudinaryService {
         return file;
       }
 
-      // Get file size
       final int fileSizeInBytes = await file.length();
       final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
@@ -448,7 +431,6 @@ class CloudinaryService {
         return file;
       }
 
-      // Create a temporary file for the compressed image
       final Directory tempDir = await getTemporaryDirectory();
       final String targetPath = '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
 
@@ -480,7 +462,6 @@ class CloudinaryService {
       debugPrint('Error compressing image: $e');
     }
 
-    // Return original file if compression fails
     return file;
   }
 }

@@ -84,7 +84,6 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
       final token = await _notificationService.getFcmToken();
 
       if (mounted) {
-        // Show a dialog with the token
         showDialog(
           context: context,
           builder: (context) => AlertDialog(

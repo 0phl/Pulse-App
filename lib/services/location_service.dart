@@ -4,7 +4,6 @@ import 'dart:convert';
 class LocationService {
   static const String baseUrl = 'https://psgc.gitlab.io/api';
 
-  // Get all regions
   Future<List<Region>> getRegions() async {
     List<Region> regions = [];
 
@@ -26,12 +25,10 @@ class LocationService {
       print('Stack trace: $stackTrace');
     }
 
-    // Add local data only if API call failed
     if (regions.isEmpty) {
       regions.addAll(_getLocalRegions());
     }
 
-    // Remove duplicates based on code
     final uniqueRegions = regions
         .fold<Map<String, Region>>({}, (map, region) {
           if (region.code.isNotEmpty && region.name.isNotEmpty) {
@@ -49,7 +46,6 @@ class LocationService {
     return uniqueRegions..sort((a, b) => a.name.compareTo(b.name));
   }
 
-  // Get provinces by region code
   Future<List<Province>> getProvinces(String regionCode) async {
     List<Province> provinces = [];
 
@@ -88,12 +84,10 @@ class LocationService {
       print('Stack trace: $stackTrace');
     }
 
-    // Add local data only if API call failed
     if (provinces.isEmpty) {
       provinces.addAll(_getLocalProvinces(regionCode));
     }
 
-    // Remove duplicates based on code
     final uniqueProvinces = provinces
         .fold<Map<String, Province>>({}, (map, province) {
           if (province.code.isNotEmpty && province.name.isNotEmpty) {
@@ -111,7 +105,6 @@ class LocationService {
     return uniqueProvinces..sort((a, b) => a.name.compareTo(b.name));
   }
 
-  // Get municipalities by province code
   Future<List<Municipality>> getMunicipalities(String provinceCode) async {
     List<Municipality> municipalities = [];
 
@@ -141,12 +134,10 @@ class LocationService {
       print('Stack trace: $stackTrace');
     }
 
-    // Add local data only if API call failed
     if (municipalities.isEmpty) {
       municipalities.addAll(_getLocalMunicipalities(provinceCode));
     }
 
-    // Remove duplicates based on code
     final uniqueMunicipalities = municipalities
         .fold<Map<String, Municipality>>({}, (map, municipality) {
           if (municipality.code.isNotEmpty && municipality.name.isNotEmpty) {
@@ -165,7 +156,6 @@ class LocationService {
     return uniqueMunicipalities..sort((a, b) => a.name.compareTo(b.name));
   }
 
-  // Get barangays by municipality code
   Future<List<Barangay>> getBarangays(String municipalityCode) async {
     // For Bacoor City, return local data immediately
     if (municipalityCode == "042108") {

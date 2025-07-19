@@ -57,12 +57,10 @@ class MediaSaverService {
     }
 
     try {
-      // Check and request permissions
       if (!await _checkPermission(context)) {
         return false;
       }
 
-      // Show saving indicator
       if (context.mounted) {
         _showSnackBar(
           context,
@@ -71,17 +69,14 @@ class MediaSaverService {
         );
       }
 
-      // Create a new file with current timestamp to ensure it appears as the newest file
       final newFilePath = await _createFileWithCurrentTimestamp(filePath);
 
-      // Save the image
       if (album != null) {
         await Gal.putImage(newFilePath, album: album);
       } else {
         await Gal.putImage(newFilePath);
       }
 
-      // Show success message
       if (context.mounted) {
         _showSnackBar(
           context,
@@ -150,13 +145,11 @@ class MediaSaverService {
     }
 
     try {
-      // Check and request permissions
       if (!await _checkPermission(context)) {
         debugPrint('MediaSaverService: Permission denied for saving video');
         return false;
       }
 
-      // Show saving indicator
       if (context.mounted) {
         _showSnackBar(
           context,
@@ -184,7 +177,6 @@ class MediaSaverService {
       debugPrint('MediaSaverService: Video file size: ${fileSize ~/ 1024} KB');
       debugPrint('MediaSaverService: Original file path: $filePath');
 
-      // Create a new file with current timestamp to ensure it appears as the newest file
       final newFilePath = await _createFileWithCurrentTimestamp(filePath);
       debugPrint('MediaSaverService: New file path: $newFilePath');
 
@@ -240,7 +232,6 @@ class MediaSaverService {
         }
       }
 
-      // Show success message
       if (context.mounted) {
         _showSnackBar(
           context,
@@ -291,11 +282,9 @@ class MediaSaverService {
       final bytes = await file.readAsBytes();
       final fileName = path.basename(filePath);
 
-      // Get the app's external storage directory
       final appDir = await getExternalStorageDirectory();
       if (appDir == null) return false;
 
-      // Create album directory if needed
       final albumDir = album != null
           ? Directory('${appDir.path}/DCIM/$album')
           : Directory('${appDir.path}/DCIM');
@@ -304,7 +293,6 @@ class MediaSaverService {
         await albumDir.create(recursive: true);
       }
 
-      // Save the file to the album directory
       final savedFile = File('${albumDir.path}/$fileName');
       await savedFile.writeAsBytes(bytes);
 
@@ -323,7 +311,6 @@ class MediaSaverService {
   Future<void> _scanFile(String filePath) async {
     try {
       if (Platform.isAndroid) {
-        // Use our platform-specific implementation to scan the file
         debugPrint('MediaSaverService: Scanning file: $filePath');
         final result = await MediaScanner.scanFile(filePath);
         debugPrint('MediaSaverService: Scan result: $result');
@@ -344,12 +331,10 @@ class MediaSaverService {
     String? album,
   }) async {
     try {
-      // Check and request permissions
       if (!await _checkPermission(context)) {
         return false;
       }
 
-      // Show saving indicator
       if (context.mounted) {
         _showSnackBar(
           context,
@@ -358,12 +343,10 @@ class MediaSaverService {
         );
       }
 
-      // Get the file extension
       final extension = path.extension(filePath);
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final newFileName = 'PULSE_$timestamp$extension';
 
-      // Get the downloads directory
       Directory? downloadsDir;
       if (Platform.isAndroid) {
         // Try to get the Downloads directory on Android
@@ -402,7 +385,6 @@ class MediaSaverService {
         downloadsDir = await getApplicationDocumentsDirectory();
       }
 
-      // Create album directory if specified
       if (album != null && album.isNotEmpty) {
         final albumDir = Directory('${downloadsDir.path}/$album');
         if (!await albumDir.exists()) {
@@ -411,14 +393,12 @@ class MediaSaverService {
         downloadsDir = albumDir;
       }
 
-      // Create the destination file path
       final destinationPath = '${downloadsDir.path}/$newFileName';
 
       // Copy the file to the destination
       final sourceFile = File(filePath);
       await sourceFile.copy(destinationPath);
 
-      // Show success message
       if (context.mounted) {
         _showSnackBar(
           context,
@@ -511,15 +491,12 @@ class MediaSaverService {
     }
 
     try {
-      // Get the original file extension
       final extension = path.extension(originalFilePath).toLowerCase();
       final originalFile = File(originalFilePath);
 
-      // Create a new filename with current timestamp
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final newFileName = 'PULSE_$timestamp$extension';
 
-      // Get temporary directory for the new file
       final tempDir = await getTemporaryDirectory();
       final newFilePath = path.join(tempDir.path, newFileName);
 

@@ -84,13 +84,11 @@ class _ReportPageState extends State<ReportPage>
       }
     });
 
-    // Add listeners to text controllers to update state immediately when text changes
     _descriptionController.addListener(_updateState);
     _addressController.addListener(_updateState);
     _addressDetailsController.addListener(_updateState);
   }
 
-  // Update state when text changes to enable buttons immediately
   void _updateState() {
     if (mounted) {
       setState(() {
@@ -105,7 +103,6 @@ class _ReportPageState extends State<ReportPage>
         _isGettingLocation = true;
       });
 
-      // Check if location services are enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
       if (!serviceEnabled) {
@@ -116,7 +113,6 @@ class _ReportPageState extends State<ReportPage>
         return;
       }
 
-      // Check current permission status
       LocationPermission permission = await Geolocator.checkPermission();
 
       if (permission == LocationPermission.denied) {
@@ -132,7 +128,6 @@ class _ReportPageState extends State<ReportPage>
       }
 
       if (permission == LocationPermission.deniedForever) {
-        // Show dialog to open app settings
         _showLocationPermissionDialog();
         setState(() {
           _isGettingLocation = false;
@@ -140,7 +135,6 @@ class _ReportPageState extends State<ReportPage>
         return;
       }
 
-      // Get current position with more flexible settings for real devices
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.medium, // Changed from high to medium for better compatibility
         timeLimit: const Duration(seconds: 15), // Increased timeout
@@ -191,7 +185,6 @@ class _ReportPageState extends State<ReportPage>
 
       _showSnackBar(errorMessage);
 
-      // Show location error dialog
       _showLocationErrorDialog();
     }
   }
@@ -199,7 +192,6 @@ class _ReportPageState extends State<ReportPage>
   String _formatAddress(Placemark place) {
     List<String> addressParts = [];
 
-    // Add street number and name
     if (place.subThoroughfare != null && place.subThoroughfare!.isNotEmpty) {
       addressParts.add(place.subThoroughfare!);
     }
@@ -207,7 +199,6 @@ class _ReportPageState extends State<ReportPage>
       addressParts.add(place.thoroughfare!);
     }
 
-    // Add locality (city/town)
     if (place.locality != null && place.locality!.isNotEmpty) {
       addressParts.add(place.locality!);
     }
@@ -346,7 +337,6 @@ class _ReportPageState extends State<ReportPage>
 
   @override
   void dispose() {
-    // Remove listeners before disposing controllers
     _descriptionController.removeListener(_updateState);
     _addressController.removeListener(_updateState);
     _addressDetailsController.removeListener(_updateState);
@@ -372,7 +362,6 @@ class _ReportPageState extends State<ReportPage>
     });
   }
 
-  // Create a stream for filtered reports based on the current filter
   Stream<List<Report>> _getFilteredReportsStream() {
     final currentUser = _authService.currentUser;
     if (currentUser == null) {
@@ -484,7 +473,6 @@ class _ReportPageState extends State<ReportPage>
       );
 
       if (video != null) {
-        // Check file size
         final File videoFile = File(video.path);
         final int fileSizeInBytes = await videoFile.length();
         final double fileSizeInMB = fileSizeInBytes / (1024 * 1024);
@@ -496,7 +484,6 @@ class _ReportPageState extends State<ReportPage>
           return;
         }
 
-        // Show compression progress
         setState(() {
           _isVideoUploading = true;
         });
@@ -505,7 +492,6 @@ class _ReportPageState extends State<ReportPage>
         File compressedVideoFile = videoFile;
         if (fileSizeInMB > 10) {
           try {
-            // Show compression dialog
             if (mounted) {
               _showSnackBar('Compressing video to maintain quality...');
             }
@@ -600,19 +586,16 @@ class _ReportPageState extends State<ReportPage>
         });
       }
 
-      // Get current user
       final currentUser = _authService.currentUser;
       if (currentUser == null) {
         throw 'You must be logged in to submit a report';
       }
 
-      // Get user's data from Firestore
       final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
       if (!userDoc.exists) {
         throw 'User data not found';
       }
 
-      // Create report with actual user data
       await _reportService.createReport(
         userId: currentUser.uid,
         communityId: userDoc.data()!['communityId'],
@@ -630,7 +613,6 @@ class _ReportPageState extends State<ReportPage>
         _isUploading = false;
       });
 
-      // Show success dialog
       if (mounted) {
         ReportSuccessDialog.show(context, () {
           _tabController.animateTo(1); // Switch to My Reports tab

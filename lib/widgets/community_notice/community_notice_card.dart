@@ -101,14 +101,12 @@ class CommunityNoticeCard extends StatelessWidget {
                 ? IconButton(
                     icon: const Icon(Icons.delete_outline),
                     onPressed: () async {
-                      // Use a static variable to prevent multiple clicks
                       // This ensures we don't trigger multiple deletion attempts
                       if (_isProcessingDeletion) return;
 
                       try {
                         _isProcessingDeletion = true;
 
-                        // Show confirmation dialog before deleting
                         final shouldDelete = await ConfirmationDialog.show(
                           context: context,
                           title: 'Delete Notice',
@@ -122,7 +120,6 @@ class CommunityNoticeCard extends StatelessWidget {
 
                         // Only proceed with deletion if confirmed
                         if (shouldDelete == true && context.mounted) {
-                          // Show deletion in progress
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Deleting notice...'),
@@ -168,7 +165,6 @@ class CommunityNoticeCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // Handle media display based on content type
                 // Case 1: Poll with images - handled in the poll section below
                 // Case 2: Media without poll - handled here
                 if (notice.poll == null &&
@@ -316,7 +312,6 @@ class CommunityNoticeCard extends StatelessWidget {
                                       return;
                                     }
 
-                                    // Set local voting state
                                     isVoting = true;
 
                                     try {

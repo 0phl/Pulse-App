@@ -58,7 +58,6 @@ class _NotificationBadgeState extends State<_NotificationBadge>
       vsync: this,
     );
 
-    // Create a curved animation
     _animation = TweenSequence<double>([
       TweenSequenceItem(
         tween: Tween<double>(begin: 0.5, end: 1.2)
@@ -158,10 +157,8 @@ class _MarketPageState extends State<MarketPage>
         setState(() {});
       });
 
-    // Initialize unread count from the global state
     _unreadChats = _globalState.unreadChatCount;
 
-    // Set up subscription to unread count changes
     _unreadCountSubscription =
         _globalState.unreadChatCountStream.listen((chatCount) {
       if (mounted && _unreadChats != chatCount) {
@@ -180,7 +177,6 @@ class _MarketPageState extends State<MarketPage>
     _globalState.refreshUnreadCount();
   }
 
-  // Load the user's view preference from SharedPreferences
   Future<void> _loadViewPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -195,7 +191,6 @@ class _MarketPageState extends State<MarketPage>
     }
   }
 
-  // Save the user's view preference to SharedPreferences
   Future<void> _saveViewPreference(bool isGridView) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -298,7 +293,6 @@ class _MarketPageState extends State<MarketPage>
         totalChats = chatData.length;
         print('DEBUG: Found $totalChats total chats in database');
 
-        // Get all chats from the database
         for (var entry in chatData.entries) {
           final chatId = entry.key as String;
           final chatInfo = entry.value as Map<dynamic, dynamic>?;
@@ -308,7 +302,6 @@ class _MarketPageState extends State<MarketPage>
             continue;
           }
 
-          // Extract chat details
           final buyerId = chatInfo['buyerId'] as String?;
           final sellerId = chatInfo['sellerId'] as String?;
           final communityId = chatInfo['communityId'] as String?;
@@ -330,7 +323,6 @@ class _MarketPageState extends State<MarketPage>
 
           print('DEBUG: User is part of chat $chatId');
 
-          // Get unread count directly from the unreadCount field
           if (chatInfo.containsKey('unreadCount')) {
             final unreadCountMap =
                 chatInfo['unreadCount'] as Map<dynamic, dynamic>?;
@@ -407,7 +399,6 @@ class _MarketPageState extends State<MarketPage>
     });
 
     try {
-      // Get user data from Realtime Database
       final userSnapshot = await FirebaseDatabase.instance
           .ref()
           .child('users')
@@ -423,7 +414,6 @@ class _MarketPageState extends State<MarketPage>
       // Upload images to Cloudinary and get the download URLs
       List<String> downloadUrls = await _uploadImages(item.imageUrls);
 
-      // Create new item document in Firestore using the item's ID
       await _firestore.collection('market_items').doc(item.id).set({
         'title': item.title,
         'price': item.price,
@@ -506,7 +496,6 @@ class _MarketPageState extends State<MarketPage>
         backgroundColor: const Color(0xFF00C49A),
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
-        // Add padding to the actions
         actionsIconTheme: const IconThemeData(size: 26),
         actions: [
           // View Toggle Button
@@ -627,7 +616,6 @@ class _MarketPageState extends State<MarketPage>
 
                     return Column(
                       children: [
-                        // Show pending items notification if there are any
                         if (hasPendingItems)
                           GestureDetector(
                             onTap: () {
@@ -743,14 +731,11 @@ class _MarketPageState extends State<MarketPage>
                 return true;
               }
 
-              // Calculate time difference between now and when the item was marked as sold
               final now = DateTime.now();
               final soldAt = item.soldAt!;
               final timeDifference = now.difference(soldAt);
               final secondsAgo = timeDifference.inSeconds;
 
-              // Show the item if it was sold less than 10 minutes ago
-              // Use total seconds for more precise comparison (avoid rounding issues)
               final shouldShow = secondsAgo < 600; // 10 minutes = 600 seconds
               if (shouldShow) {
                 debugPrint(
@@ -781,7 +766,6 @@ class _MarketPageState extends State<MarketPage>
     }
 
     if (displayItems.isEmpty) {
-      // Check if there are pending items when in My Items tab
       bool hasPendingItems =
           isMyItemsTab && items.any((item) => item.status == 'pending');
 
@@ -897,7 +881,6 @@ class _MarketPageState extends State<MarketPage>
       }
     }
 
-    // Return either ListView or GridView based on the current view mode
     return _isGridView
         ? GridView.builder(
             padding: const EdgeInsets.all(16),
@@ -991,7 +974,6 @@ class _MarketPageState extends State<MarketPage>
     if (confirmDelete != true) return;
 
     try {
-      // Delete the item from Firestore
       await _firestore.collection('market_items').doc(item.id).delete();
 
       if (mounted) {
@@ -1044,13 +1026,11 @@ class _MarketPageState extends State<MarketPage>
           // If there are existing images, add the new ones up to a maximum of 5 total
           final int remainingSlots = 5 - finalImageUrls.length;
           if (remainingSlots > 0) {
-            // Add only up to the remaining slots
             finalImageUrls.addAll(newUploadedUrls.take(remainingSlots));
           }
         }
       }
 
-      // Update the item in Firestore
       await _firestore.collection('market_items').doc(updatedItem.id).update({
         'title': updatedItem.title,
         'price': updatedItem.price,

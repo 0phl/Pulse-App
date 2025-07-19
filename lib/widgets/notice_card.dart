@@ -60,7 +60,6 @@ class _NoticeCardState extends State<NoticeCard> {
     final currentUserId = _adminService.currentUserId ?? '';
     final isLiked = _notice.isLikedBy(currentUserId);
 
-    // Create a local copy of the notice with updated like status
     List<String> updatedLikedBy = List.from(_notice.likedBy);
     if (isLiked) {
       updatedLikedBy.remove(currentUserId);
@@ -68,7 +67,6 @@ class _NoticeCardState extends State<NoticeCard> {
       updatedLikedBy.add(currentUserId);
     }
 
-    // Update the local notice object
     setState(() {
       _notice = _notice.copyWith(likedBy: updatedLikedBy);
     });
@@ -80,16 +78,13 @@ class _NoticeCardState extends State<NoticeCard> {
   // Method to refresh notice data after comments are added/liked
   Future<void> _refreshNoticeData() async {
     try {
-      // Get the latest notice data from the service
       final updatedNotices = await _adminService.getNotices();
 
-      // Find the current notice in the updated list
       final updatedNotice = updatedNotices.firstWhere(
         (n) => n.id == _notice.id,
         orElse: () => _notice, // Keep the current notice if not found
       );
 
-      // Update the state with the refreshed notice
       if (mounted) {
         setState(() {
           _notice = updatedNotice;
@@ -130,7 +125,6 @@ class _NoticeCardState extends State<NoticeCard> {
 
   @override
   Widget build(BuildContext context) {
-    // Use local variables for clarity
     final notice = _notice;
     final adminService = _adminService;
 
@@ -233,7 +227,6 @@ class _NoticeCardState extends State<NoticeCard> {
                   const SizedBox(height: 12),
                 ],
 
-                // Check if poll has images
                 if (notice.poll != null &&
                     ((notice.poll!.imageUrls != null && notice.poll!.imageUrls!.isNotEmpty) ||
                      (notice.imageUrls != null && notice.imageUrls!.isNotEmpty))) ...[
@@ -1223,12 +1216,10 @@ class _AttachmentItemState extends State<_AttachmentItem> {
   }
 
   Future<void> _downloadAndOpenFile() async {
-    // Check file type to determine how to handle it
     final fileType = widget.attachment.type.toLowerCase();
     final url = widget.attachment.url;
     final fileName = widget.attachment.name;
 
-    // Handle different file types
     if (fileType == 'pdf' || url.toLowerCase().contains('.pdf')) {
       // Open PDF in the PDF viewer
       Navigator.push(
@@ -1281,7 +1272,6 @@ class _AttachmentItemState extends State<_AttachmentItem> {
       });
 
       try {
-        // Show download options dialog
         final bool? shouldDownload = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -1537,10 +1527,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         borderRadius: BorderRadius.circular(12),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Get video aspect ratio
             final aspectRatio = _videoPlayerController.value.aspectRatio;
 
-            // Calculate the size that maintains aspect ratio within constraints
             double targetWidth, targetHeight;
 
             if (aspectRatio < 1.0) {

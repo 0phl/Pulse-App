@@ -8,7 +8,6 @@ import '../../services/admin_service.dart';
 import 'notification_item.dart';
 
 class NotificationList extends StatefulWidget {
-  // Add a key parameter to force rebuild when needed
   final String? filter;
   final bool isAdminView;
 
@@ -29,8 +28,8 @@ class _NotificationListState extends State<NotificationList> {
   List<NotificationModel> _readNotifications =
       []; // Store read notifications that were deleted from Firestore
   bool _isLoading = true;
-  bool _isInitialLoad = true; // Track if this is the first load
-  bool _hasLoadedOnce = false; // Track if we've loaded data at least once
+  bool _isInitialLoad = true;
+  bool _hasLoadedOnce = false;
   String? _error;
   bool _isAdmin = false;
   StreamSubscription? _notificationSubscription;
@@ -45,7 +44,6 @@ class _NotificationListState extends State<NotificationList> {
   }
 
   Future<void> _initialize() async {
-    // Check if the current user is an admin
     if (widget.isAdminView) {
       try {
         _isAdmin = await adminService.isCurrentUserAdmin();
@@ -56,7 +54,6 @@ class _NotificationListState extends State<NotificationList> {
       }
     }
 
-    // Get the user's community ID
     _communityId = await notificationService.getUserCommunityId();
 
     // Log the current unread notification count for debugging
@@ -105,7 +102,6 @@ class _NotificationListState extends State<NotificationList> {
             debugPrint(
                 'NOTIFICATION DEBUG: No community notifications found in snapshot');
 
-            // Add a small delay for initial load to prevent flash
             if (_isInitialLoad) {
               await Future.delayed(const Duration(milliseconds: 300));
             }
@@ -120,21 +116,18 @@ class _NotificationListState extends State<NotificationList> {
             return;
           }
 
-          // Get current user
           final user = FirebaseAuth.instance.currentUser;
           if (user == null) {
             debugPrint('NOTIFICATION DEBUG: No authenticated user found');
             return;
           }
 
-          // Get all notification status records for this user to check read status
           final statusSnapshot = await FirebaseFirestore.instance
               .collection('notification_status')
               .where('userId', isEqualTo: user.uid)
               .where('communityId', isEqualTo: _communityId)
               .get();
 
-          // Create a map of notification IDs to their read status
           final Map<String, bool> readStatusMap = {};
           for (final statusDoc in statusSnapshot.docs) {
             final data = statusDoc.data();
@@ -146,7 +139,6 @@ class _NotificationListState extends State<NotificationList> {
             }
           }
 
-          // Process notifications
           final List<NotificationModel> unreadNotifications = [];
           final List<NotificationModel> readNotifications = [];
 
@@ -157,10 +149,8 @@ class _NotificationListState extends State<NotificationList> {
 
               final data = doc.data();
 
-              // Check if this notification has a status record (unread) or not (read)
               final isRead = !readStatusMap.containsKey(doc.id);
 
-              // Find the status document ID if it exists
               String? statusId;
               if (!isRead) {
                 for (final statusDoc in statusSnapshot.docs) {
@@ -172,7 +162,6 @@ class _NotificationListState extends State<NotificationList> {
                 }
               }
 
-              // Create notification model
               final Map<String, dynamic> completeData = {
                 ...data,
                 'userId': user.uid,
@@ -210,7 +199,6 @@ class _NotificationListState extends State<NotificationList> {
             }
           }
 
-          // Add a small delay for initial load to prevent flash
           if (_isInitialLoad) {
             await Future.delayed(const Duration(milliseconds: 300));
           }
@@ -283,21 +271,18 @@ class _NotificationListState extends State<NotificationList> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Get current community notifications
       final notificationSnapshot = await FirebaseFirestore.instance
           .collection('community_notifications')
           .where('communityId', isEqualTo: _communityId)
           .orderBy('createdAt', descending: true)
           .get();
 
-      // Get current status records
       final statusSnapshot = await FirebaseFirestore.instance
           .collection('notification_status')
           .where('userId', isEqualTo: user.uid)
           .where('communityId', isEqualTo: _communityId)
           .get();
 
-      // Create a map of notification IDs to their read status
       final Map<String, bool> readStatusMap = {};
       for (final statusDoc in statusSnapshot.docs) {
         final data = statusDoc.data();
@@ -307,7 +292,6 @@ class _NotificationListState extends State<NotificationList> {
         }
       }
 
-      // Process notifications
       final List<NotificationModel> unreadNotifications = [];
       final List<NotificationModel> readNotifications = [];
 
@@ -316,7 +300,6 @@ class _NotificationListState extends State<NotificationList> {
           final data = doc.data();
           final isRead = !readStatusMap.containsKey(doc.id);
 
-          // Find the status document ID if it exists
           String? statusId;
           if (!isRead) {
             for (final statusDoc in statusSnapshot.docs) {
@@ -328,7 +311,6 @@ class _NotificationListState extends State<NotificationList> {
             }
           }
 
-          // Create notification model
           final Map<String, dynamic> completeData = {
             ...data,
             'userId': user.uid,
@@ -357,7 +339,6 @@ class _NotificationListState extends State<NotificationList> {
         }
       }
 
-      // Update state
       if (mounted) {
         setState(() {
           _notifications = unreadNotifications;
@@ -399,7 +380,6 @@ class _NotificationListState extends State<NotificationList> {
         'Refreshed notifications: ${_notifications.length} unread, ${_readNotifications.length} read');
   }
 
-  // Show a confirmation dialog before deleting a notification
   Future<bool> _showDeleteConfirmationDialog(
       BuildContext context, NotificationModel notification) async {
     final theme = Theme.of(context);
@@ -463,7 +443,6 @@ class _NotificationListState extends State<NotificationList> {
       },
     );
 
-    // Return false if dialog was dismissed or user pressed Cancel
     return dialogResult ?? false;
   }
 
@@ -507,7 +486,6 @@ class _NotificationListState extends State<NotificationList> {
     }
   }
 
-  // Build skeleton loading widget
   Widget _buildSkeletonLoading() {
     return ListView.builder(
       padding: const EdgeInsets.only(top: 8, bottom: 80),
@@ -602,12 +580,10 @@ class _NotificationListState extends State<NotificationList> {
     // Combine unread notifications and read community notifications with deduplication
     final Map<String, NotificationModel> uniqueNotifications = {};
 
-    // Add unread notifications first
     for (var notification in _notifications) {
       uniqueNotifications[notification.notificationId] = notification;
     }
 
-    // Add read notifications, only if they don't already exist
     for (var notification in _readNotifications) {
       if (!uniqueNotifications.containsKey(notification.notificationId)) {
         uniqueNotifications[notification.notificationId] = notification;
@@ -621,10 +597,8 @@ class _NotificationListState extends State<NotificationList> {
     if (widget.isAdminView) {
       // For admin view, only show admin-specific notifications
       allNotifications = allNotifications.where((notification) {
-        // Check if this is an admin-specific notification
         final bool isAdminNotification = notification.isAdminNotification();
 
-        // Check if this is a self-notification (admin seeing their own action)
         final bool isSelfNotif = notification.isSelfNotification();
 
         // Log for debugging
@@ -702,12 +676,10 @@ class _NotificationListState extends State<NotificationList> {
     // Sort notifications by creation date, newest first
     allNotifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    // Show skeleton loading only during initial load AND when we're still loading
     if (_isLoading && _isInitialLoad) {
       return _buildSkeletonLoading();
     }
 
-    // Show empty state if we've loaded at least once and there's no data
     if (allNotifications.isEmpty && _hasLoadedOnce && !_isLoading) {
       return RefreshIndicator(
         key: _refreshKey,
@@ -785,7 +757,6 @@ class _NotificationListState extends State<NotificationList> {
                 }
               }
 
-              // Handle tap based on notification type
               // This would typically navigate to the appropriate screen
               debugPrint('Notification tapped: ${notification.id}');
             },
@@ -793,16 +764,13 @@ class _NotificationListState extends State<NotificationList> {
               // Capture scaffold messenger early to avoid async gap issues
               final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-              // Show confirmation dialog before deleting
               final shouldDelete =
                   await _showDeleteConfirmationDialog(context, notification);
 
               // If user confirmed deletion, proceed with deletion
               if (shouldDelete) {
-                // Delete from the database - this will automatically update the stream
                 notificationService.deleteNotification(notification.id);
 
-                // Show snackbar
                 if (mounted) {
                   scaffoldMessenger.showSnackBar(
                     SnackBar(

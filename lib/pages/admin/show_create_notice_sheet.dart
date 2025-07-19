@@ -13,7 +13,6 @@ class _ShowCreateNoticeSheetState extends State<ShowCreateNoticeSheet> {
   @override
   void initState() {
     super.initState();
-    // Show the modal sheet after the widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showCreateNoticeSheet();
     });

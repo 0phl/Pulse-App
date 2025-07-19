@@ -102,7 +102,6 @@ class _RegisterPageState extends State<RegisterPage>
 
   Future<void> _pickProfileImage() async {
     try {
-      // Show a dialog to choose between camera and gallery
       await showModalBottomSheet(
         context: context,
         builder: (BuildContext context) {
@@ -229,7 +228,6 @@ class _RegisterPageState extends State<RegisterPage>
       // Compress the image before uploading to reduce file size
       final File compressedFile = await _compressImage(_profileImage!);
 
-      // Use the dedicated profile image uploader with the compressed image
       return await _cloudinaryService.uploadProfileImage(compressedFile);
     } catch (e) {
       if (mounted) {
@@ -249,12 +247,10 @@ class _RegisterPageState extends State<RegisterPage>
 
   // Helper method to compress images before uploading
   Future<File> _compressImage(File file) async {
-    // Get file path and name
     final String filePath = file.path;
     final int lastIndex = filePath.lastIndexOf(Platform.isWindows ? '\\' : '/');
     final String fileName = filePath.substring(lastIndex + 1);
 
-    // Get temporary directory for storing compressed image
     final tempDir = await path_provider.getTemporaryDirectory();
     final targetPath = '${tempDir.path}${Platform.isWindows ? '\\' : '/'}compressed_$fileName';
 
@@ -697,7 +693,6 @@ class _RegisterPageState extends State<RegisterPage>
                     onChanged: (value) {
                       // Cancel previous debounced call
                       _emailCheckDebouncer?.cancel();
-                      // Create new debounced call
                       _emailCheckDebouncer = Timer(
                         const Duration(milliseconds: 500),
                         () => _checkEmailAvailability(value),
@@ -866,7 +861,6 @@ class _RegisterPageState extends State<RegisterPage>
                   ),
                   _buildNewFields(),
                   const SizedBox(height: 16),
-                  // Show community status message
                   if (_selectedBarangay != null &&
                       _communityStatusMessage != null)
                     Container(
@@ -953,7 +947,6 @@ class _RegisterPageState extends State<RegisterPage>
                                   // Generate unique registration ID for QR code
                                   final registrationId = const Uuid().v4();
 
-                                  // Create registration data
                                   final registrationData = RegistrationData(
                                     email: _emailController.text.trim(),
                                     password: _passwordController.text,
@@ -1006,7 +999,6 @@ class _RegisterPageState extends State<RegisterPage>
                                   // Shake the button
                                   _shakeController.forward(from: 0);
 
-                                  // Find and scroll to the first invalid field
                                   if (_firstNameController.text.isEmpty) {
                                     _scrollToField(_formKey);
                                   } else if (_lastNameController.text.isEmpty) {
@@ -1288,7 +1280,6 @@ class _RegisterPageState extends State<RegisterPage>
                     _selectedBarangay = barangay;
                   });
 
-                  // Check if community is active when barangay is selected
                   if (barangay != null &&
                       _selectedRegion != null &&
                       _selectedProvince != null &&
@@ -1360,7 +1351,6 @@ class _RegisterPageState extends State<RegisterPage>
     try {
       // We'll manually check each community for a match
 
-      // Get all communities to check
       final communitiesRef =
           FirebaseDatabase.instance.ref().child('communities');
       final allCommunitiesSnapshot = await communitiesRef.get();
@@ -1374,7 +1364,6 @@ class _RegisterPageState extends State<RegisterPage>
         for (var entry in allCommunities.entries) {
           final community = entry.value as Map<dynamic, dynamic>;
 
-          // Check if this community matches our barangay code and is active
           if (community['barangayCode'] == _selectedBarangay!.code &&
               community['status'] == 'active' &&
               community['adminId'] != null) {
@@ -1385,7 +1374,6 @@ class _RegisterPageState extends State<RegisterPage>
                   null; // Clear any previous error message
             });
 
-            // Show success message
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -1417,7 +1405,6 @@ class _RegisterPageState extends State<RegisterPage>
         });
       }
     } catch (e) {
-      // Use ScaffoldMessenger instead of print for errors
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error checking community status: $e')),

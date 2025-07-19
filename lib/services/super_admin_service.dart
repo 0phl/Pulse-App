@@ -19,7 +19,6 @@ class SuperAdminService {
   final UserSessionService _sessionService = UserSessionService();
   final EngagementService _engagementService = EngagementService();
 
-  // Check if current user is super admin
   Future<bool> isSuperAdmin() async {
     try {
       final user = _auth.currentUser;
@@ -37,7 +36,6 @@ class SuperAdminService {
     }
   }
 
-  // Get all admin applications
   Stream<List<AdminApplication>> getAdminApplications() {
     final user = _auth.currentUser;
     if (user == null) {
@@ -85,7 +83,6 @@ class SuperAdminService {
       final currentUser = _auth.currentUser;
       if (currentUser == null) throw 'Not authenticated';
 
-      // Check if email already exists
       try {
         final methods =
             await _auth.fetchSignInMethodsForEmail(application.email);
@@ -101,7 +98,6 @@ class SuperAdminService {
         }
       }
 
-      // Create admin user account
       print('Creating admin user account...');
       userCredential = await _auth.createUserWithEmailAndPassword(
         email: application.email,
@@ -126,11 +122,9 @@ class SuperAdminService {
           'status': 'active',
           'adminId': userCredential.user!.uid,
           'adminName': application.fullName,
-          // Use a timestamp from Dart instead of ServerValue
           'updatedAt': DateTime.now().millisecondsSinceEpoch,
         };
 
-        // Get community data for creating locationStatusId
         final communitySnapshot = await communityRef.get();
         if (!communitySnapshot.exists) throw Exception('Community not found');
 
@@ -151,7 +145,6 @@ class SuperAdminService {
                   throw TimeoutException('Community update timed out'),
             );
 
-        // Add a small delay to ensure Firebase has processed the update
         await Future.delayed(const Duration(milliseconds: 500));
 
         // Verify the update
@@ -205,7 +198,6 @@ class SuperAdminService {
 
       print('Updating user role and community...');
 
-      // Create admin user record
       final firestoreData = {
         'fullName': application.fullName,
         'email': application.email,
@@ -222,7 +214,6 @@ class SuperAdminService {
           .set(firestoreData);
 
       print('Updating application status...');
-      // Update application status
       await _database.child('admin_applications').child(application.id).update({
         'status': 'approved',
         'adminId': userCredential.user!.uid,
@@ -263,7 +254,6 @@ class SuperAdminService {
       // Clean up if we created any resources
       if (userCredential?.user != null) {
         try {
-          // Delete the user from Authentication and Firestore
           await Future.wait([
             userCredential!.user!.delete(),
             _firestore
@@ -272,7 +262,6 @@ class SuperAdminService {
                 .delete(),
           ]);
 
-          // Delete community if we created it
           if (communityId != null && application.communityId.isEmpty) {
             await _database.child('communities').child(communityId).remove();
           }
@@ -298,7 +287,6 @@ class SuperAdminService {
       final currentUser = _auth.currentUser;
       if (currentUser == null) throw 'Not authenticated';
 
-      // Get the application details first to get communityId
       final applicationSnapshot = await _database
           .child('admin_applications')
           .child(applicationId)
@@ -310,7 +298,6 @@ class SuperAdminService {
       final communityId = applicationData['communityId'] as String?;
 
       print('Updating application status...');
-      // Update application status first
       await _database.child('admin_applications').child(applicationId).update({
         'status': 'rejected',
         'rejectionReason': reason,
@@ -328,7 +315,6 @@ class SuperAdminService {
       if (communityId != null && communityId.isNotEmpty) {
         print('Updating community status...');
 
-        // Get community data for creating locationStatusId
         final communityRef = _database.child('communities').child(communityId);
         final communitySnapshot = await communityRef.get();
         if (communitySnapshot.exists) {
@@ -378,7 +364,6 @@ class SuperAdminService {
     }
   }
 
-  // Get analytics data for the super admin dashboard
   Future<Map<String, dynamic>> getAnalyticsData(String timeRange) async {
     try {
       // Parse time range to determine date filters
@@ -411,7 +396,6 @@ class SuperAdminService {
       // Convert to milliseconds for comparison with timestamps
       final startTimestamp = startDate.millisecondsSinceEpoch;
 
-      // Get communities data
       final communitiesSnapshot = await _database.child('communities').get();
       int totalCommunities = 0;
       int activeCommunities = 0;
@@ -543,7 +527,6 @@ class SuperAdminService {
             }
           }
 
-          // Check if community was created within the time range
           final createdAt = communityData['createdAt'] is int
               ? communityData['createdAt'] as int
               : 0;
@@ -571,7 +554,6 @@ class SuperAdminService {
           }
         }
 
-        // Calculate community trend (last 10 points)
         int runningTotal = 0;
         for (int i = 9; i >= 0; i--) {
           runningTotal += communitiesByDay[i] ?? 0;
@@ -583,7 +565,6 @@ class SuperAdminService {
         if (communityTrend.isNotEmpty) {
           communityTrend[9] = totalCommunities;
 
-          // Check if data is flat (all values are identical)
           bool isFlat =
               communityTrend.every((value) => value == communityTrend[0]);
 
@@ -604,14 +585,12 @@ class SuperAdminService {
         }
       }
 
-      // Get admin users data
       final adminsSnapshot = await _firestore
           .collection('users')
           .where('role', isEqualTo: 'admin')
           .get();
       final totalAdmins = adminsSnapshot.docs.length;
 
-      // Calculate admin coverage (percentage of communities with at least one admin)
       double adminCoverageRate = 0.0;
       if (totalCommunities > 0) {
         // Count communities with an admin
@@ -662,14 +641,12 @@ class SuperAdminService {
         }
       }
 
-      // Calculate admin trend
       int adminRunningTotal = 0;
       for (int i = 9; i >= 0; i--) {
         adminRunningTotal += adminsByDay[i] ?? 0;
         adminTrend[9 - i] = totalAdmins - adminRunningTotal;
       }
 
-      // Get pending applications
       final pendingAppsSnapshot = await _database
           .child('admin_applications')
           .orderByChild('status')
@@ -682,7 +659,6 @@ class SuperAdminService {
         pendingApplications = pendingAppsData.length;
       }
 
-      // Get all applications to calculate trends
       final allAppsSnapshot = await _database.child('admin_applications').get();
 
       int newApplicationsInPeriod = 0;
@@ -719,13 +695,11 @@ class SuperAdminService {
           }
         }
 
-        // Calculate application trend
         for (int i = 0; i < 10; i++) {
           applicationTrend[i] = applicationsByDay[9 - i] ?? 0;
         }
       }
 
-      // Calculate growth rates
       // For communities: compare current count with count at start of period
       double communityGrowth = 0.0;
       if (communityTrend.isNotEmpty && communityTrend.first > 0) {
@@ -784,12 +758,10 @@ class SuperAdminService {
         }
       }
 
-      // Calculate user engagement trend
       double averageEngagementRate = 0.0;
       int totalEngagementScores = 0;
       int totalEngagementSum = 0;
 
-      // Get top active communities with real data
       List<Map<String, dynamic>> topActiveCommunities = [];
 
       // First get all communities with their user counts
@@ -803,7 +775,6 @@ class SuperAdminService {
           final communityData = entry.value as Map<dynamic, dynamic>;
 
           if (communityData['status'] == 'active') {
-            // Get user count for this community
             try {
               final usersSnapshot = await _firestore
                   .collection('users')
@@ -813,15 +784,12 @@ class SuperAdminService {
 
               final userCount = usersSnapshot.docs.length;
 
-              // Calculate real engagement using EngagementService
               int engagementScore = 0;
               try {
-                // Get actual engagement data from the engagement service
                 final engagementData =
                     await _engagementService.calculateEngagement(communityId);
                 engagementScore = engagementData['engagementRate'] as int? ?? 0;
 
-                // Add to total for average calculation
                 totalEngagementSum += engagementScore;
                 totalEngagementScores++;
               } catch (engagementError) {
@@ -832,7 +800,6 @@ class SuperAdminService {
                     (communityId.hashCode %
                         40); // Use the old method as fallback
 
-                // Add to total for average calculation
                 totalEngagementSum += engagementScore;
                 totalEngagementScores++;
               }
@@ -850,7 +817,6 @@ class SuperAdminService {
           }
         }
 
-        // Calculate average engagement rate
         if (totalEngagementScores > 0) {
           averageEngagementRate = totalEngagementSum / totalEngagementScores;
         }
@@ -863,7 +829,6 @@ class SuperAdminService {
 
       // If we don't have enough real communities, add some placeholder data
       if (topActiveCommunities.length < 5) {
-        // Use more realistic engagement scores that match the actual calculation method
         final placeholders = [
           {'name': 'Metro City', 'members': 125, 'engagement': 78},
           {'name': 'Riverside', 'members': 98, 'engagement': 72},
@@ -881,7 +846,6 @@ class SuperAdminService {
 
       // Generate trend data for admin coverage
       if (totalCommunities > 0) {
-        // Calculate current admin coverage rate
         int communitiesWithAdmin = 0;
         if (communitiesSnapshot.exists && communitiesSnapshot.value != null) {
           final communitiesData =
@@ -898,14 +862,12 @@ class SuperAdminService {
           }
         }
 
-        // Calculate current admin coverage rate
         adminCoverageRate = (communitiesWithAdmin / totalCommunities) * 100;
 
         // Generate trend data with slight variations
         final random = Random();
         double baseValue = adminCoverageRate;
         for (int i = 0; i < 10; i++) {
-          // Create a realistic trend that gradually approaches the current value
           // Earlier points have more variation
           double variation = (10 - i) * 0.5;
           double randomFactor =
@@ -921,14 +883,12 @@ class SuperAdminService {
 
       // Generate trend data for user engagement
       if (totalEngagementScores > 0) {
-        // Calculate current average engagement rate
         averageEngagementRate = totalEngagementSum / totalEngagementScores;
 
         // Generate trend data with slight variations
         final random = Random();
         double baseValue = averageEngagementRate;
         for (int i = 0; i < 10; i++) {
-          // Create a realistic trend that gradually approaches the current value
           double variation = (10 - i) * 0.8;
           double randomFactor =
               random.nextDouble() * variation * (random.nextBool() ? 1 : -1);
@@ -941,7 +901,6 @@ class SuperAdminService {
             double.parse(averageEngagementRate.toStringAsFixed(1));
       }
 
-      // Get total users across all active communities
       int totalUsers = 0;
       try {
         // Query for all active users
@@ -973,7 +932,6 @@ class SuperAdminService {
         }
       } catch (e) {
         print('Error fetching total users: $e');
-        // Use a fallback estimate based on average users per community
         totalUsers =
             totalCommunities * 15; // Assuming average of 15 users per community
       }
@@ -1003,7 +961,6 @@ class SuperAdminService {
       };
     } catch (e) {
       print('Error getting analytics data: $e');
-      // Return empty data in case of error
       return {
         'totalCommunities': 0,
         'activeCommunities': 0,
@@ -1049,9 +1006,7 @@ class SuperAdminService {
     }
   }
 
-  // Get analytics data as a real-time stream
   Stream<Map<String, dynamic>> getAnalyticsDataStream(String timeRange) {
-    // Create a stream controller to emit analytics data updates
     final controller = StreamController<Map<String, dynamic>>.broadcast();
 
     // Function to fetch and emit data
@@ -1071,7 +1026,6 @@ class SuperAdminService {
     // Initial fetch
     fetchAndEmitData();
 
-    // Set up periodic refresh (every 30 seconds)
     final timer = Timer.periodic(const Duration(seconds: 30), (_) {
       fetchAndEmitData();
     });
@@ -1085,7 +1039,6 @@ class SuperAdminService {
     return controller.stream;
   }
 
-  // Get all communities with their status
   Stream<List<Map<String, dynamic>>> getCommunities() {
     return _database
         .child('communities')
@@ -1107,35 +1060,29 @@ class SuperAdminService {
 
       // Filter communities to only show active and inactive communities with assigned admins
       final filteredCommunities = communities.where((community) {
-        // Check if community has an adminId (already assigned admin)
         final hasAdmin = community['adminId'] != null &&
             community['adminId'].toString().isNotEmpty;
 
-        // Get the status (default to empty if not found)
         final status = (community['status'] ?? '').toString().toLowerCase();
 
         // Only include active and inactive communities that have assigned admins
         return hasAdmin && (status == 'active' || status == 'inactive');
       }).toList();
 
-      // Fetch admin data for communities with adminId
       for (final community in filteredCommunities) {
         final adminId = community['adminId'];
         if (adminId != null && adminId.toString().isNotEmpty) {
           try {
-            // Get admin user document from Firestore
             final userDoc =
                 await _firestore.collection('users').doc(adminId).get();
             if (userDoc.exists) {
               final userData = userDoc.data()!;
-              // Add admin name if available
               community['adminName'] = userData['fullName'] ?? 'Unknown Admin';
             } else {
               print('Admin user document not found for ID: $adminId');
             }
           } catch (e) {
             print('Error fetching admin data: $e');
-            // Set a default admin name if there's an error
             community['adminName'] = 'Admin (Error Loading)';
           }
         }
@@ -1145,7 +1092,6 @@ class SuperAdminService {
     });
   }
 
-  // Get admin applications as a one-time snapshot (not a stream)
   Future<List<AdminApplication>> getAdminApplicationsSnapshot() async {
     try {
       final snapshot = await _database.child('admin_applications').get();
@@ -1168,7 +1114,6 @@ class SuperAdminService {
     }
   }
 
-  // Get communities as a one-time snapshot (not a stream)
   Future<List<Map<String, dynamic>>> getCommunitiesSnapshot() async {
     try {
       final snapshot = await _database.child('communities').get();
@@ -1187,7 +1132,6 @@ class SuperAdminService {
               })
           .toList();
 
-      // Get all pending admin applications to filter out communities with pending applications
       final pendingApplicationsSnapshot = await _database
           .child('admin_applications')
           .orderByChild('status')
@@ -1229,24 +1173,20 @@ class SuperAdminService {
         return true;
       }).toList();
 
-      // Fetch admin data for communities with adminId
       for (final community in filteredCommunities) {
         final adminId = community['adminId'];
         if (adminId != null && adminId.toString().isNotEmpty) {
           try {
-            // Get admin user document from Firestore
             final userDoc =
                 await _firestore.collection('users').doc(adminId).get();
             if (userDoc.exists) {
               final userData = userDoc.data()!;
-              // Add admin name if available
               community['adminName'] = userData['fullName'] ?? 'Unknown Admin';
             } else {
               print('Admin user document not found for ID: $adminId');
             }
           } catch (e) {
             print('Error fetching admin data: $e');
-            // Set a default admin name if there's an error
             community['adminName'] = 'Admin (Error Loading)';
           }
         }
@@ -1259,7 +1199,6 @@ class SuperAdminService {
     }
   }
 
-  // Update admin application status
   Future<void> updateApplicationStatus(
       String applicationId, String status) async {
     try {
@@ -1273,7 +1212,6 @@ class SuperAdminService {
           .get();
       if (!snapshot.exists) throw 'Application not found';
 
-      // Update the status
       await _database.child('admin_applications').child(applicationId).update({
         'status': status,
         'updatedAt': ServerValue.timestamp,
@@ -1318,7 +1256,6 @@ class SuperAdminService {
     }
   }
 
-  // Update community status
   Future<void> updateCommunityStatus(String communityId, String status,
       {String? deactivationReason}) async {
     try {
@@ -1332,7 +1269,6 @@ class SuperAdminService {
 
       final communityData = snapshot.value as Map<dynamic, dynamic>;
 
-      // Create location status ID if possible
       String? locationStatusId;
       try {
         locationStatusId = Community.createLocationStatusId(
@@ -1346,7 +1282,6 @@ class SuperAdminService {
         // Continue without locationStatusId if it fails
       }
 
-      // Update the status
       final updates = <String, dynamic>{
         'status': status,
         'updatedAt': ServerValue.timestamp,
@@ -1357,7 +1292,6 @@ class SuperAdminService {
         updates['locationStatusId'] = locationStatusId;
       }
 
-      // Add deactivation reason if provided and status is inactive
       if (status == 'inactive' &&
           deactivationReason != null &&
           deactivationReason.isNotEmpty) {
@@ -1374,7 +1308,6 @@ class SuperAdminService {
           communityData['adminId'] != null) {
         final adminId = communityData['adminId'];
 
-        // Update admin document in Firestore
         await _firestore.collection('users').doc(adminId).update({
           'status': 'inactive',
           'deactivationReason':
@@ -1397,12 +1330,10 @@ class SuperAdminService {
           final adminData = adminDoc.data()!;
           if (adminData['status'] == 'inactive') {
             print('Reactivating admin account: $adminId');
-            // Update admin document in Firestore to reactivate
             await _firestore.collection('users').doc(adminId).update({
               'status': 'active',
               'updatedAt': FieldValue.serverTimestamp(),
               'updatedBy': user.uid,
-              // Remove deactivation fields
               'deactivationReason': FieldValue.delete(),
               'deactivatedAt': FieldValue.delete(),
               'deactivatedBy': FieldValue.delete(),
@@ -1425,7 +1356,6 @@ class SuperAdminService {
 
       print('Starting admin account reset for: $adminId');
 
-      // Check if admin exists in Firestore
       final adminDoc = await _firestore.collection('users').doc(adminId).get();
       if (!adminDoc.exists) {
         throw 'Admin account not found in Firestore';
@@ -1442,14 +1372,12 @@ class SuperAdminService {
         'status': 'active',
         'updatedAt': FieldValue.serverTimestamp(),
         'updatedBy': user.uid,
-        // Remove deactivation fields
         'deactivationReason': FieldValue.delete(),
         'deactivatedAt': FieldValue.delete(),
         'deactivatedBy': FieldValue.delete(),
       });
       print('Admin account reset in Firestore');
 
-      // Check and reset in RTDB if needed
       try {
         final rtdbSnapshot =
             await _database.child('users').child(adminId).get();

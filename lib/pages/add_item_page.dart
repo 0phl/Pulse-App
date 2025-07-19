@@ -79,13 +79,10 @@ class _AddItemPageState extends State<AddItemPage> {
       setState(() {
         // If we already have images, add new ones up to a maximum of 5
         if (_selectedImages.isNotEmpty) {
-          // Calculate how many more images we can add
           final int remainingSlots = 5 - _selectedImages.length;
           if (remainingSlots > 0) {
-            // Add only up to the remaining slots
             _selectedImages.addAll(images.take(remainingSlots));
 
-            // Show a message if some images were not added
             if (images.length > remainingSlots && mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -109,7 +106,6 @@ class _AddItemPageState extends State<AddItemPage> {
           // First time adding images, take up to 5
           _selectedImages.addAll(images.take(5));
 
-          // Show a message if some images were not added
           if (images.length > 5 && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -133,7 +129,6 @@ class _AddItemPageState extends State<AddItemPage> {
         return;
       }
 
-      // Create a new item with image paths
       final List<String> imagePaths = _selectedImages.map((image) => image.path).toList();
 
       final newItem = MarketItem(
@@ -161,7 +156,6 @@ class _AddItemPageState extends State<AddItemPage> {
   }
 
   Future<void> _takePicture() async {
-    // Check if we've already reached the maximum number of images
     if (_selectedImages.length >= 5) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

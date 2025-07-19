@@ -87,7 +87,6 @@ class _ChatPageState extends State<ChatPage> {
     try {
       final item = await _marketService.getMarketItem(widget.itemId);
       if (item != null && mounted) {
-        // Check if user has already rated this seller for this item
         bool hasRated = false;
         if (!widget.isSeller && item.isSold) {
           hasRated = await _marketService.hasUserRatedTransaction(
@@ -150,7 +149,6 @@ class _ChatPageState extends State<ChatPage> {
       }
       _currentUserCommunityId = userCommunity.id;
 
-      // Get the names for both users
       final currentUserName = await _getUserName(_currentUserId);
       _userNames[_currentUserId] = currentUserName;
 
@@ -166,7 +164,6 @@ class _ChatPageState extends State<ChatPage> {
         final buyerName = await _getUserName(widget.buyerId!);
         _userNames[widget.buyerId!] = buyerName;
 
-        // Get buyer's profile image
         try {
           final userSnapshot = await _userRef.child(widget.buyerId!).get();
           if (userSnapshot.exists) {
@@ -185,7 +182,6 @@ class _ChatPageState extends State<ChatPage> {
         final sellerName = await _getUserName(widget.sellerId);
         _userNames[widget.sellerId] = sellerName;
 
-        // Get seller's profile image
         try {
           final userSnapshot = await _userRef.child(widget.sellerId).get();
           if (userSnapshot.exists) {
@@ -212,11 +208,9 @@ class _ChatPageState extends State<ChatPage> {
 
       _chatRef = FirebaseDatabase.instance.ref('chats/$_chatId');
 
-      // Initialize chat with required communityId
       try {
         final chatSnapshot = await _chatRef.get();
         if (!chatSnapshot.exists) {
-          // Set the communityId at chat root level to satisfy security rules
           await _chatRef.set({
             'communityId': widget.communityId,
             'itemId': widget.itemId,
@@ -236,7 +230,6 @@ class _ChatPageState extends State<ChatPage> {
       // Mark messages as read BEFORE setting up the chat listener
       await _markMessagesAsRead();
 
-      // Set up chat listener after marking as read
       _setupChatListener();
 
       if (!widget.isSeller) {
@@ -319,22 +312,18 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void _setupMarketItemListener() {
-    // Set up a real-time listener for the market item
     _marketItemSubscription = _marketService.getMarketItemStream(widget.itemId).listen((item) async {
       if (item != null && mounted) {
         final currentUser = _auth.currentUser;
         if (currentUser == null) return;
 
-        // Check if the item status has changed to sold
         if (item.isSold && !_isItemSold) {
-          // Check if user has already rated this seller for this item
           bool hasRated = false;
           if (!widget.isSeller) {
             hasRated = await _marketService.hasUserRatedTransaction(
                 widget.sellerId, currentUser.uid, widget.itemId);
           }
 
-          // Update the UI to reflect the new status
           setState(() {
             _marketItem = item;
             _isItemSold = true;
@@ -376,12 +365,10 @@ class _ChatPageState extends State<ChatPage> {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return;
 
-      // Update the readStatus for the current user
       await _chatRef.child('readStatus').update({
         currentUser.uid: ServerValue.timestamp,
       });
 
-      // Update unread count at chat level
       await _chatRef.child('unreadCount').update({
         currentUser.uid: 0,
       });
@@ -390,7 +377,6 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  // Show media picker options
   Future<void> _showMediaPickerOptions() async {
     await showModalBottomSheet(
       context: context,
@@ -438,7 +424,6 @@ class _ChatPageState extends State<ChatPage> {
       if (image != null) {
         final file = File(image.path);
 
-        // Check file size (5MB limit)
         final fileSize = await file.length();
         final fileSizeInMB = fileSize / (1024 * 1024);
 
@@ -490,7 +475,6 @@ class _ChatPageState extends State<ChatPage> {
       if (video != null) {
         final file = File(video.path);
 
-        // Check file size (20MB limit)
         final fileSize = await file.length();
         final fileSizeInMB = fileSize / (1024 * 1024);
 
@@ -539,10 +523,8 @@ class _ChatPageState extends State<ChatPage> {
       // Upload the media to Cloudinary using a single upload preset for chat
       if (isImage && _selectedImage != null) {
         try {
-          // Create a CloudinaryPublic instance for chat uploads
           final chatCloudinary = CloudinaryPublic('dge8oi6ok', 'chat_uploads', cache: false);
 
-          // Check file size before uploading (5MB limit for images)
           final fileSize = await _selectedImage!.length();
           const maxSize = 5 * 1024 * 1024; // 5MB in bytes
 
@@ -566,10 +548,8 @@ class _ChatPageState extends State<ChatPage> {
         }
       } else if (!isImage && _selectedVideo != null) {
         try {
-          // Use the same CloudinaryPublic instance for videos
           final chatCloudinary = CloudinaryPublic('dge8oi6ok', 'chat_uploads', cache: false);
 
-          // Check file size before uploading (20MB limit for videos)
           final fileSize = await _selectedVideo!.length();
           const maxSize = 20 * 1024 * 1024; // 20MB in bytes
 
@@ -594,7 +574,6 @@ class _ChatPageState extends State<ChatPage> {
       }
 
       if (mediaUrl != null) {
-        // Get user profile image
         String? profileImageUrl;
         try {
           final userSnapshot = await _userRef.child(currentUser.uid).get();
@@ -606,7 +585,6 @@ class _ChatPageState extends State<ChatPage> {
           // Continue without profile image
         }
 
-        // Create message with media - without text labels
         final newMessage = ChatMessage(
           message: '', // Empty message for cleaner look
           senderId: currentUser.uid,
@@ -621,7 +599,6 @@ class _ChatPageState extends State<ChatPage> {
         // Send the message
         await _chatRef.child('messages').push().set(newMessage.toJson());
 
-        // Update unread count for the recipient
         final recipientId = widget.isSeller ? widget.buyerId! : widget.sellerId;
         final unreadSnapshot = await _chatRef.child('unreadCount').child(recipientId).get();
         final currentUnreadCount = (unreadSnapshot.value as int?) ?? 0;
@@ -640,7 +617,6 @@ class _ChatPageState extends State<ChatPage> {
       }
     } catch (e) {
       if (mounted) {
-        // Extract the meaningful part of the error message
         String errorMessage = 'Error sending media';
 
         if (e.toString().contains('DioException')) {
@@ -719,7 +695,6 @@ class _ChatPageState extends State<ChatPage> {
         }
       }
 
-      // Update unread count for the recipient at chat level (skip for system messages)
       if (!isSystemMessage) {
         final recipientId = widget.isSeller ? widget.buyerId! : widget.sellerId;
         final unreadSnapshot =
@@ -795,7 +770,6 @@ class _ChatPageState extends State<ChatPage> {
                         ),
                       ),
                       if (_isItemSold) ...[
-                        // Show sold indicator if item is sold
                         const SizedBox(width: 4),
                         Container(
                           padding:
@@ -1071,7 +1045,6 @@ class _ChatPageState extends State<ChatPage> {
     try {
       await _marketService.markItemAsSold(widget.itemId);
 
-      // Get the seller's name
       String sellerName = _userNames[_currentUserId] ?? 'The seller';
 
       // Send a system message to the chat
@@ -1086,7 +1059,6 @@ class _ChatPageState extends State<ChatPage> {
         setState(() {
           _isItemSold = true;
           if (_marketItem != null) {
-            // Update the existing market item
             _marketItem = MarketItem(
               id: _marketItem!.id,
               title: _marketItem!.title,
@@ -1113,7 +1085,6 @@ class _ChatPageState extends State<ChatPage> {
         );
       }
     } catch (e) {
-      // Use mounted check before accessing context
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error marking item as sold: $e')),
@@ -1274,7 +1245,6 @@ class _ChatPageState extends State<ChatPage> {
       String buyerName = _userNames[currentUser.uid] ?? 'User';
       String? profileImageUrl;
 
-      // Get the user's profile image URL
       try {
         final userSnapshot = await _userRef.child(currentUser.uid).get();
 
@@ -1312,7 +1282,6 @@ class _ChatPageState extends State<ChatPage> {
         isSystemMessage: true,
       );
 
-      // Update local state to hide the rate button
       setState(() {
         _hasRatedSeller = true;
       });
@@ -1360,7 +1329,6 @@ class _ChatPageState extends State<ChatPage> {
           ? philippinesTime.hour - 12
           : philippinesTime.hour;
       final period = philippinesTime.hour >= 12 ? 'PM' : 'AM';
-      // Handle 12 AM/PM case
       final displayHour = hour == 0 ? 12 : hour;
       return '$displayHour:${philippinesTime.minute.toString().padLeft(2, '0')} $period';
     } else if (difference.inDays == 1) {
@@ -1415,7 +1383,6 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
 
-    // Create a unique ID for this message
     final messageId = '${message.senderId}_${message.timestamp.millisecondsSinceEpoch}';
 
     return Padding(
@@ -1642,7 +1609,6 @@ class ChatMessage {
     this.mediaType,
   });
 
-  // Check if this message has media attached
   bool get hasMedia => imageUrl != null || videoUrl != null;
 
   Map<String, dynamic> toJson() {

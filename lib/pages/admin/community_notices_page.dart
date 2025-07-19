@@ -36,7 +36,6 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
     _scrollController.addListener(_onScroll);
   }
 
-  // Update profile information in all notices
   Future<void> _updateProfileInNotices() async {
     try {
       await _adminService.updateExistingNoticesWithProfileInfo();
@@ -205,7 +204,6 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
   }
 
   Future<void> _deleteNotice(String noticeId) async {
-    // Show confirmation dialog
     final shouldDelete = await ConfirmationDialog.show(
       context: context,
       title: 'Delete Notice',
@@ -220,16 +218,13 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
     // If user cancels or dismisses the dialog
     if (shouldDelete != true) return;
 
-    // Show loading indicator
     if (mounted) {
       setState(() => _isLoading = true);
     }
 
     try {
-      // Delete the notice
       await _adminService.deleteNotice(noticeId);
 
-      // Add a small delay to ensure Firebase has time to process the deletion
       await Future.delayed(const Duration(milliseconds: 500));
 
       // Reload the notices list
@@ -327,7 +322,6 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
     }
 
     try {
-      // Add a delay to ensure Firebase connection is stable
       // This helps when the app is resumed from background
       await Future.delayed(const Duration(milliseconds: 300));
 
@@ -343,7 +337,6 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
       debugPrint('Error loading notices: $e');
 
       if (mounted) {
-        // Show a more user-friendly error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Error loading notices. Please try again.'),
@@ -354,7 +347,6 @@ class _AdminCommunityNoticesPageState extends State<AdminCommunityNoticesPage> w
           ),
         );
 
-        // Set empty notices list to avoid null errors
         setState(() {
           _notices = [];
           _isLoading = false;

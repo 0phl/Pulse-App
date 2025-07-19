@@ -84,12 +84,10 @@ class _AttachmentWidgetState extends State<AttachmentWidget> {
   }
 
   Future<void> _downloadAndOpenFile() async {
-    // Check file type to determine how to handle it
     final fileType = widget.attachment.type.toLowerCase();
     final url = widget.attachment.url;
     final fileName = widget.attachment.name;
 
-    // Handle different file types
     if (fileType == 'pdf' || url.toLowerCase().contains('.pdf')) {
       // Open PDF in the PDF viewer
       Navigator.push(
@@ -142,7 +140,6 @@ class _AttachmentWidgetState extends State<AttachmentWidget> {
       });
 
       try {
-        // Show download options dialog
         final bool? shouldDownload = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(

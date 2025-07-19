@@ -34,15 +34,12 @@ class _PollVotersDialogState extends State<PollVotersDialog> {
     try {
       final List<Map<String, dynamic>> voters = [];
 
-      // Process each voter ID
       for (final voterId in widget.option.votedBy) {
-        // Get user data from RTDB
         final userSnapshot = await _database.child('users/$voterId').get();
 
         if (userSnapshot.exists) {
           final userData = userSnapshot.value as Map<dynamic, dynamic>;
 
-          // Get user's name (handle both formats)
           String fullName = '';
           if (userData['firstName'] != null && userData['lastName'] != null) {
             fullName = userData['middleName'] != null &&
@@ -55,7 +52,6 @@ class _PollVotersDialogState extends State<PollVotersDialog> {
             fullName = 'User $voterId';
           }
 
-          // Add to voters list
           voters.add({
             'id': voterId,
             'name': fullName,

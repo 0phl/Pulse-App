@@ -214,7 +214,6 @@ class ReportStepper extends StatelessWidget {
   }
 
   void _animateToStep(BuildContext context, int step) {
-    // Add a subtle haptic feedback if available
     // HapticFeedback.lightImpact();
 
     // Call the onStepTapped callback with animation

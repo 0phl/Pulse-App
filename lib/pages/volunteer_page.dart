@@ -66,7 +66,6 @@ class _VolunteerPageState extends State<VolunteerPage> {
           .orderBy('date', descending: true)
           .orderBy(FieldPath.documentId, descending: true);
 
-      // Create the stream
       _postsStream = query.snapshots().map((snapshot) {
         return snapshot.docs
             .map((doc) => VolunteerPost.fromMap(
@@ -153,7 +152,6 @@ class _VolunteerPageState extends State<VolunteerPage> {
         return;
       }
 
-      // Show confirmation dialog
       final bool confirm = await showDialog(
             context: context,
             builder: (context) => AlertDialog(
@@ -401,7 +399,6 @@ class _VolunteerPageState extends State<VolunteerPage> {
     );
   }
 
-  // Show full description dialog
   void _showDescriptionDialog(BuildContext context, VolunteerPost post) {
     showDialog(
       context: context,

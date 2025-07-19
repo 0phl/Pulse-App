@@ -7,13 +7,11 @@ class ModernShimmerLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    // Use a ListView with shrinkWrap: true to avoid overflow
     return ListView(
       padding: const EdgeInsets.symmetric(
           horizontal: 16, vertical: 8), // Reduced vertical padding
       // Make sure the ListView doesn't try to be as big as its children
       shrinkWrap: true,
-      // Add physics to make it scrollable
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         _buildLoadingCard(80), // Quick actions (further reduced height)
@@ -50,7 +48,6 @@ class ModernShimmerLoading extends StatelessWidget {
     final baseColor = isDarkMode ? Colors.grey[800] : Colors.grey[300];
 
     return Container(
-      // Remove fixed height to allow content to determine size
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: baseColor,
@@ -116,7 +113,6 @@ class ModernShimmerLoading extends StatelessWidget {
     final baseColor = isDarkMode ? Colors.grey[800] : Colors.grey[300];
 
     return Container(
-      // Remove fixed height to allow content to determine size
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: baseColor,
@@ -192,7 +188,6 @@ class ModernShimmerLoading extends StatelessWidget {
     final baseColor = isDarkMode ? Colors.grey[800] : Colors.grey[300];
 
     return Container(
-      // Remove fixed height to allow content to determine size
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: baseColor,

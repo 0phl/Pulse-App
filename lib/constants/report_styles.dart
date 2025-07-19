@@ -50,7 +50,6 @@ class ReportStyles {
     }
   }
 
-  // Get status color
   static Color getStatusColor(String status) {
     return statusColors[status] ?? Colors.grey;
   }

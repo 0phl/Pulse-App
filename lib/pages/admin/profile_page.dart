@@ -72,7 +72,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> with WidgetsBinding
     });
 
     try {
-      // Add a small delay to ensure Firebase connection is stable
       await Future.delayed(const Duration(milliseconds: 300));
 
       final user = _authService.currentUser;
@@ -83,7 +82,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> with WidgetsBinding
 
       debugPrint('AdminProfilePage: Current user ID: ${user.uid}');
 
-      // Get admin data from Firestore
       final adminDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -109,7 +107,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> with WidgetsBinding
     } catch (e) {
       debugPrint('AdminProfilePage: Error loading admin data: $e');
       if (mounted) {
-        // Show a more user-friendly error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Error loading profile data. Please try again.'),
@@ -197,7 +194,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> with WidgetsBinding
       // Compress the image before uploading to reduce file size
       final File compressedFile = await _compressImage(_newProfileImage!);
 
-      // Use the dedicated profile image uploader with the compressed image
       return await _cloudinaryService.uploadProfileImage(compressedFile);
     } catch (e) {
       if (mounted) {
@@ -211,7 +207,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> with WidgetsBinding
 
   Future<File> _compressImage(File file) async {
     try {
-      // Use a simple compression method for now
       // In a production app, you might want to use a more sophisticated compression library
       return file;
     } catch (e) {
@@ -247,15 +242,12 @@ class _AdminProfilePageState extends State<AdminProfilePage> with WidgetsBinding
         'fullName': _fullNameController.text.trim(),
       };
 
-      // Add profile image URL if available
       if (profileImageUrl != null) {
         updateData['profileImageUrl'] = profileImageUrl;
       }
 
-      // Update admin profile using the new method that updates comments
       await _adminService.updateAdminProfile(user.uid, updateData);
 
-      // Update existing community notices with new profile info
       // This will update both the profile picture and name in all notices
       // Run this in the background to avoid blocking the UI
       _adminService.updateExistingNoticesWithProfileInfo();

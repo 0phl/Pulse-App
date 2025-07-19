@@ -191,7 +191,6 @@ class _LoginPageState extends State<LoginPage> {
                                     print(
                                         'LoginPage: Login successful, userType: ${result['userType']}, requiresPasswordChange: ${result['requiresPasswordChange']}');
 
-                                    // Handle deactivated admin account
                                     if (result['userType'] ==
                                         'deactivated_admin') {
                                       if (!mounted) return;
@@ -215,7 +214,6 @@ class _LoginPageState extends State<LoginPage> {
 
                                     if (!mounted) return;
 
-                                    // Use DelayedAuthWrapper to ensure loading screen is shown for at least 7 seconds
                                     print(
                                         'LoginPage: Navigating to DelayedAuthWrapper');
                                     if (mounted) {
@@ -251,7 +249,6 @@ class _LoginPageState extends State<LoginPage> {
                                             'Too many login attempts. Please try again later.';
                                       }
 
-                                      // Show error message
                                       final messenger =
                                           ScaffoldMessenger.of(context);
                                       messenger.showSnackBar(

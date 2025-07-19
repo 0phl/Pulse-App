@@ -72,7 +72,6 @@ class UserActivityService {
     debugPrint(
         'UserActivityService: Initializing comprehensive activity tracking');
 
-    // Set up app lifecycle listener
     _setupAppLifecycleListener();
 
     // Start periodic activity updates

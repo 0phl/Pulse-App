@@ -12,7 +12,6 @@ class NotificationsPage extends StatefulWidget {
 class _NotificationsPageState extends State<NotificationsPage>
     with SingleTickerProviderStateMixin {
   final NotificationService _notificationService = NotificationService();
-  // Add a key to force rebuild of the NotificationList widget
   final GlobalKey<State<NotificationList>> _notificationListKey = GlobalKey();
 
   // For filter tabs
@@ -61,9 +60,7 @@ class _NotificationsPageState extends State<NotificationsPage>
     }
   }
 
-  // Show a confirmation dialog for marking all notifications as read
   void _showMarkAllAsReadDialog(BuildContext context) {
-    // Show a confirmation dialog
     showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -91,7 +88,6 @@ class _NotificationsPageState extends State<NotificationsPage>
 
   // Helper method to mark all as read and show a snackbar
   Future<void> _markAllAsReadAndShowSnackbar(BuildContext context) async {
-    // Get the ScaffoldMessengerState before any async operations
     final scaffoldMessengerState = ScaffoldMessenger.of(context);
 
     // Mark all as read
@@ -101,7 +97,6 @@ class _NotificationsPageState extends State<NotificationsPage>
     // Log the result
     debugPrint('Marked ${notificationDataList.length} notifications as read');
 
-    // Show a snackbar to confirm if the widget is still mounted
     if (mounted) {
       scaffoldMessengerState.showSnackBar(
         SnackBar(
@@ -128,7 +123,6 @@ class _NotificationsPageState extends State<NotificationsPage>
       _isRefreshing = true;
     });
 
-    // Show a loading indicator
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Row(
@@ -151,7 +145,6 @@ class _NotificationsPageState extends State<NotificationsPage>
       ),
     );
 
-    // Get the current notification count for debugging
     try {
       final count = await _notificationService.getUnreadNotificationCount();
       debugPrint('Current unread notification count before refresh: $count');
@@ -162,12 +155,10 @@ class _NotificationsPageState extends State<NotificationsPage>
     // Refresh the notification list by recreating it
     if (mounted) {
       setState(() {
-        // Create a new key to force a complete rebuild of the NotificationList widget
         _notificationListKey.currentState?.setState(() {});
       });
     }
 
-    // Get the notification count after refresh for debugging
     try {
       final count = await _notificationService.getUnreadNotificationCount();
       debugPrint('Current unread notification count after refresh: $count');
@@ -201,7 +192,6 @@ class _NotificationsPageState extends State<NotificationsPage>
         elevation: 0,
         scrolledUnderElevation: 0,
         actions: [
-          // Add a "Refresh" button
           IconButton(
             icon: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
@@ -222,7 +212,6 @@ class _NotificationsPageState extends State<NotificationsPage>
             onPressed: _isRefreshing ? null : _refreshNotifications,
             tooltip: 'Refresh Notifications',
           ),
-          // Add a "Mark All as Read" button
           IconButton(
             icon: Icon(
               Icons.done_all_rounded,

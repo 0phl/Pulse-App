@@ -46,7 +46,6 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
       return;
     }
 
-    // Get admin's community ID
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
         .doc(currentUser.uid)
@@ -67,7 +66,6 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
     final userData = userDoc.data()!;
     final communityId = userData['communityId'] as String;
 
-    // Create DateTime with both date and time components
     final eventDateTime = DateTime(
       _selectedDate.year,
       _selectedDate.month,
@@ -91,12 +89,10 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
     );
 
     try {
-      // Add the post and get the document reference
       final docRef = await FirebaseFirestore.instance
           .collection('volunteer_posts')
           .add(post.toMap());
 
-      // Update the document with its ID
       await docRef.update({'id': docRef.id});
 
       if (mounted) {

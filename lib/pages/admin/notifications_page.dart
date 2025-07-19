@@ -49,9 +49,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
     }
   }
 
-  // Show a confirmation dialog for marking all notifications as read
   void _showMarkAllAsReadDialog(BuildContext context) {
-    // Show a confirmation dialog
     showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -79,7 +77,6 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
 
   // Helper method to mark all as read and show a snackbar
   Future<void> _markAllAsReadAndShowSnackbar(BuildContext context) async {
-    // Get the ScaffoldMessengerState before any async operations
     final scaffoldMessengerState = ScaffoldMessenger.of(context);
 
     // Mark all as read
@@ -89,7 +86,6 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
     // Log the result
     debugPrint('Marked ${notificationDataList.length} notifications as read');
 
-    // Show a snackbar to confirm if the widget is still mounted
     if (mounted) {
       scaffoldMessengerState.showSnackBar(
         SnackBar(
@@ -123,7 +119,6 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
       _isRefreshing = true;
     });
 
-    // Show a loading indicator
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Row(
@@ -149,7 +144,6 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
     // Refresh the notification list by recreating it
     if (mounted) {
       setState(() {
-        // Create a new key to force a complete rebuild of the NotificationList widget
         _notificationListKey.currentState?.setState(() {});
       });
     }
@@ -185,7 +179,6 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
         elevation: 0,
         scrolledUnderElevation: 0,
         actions: [
-          // Add a "Refresh" button
           IconButton(
             icon: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
@@ -206,7 +199,6 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
             onPressed: _isRefreshing ? null : _refreshNotifications,
             tooltip: 'Refresh Notifications',
           ),
-          // Add a "Mark All as Read" button
           IconButton(
             icon: Icon(
               Icons.done_all_rounded,

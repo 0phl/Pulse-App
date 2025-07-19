@@ -51,7 +51,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
       // Only load stats if account is not deactivated
       _loadCommunityAndStats();
 
-      // Set up stream listener for real-time deactivation status
       _listenForDeactivation();
     });
   }
@@ -106,7 +105,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
   Future<void> _loadRecentReports() async {
     try {
-      // Get the first 5 reports from the stream
       final reportsStream = _adminService.getReports();
       final reports = await reportsStream.first;
 
@@ -130,14 +128,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
   Future<void> _loadStats() async {
     setState(() => _isLoading = true);
     try {
-      // Load each stat individually to prevent one failure from affecting others
       Map<String, dynamic>? userStats;
       Map<String, dynamic>? communityStats;
       Map<String, dynamic>? activityStats;
 
       try {
         userStats = await _adminService.getUserStats();
-        // Get pending users count (filter out rejected users)
         final pendingAndRejectedUsers =
             await _adminService.getPendingVerificationUsers();
         // Only count users with 'pending' status, not 'rejected'
@@ -154,7 +150,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
         };
       } catch (e) {
         // Error loading user stats
-        // Use default values if this fails
         userStats = {
           'communityUsers': 4,
           'newUsersThisWeek': 0,
@@ -168,7 +163,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
         // Community stats loaded successfully
       } catch (e) {
         // Error loading community stats
-        // Use default values if this fails
         communityStats = {
           'membersCount': 4,
           'activeUsers': 1,
@@ -178,7 +172,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
       try {
         activityStats = await _adminService.getActivityStats();
-        // Get reports stream to count new reports today
         final reportsStream = await _adminService.getReports().first;
         final today = DateTime.now();
         final newReportsCount = reportsStream
@@ -194,7 +187,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
         };
       } catch (e) {
         // Error loading activity stats
-        // Use default values if this fails
         activityStats = {
           'totalReports': 0,
           'dailyActivity': List<int>.filled(7, 0),
@@ -232,7 +224,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
           ),
         );
 
-        // Set default values even if everything fails
         setState(() {
           _userStats = {
             'communityUsers': 4,
@@ -260,7 +251,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
   Future<void> _signOut() async {
     try {
-      // Add a 2.5 second delay to show any loading indicators
       await Future.delayed(const Duration(milliseconds: 2500));
 
       // Navigate after the delay
@@ -519,7 +509,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
-  // Build KPI cards row at the top of the dashboard
   Widget _buildKpiCards() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -585,19 +574,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
-  // Build activity chart
   Widget _buildActivityChart() {
-    // Get the daily activity data from the activity stats
     final List<int> dailyActivity =
         _activityStats?['dailyActivity'] as List<int>? ??
             List<int>.filled(7, 0);
 
-    // Calculate the maximum value for scaling
     final maxActivity = dailyActivity.isEmpty
         ? 1
         : dailyActivity.reduce((a, b) => a > b ? a : b);
 
-    // Get the day names for the last 7 days
     final now = DateTime.now();
     final dayNames = List<String>.generate(7, (index) {
       final day = now.subtract(Duration(days: 6 - index));
@@ -654,7 +639,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(7, (index) {
-              // Calculate the height based on the activity value
               // Scale the height between 20 and 120 based on the activity value
               final double height = maxActivity > 0
                   ? 20 + ((dailyActivity[index] / maxActivity) * 100)
@@ -703,7 +687,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
-  // Check if the admin account is deactivated
   Future<void> _checkDeactivatedAccount() async {
     try {
       final deactivationStatus = await _adminService.isCurrentUserDeactivated();

@@ -26,16 +26,10 @@ class _CommentsPageState extends State<CommentsPage> {
   bool _isSubmitting = false;
   bool _isRefreshing = false;
   List<Comment> _comments = [];
-  // Add a map to store user profile data
   final Map<String, Map<String, dynamic>> _userProfileCache = {};
 
-  // Timer for auto-refresh
   Timer? _refreshTimer;
-
-  // Track which comment we're replying to (null if not replying)
   Comment? _replyingTo;
-
-  // Track expanded comments (showing replies)
   final Set<String> _expandedComments = {};
 
   @override
@@ -44,10 +38,8 @@ class _CommentsPageState extends State<CommentsPage> {
     _comments = List.from(widget.notice.comments);
     _comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    // Fetch latest user profiles when page opens
     _refreshUserProfiles();
 
-    // Set up periodic refresh timer (every 30 seconds)
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted && !_isRefreshing) {
         _refreshUserProfiles();
@@ -55,7 +47,6 @@ class _CommentsPageState extends State<CommentsPage> {
     });
   }
 
-  // Method to refresh user profiles and comments
   Future<void> _refreshUserProfiles() async {
     if (_isRefreshing) return; // Prevent multiple simultaneous refreshes
 
@@ -80,7 +71,6 @@ class _CommentsPageState extends State<CommentsPage> {
         commentsData.forEach((key, value) {
           try {
             final commentData = value as Map<dynamic, dynamic>;
-            // Add the ID to the map since Comment.fromMap expects it in the map
             commentData['id'] = key.toString();
             final comment = Comment.fromMap(commentData);
             updatedComments.add(comment);
@@ -95,7 +85,6 @@ class _CommentsPageState extends State<CommentsPage> {
         });
       }
 
-      // Fetch user profiles for all comments and replies
       for (final comment in _comments) {
         try {
           final userSnapshot = await FirebaseDatabase.instance
@@ -116,7 +105,6 @@ class _CommentsPageState extends State<CommentsPage> {
             }
           }
         } catch (e) {
-          // Use a logger in production code
           // print('Error refreshing profile for ${comment.authorId}: $e');
         }
 
@@ -141,13 +129,11 @@ class _CommentsPageState extends State<CommentsPage> {
               }
             }
           } catch (e) {
-            // Use a logger in production code
             // print('Error refreshing profile for reply ${reply.authorId}: $e');
           }
         }
       }
     } catch (e) {
-      // Handle any errors silently
     } finally {
       if (mounted) {
         setState(() {
@@ -175,9 +161,7 @@ class _CommentsPageState extends State<CommentsPage> {
     });
   }
 
-  // Set replying to a comment
   void _setReplyingTo(Comment? comment) {
-    // Add safety check for invalid comment
     if (comment != null && (comment.id.isEmpty || comment.authorName.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cannot reply to this comment. Please try again.')),
@@ -202,7 +186,6 @@ class _CommentsPageState extends State<CommentsPage> {
   // Like a comment
   Future<void> _likeComment(Comment comment, {String? parentId}) async {
     try {
-      // Add safety check for invalid comment
       if (comment.id.isEmpty || comment.authorName.isEmpty) {
         return; // Skip liking if comment is invalid
       }
@@ -217,13 +200,10 @@ class _CommentsPageState extends State<CommentsPage> {
         parentCommentId: parentId,
       );
 
-      // Update UI immediately
       setState(() {
         if (parentId != null) {
-          // Find parent comment
           final parentIndex = _comments.indexWhere((c) => c.id == parentId);
           if (parentIndex >= 0) {
-            // Find reply in parent's replies
             final replyIndex = _comments[parentIndex].replies.indexWhere((r) => r.id == comment.id);
             if (replyIndex >= 0) {
               final reply = _comments[parentIndex].replies[replyIndex];
@@ -276,7 +256,6 @@ class _CommentsPageState extends State<CommentsPage> {
   Future<void> _addComment() async {
     if (!_formKey.currentState!.validate() || _isSubmitting) return;
 
-    // Add safety check for replying to an invalid comment
     if (_replyingTo != null && (_replyingTo!.id.isEmpty || _replyingTo!.authorName.isEmpty)) {
       setState(() => _replyingTo = null); // Reset invalid reply target
       ScaffoldMessenger.of(context).showSnackBar(
@@ -290,7 +269,6 @@ class _CommentsPageState extends State<CommentsPage> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // Get user's full name from Realtime Database
         final userSnapshot = await FirebaseDatabase.instance
             .ref()
             .child('users')
@@ -310,7 +288,6 @@ class _CommentsPageState extends State<CommentsPage> {
             if (commentContent.isEmpty) {
               commentContent = '@${_replyingTo!.authorName}';
             } else {
-              // Add a special delimiter to help identify where the mention ends and the comment begins
               // We'll use a double space as a delimiter
               commentContent = '@${_replyingTo!.authorName}  $commentContent';
             }
@@ -325,7 +302,6 @@ class _CommentsPageState extends State<CommentsPage> {
             parentCommentId: _replyingTo?.id,
           );
 
-          // Create a temporary comment to show immediately
           final newComment = Comment(
             id: commentId,
             content: commentContent,
@@ -335,13 +311,11 @@ class _CommentsPageState extends State<CommentsPage> {
             createdAt: DateTime.now(),
             // If replying to a reply, use the parent comment's ID as the parent
             parentId: _replyingTo?.parentId ?? _replyingTo?.id,
-            // Store the ID of the specific comment being replied to
             replyToId: _replyingTo?.id,
           );
 
           setState(() {
             if (_replyingTo != null) {
-              // Check if we're replying to a reply (has parentId) or a top-level comment
               if (_replyingTo!.parentId != null) {
                 // We're replying to a reply, so we need to find the parent comment
                 final parentIndex = _comments.indexWhere((c) => c.id == _replyingTo!.parentId);
@@ -353,7 +327,6 @@ class _CommentsPageState extends State<CommentsPage> {
                   );
                 }
               } else {
-                // Add as a reply to an existing top-level comment
                 final parentIndex = _comments.indexWhere((c) => c.id == _replyingTo!.id);
 
                 if (parentIndex >= 0) {
@@ -366,7 +339,6 @@ class _CommentsPageState extends State<CommentsPage> {
               // Clear replying state
               _replyingTo = null;
             } else {
-              // Add as a top-level comment
               _comments.insert(0, newComment);
             }
             _commentController.clear();
@@ -517,7 +489,6 @@ class _CommentsPageState extends State<CommentsPage> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: EdgeInsets.only(
                         top: 8,
-                        // Add extra padding at the bottom to ensure content isn't hidden behind the keyboard
                         bottom: MediaQuery.of(context).viewInsets.bottom + 120,
                       ),
                       itemCount: _comments.length,
@@ -527,9 +498,8 @@ class _CommentsPageState extends State<CommentsPage> {
                         color: Colors.grey[100],
                       ),
                       itemBuilder: (context, index) {
-                        // Check if index is valid
                         if (index < 0 || index >= _comments.length) {
-                          return const SizedBox.shrink(); // Return empty widget if index is invalid
+                          return const SizedBox.shrink();
                         }
 
                         final comment = _comments[index];

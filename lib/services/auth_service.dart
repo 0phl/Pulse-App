@@ -20,7 +20,6 @@ class AuthService {
   final _maxRetries = 3;
   final _retryDelay = const Duration(milliseconds: 500);
 
-  // Get current user
   User? get currentUser => _auth.currentUser;
 
   Future<void> _waitForConnection() async {
@@ -56,7 +55,6 @@ class AuthService {
     }
   }
 
-  // Check user type and handle admin first login
   Future<Map<String, dynamic>> signInWithEmailOrUsername(
       String emailOrUsername, String password) async {
     try {
@@ -87,7 +85,6 @@ class AuthService {
         }
       }
 
-      // Check if user is an admin
       final userDoc = await _firestore
           .collection('users')
           .doc(userCredential.user!.uid)
@@ -96,11 +93,9 @@ class AuthService {
       if (userDoc.exists) {
         final userData = userDoc.data()!;
 
-        // Check for deactivated admin accounts first
         if ((userData['role'] == 'admin' ||
                 userData['role'] == 'super_admin') &&
             userData['status'] == 'inactive') {
-          // Return special object indicating deactivated account
           return {
             'userCredential': userCredential,
             'userType': 'deactivated_admin',
@@ -112,7 +107,6 @@ class AuthService {
         if (userData['role'] == 'admin' || userData['role'] == 'super_admin') {
           final isFirstLogin = userData['isFirstLogin'] ?? false;
 
-          // Save admin session data
           await _sessionService.saveUserSession(
             userId: userCredential.user!.uid,
             email: userCredential.user!.email!,
@@ -140,7 +134,6 @@ class AuthService {
       } else {}
 
       // Regular user login
-      // Save user session data
       await _sessionService.saveUserSession(
         userId: userCredential.user!.uid,
         email: userCredential.user!.email!,
@@ -189,13 +182,11 @@ class AuthService {
     required String verificationStatus,
   }) async {
     try {
-      // Check if community is active (has approved admin)
       final isActive = await isCommunityActive(communityId);
       if (!isActive) {
         throw 'Registration is not available for this community yet. Please wait for an admin to be approved.';
       }
 
-      // Create user with email and password
       UserCredential userCredential =
           await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -211,7 +202,6 @@ class AuthService {
           ? '$firstName $middleName $lastName'
           : '$firstName $lastName';
 
-      // Save user data to Realtime Database
       await _database.child('users').child(userCredential.user!.uid).set({
         'firstName': firstName,
         if (middleName != null && middleName.isNotEmpty)
@@ -233,7 +223,6 @@ class AuthService {
         // Removed verificationStatus from RTDB since we're using Firestore for verification
       });
 
-      // Create matching Firestore user document
       final firestoreUser = FirestoreUser(
         uid: userCredential.user!.uid,
         firstName: firstName,
@@ -258,7 +247,6 @@ class AuthService {
           .doc(userCredential.user!.uid)
           .set(firestoreUser.toMap());
 
-      // Initialize user activity tracking
       await _activityService.initializeUserActivity(userCredential.user!.uid);
 
       return userCredential;
@@ -288,7 +276,6 @@ class AuthService {
     }
   }
 
-  // Handle Firebase Auth Exceptions
   String _handleAuthException(FirebaseAuthException e) {
     switch (e.code) {
       case 'user-not-found':
@@ -331,13 +318,11 @@ class AuthService {
           .get();
 
       if (snapshot.exists) {
-        // Return existing community ID
         final Map<dynamic, dynamic> communities =
             snapshot.value as Map<dynamic, dynamic>;
         return communities.keys.first;
       }
 
-      // Create new community
       final newCommunityRef = communitiesRef.push();
       await newCommunityRef.set({
         'name': communityName,
@@ -377,29 +362,24 @@ class AuthService {
     }
   }
 
-  // Update user profile image
   Future<void> updateProfileImage(String uid, String imageUrl) async {
     try {
-      // Update in Realtime Database
       await _database.child('users').child(uid).update({
         'profileImageUrl': imageUrl,
         'updatedAt': ServerValue.timestamp,
       });
 
-      // Update in Firestore
       await _firestore.collection('users').doc(uid).update({
         'profileImageUrl': imageUrl,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Get the user's full name to update comments
       final userSnapshot = await _database.child('users').child(uid).get();
       if (userSnapshot.exists) {
         final userData = userSnapshot.value as Map<dynamic, dynamic>;
         final String fullName = userData['fullName'] as String? ?? '';
 
         if (fullName.isNotEmpty) {
-          // Update all comments by this user with the new profile image
           await _noticeService.updateUserCommentsInfo(uid, fullName, imageUrl);
         }
       }
@@ -408,21 +388,18 @@ class AuthService {
     }
   }
 
-  // Update user profile data
   Future<void> updateUserProfile(String uid, Map<String, dynamic> data) async {
     try {
       // Prepare data for Realtime Database
       final rtdbData = Map<String, dynamic>.from(data);
       rtdbData['updatedAt'] = ServerValue.timestamp;
 
-      // Update in Realtime Database
       await _database.child('users').child(uid).update(rtdbData);
 
       // Prepare data for Firestore
       final firestoreData = Map<String, dynamic>.from(data);
       firestoreData['updatedAt'] = FieldValue.serverTimestamp();
 
-      // Update in Firestore
       await _firestore.collection('users').doc(uid).update(firestoreData);
 
       // If name or profile image was updated, update all comments by this user
@@ -431,7 +408,6 @@ class AuthService {
         final String? profileImageUrl = data['profileImageUrl'] as String?;
 
         if (fullName != null) {
-          // Update all comments by this user with the new name and profile image
           await _noticeService.updateUserCommentsInfo(
               uid, fullName, profileImageUrl);
         }

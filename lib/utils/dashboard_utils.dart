@@ -68,7 +68,6 @@ class DashboardUtils {
   // Helper to safely unlock a tab with delay
   static Future<void> safelyUnlockTab(TabController tabController, bool mounted,
       int lockedTabIndex, Function(bool) setIsTabLocked) async {
-    // Add a small delay before unlocking to ensure any pending tab changes are processed
     await Future.delayed(const Duration(milliseconds: 300));
 
     if (mounted) {
@@ -76,7 +75,6 @@ class DashboardUtils {
       if (currentTab != lockedTabIndex) {
         tabController.index = lockedTabIndex;
 
-        // Add another small delay to ensure the tab is restored
         await Future.delayed(const Duration(milliseconds: 100));
       }
 
@@ -123,7 +121,6 @@ mixin TabLockMixin<T extends StatefulWidget> on State<T> {
     });
   }
 
-  // Set the locked tab index
   void setLockedTabIndex(int index) {
     _lockedTabIndex = index;
   }

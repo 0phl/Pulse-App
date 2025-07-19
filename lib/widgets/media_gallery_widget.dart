@@ -50,7 +50,6 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
           VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl!));
       await _videoPlayerController.initialize();
 
-      // Get the video's natural aspect ratio
       double aspectRatio = _videoPlayerController.value.aspectRatio;
 
       // If aspect ratio is too extreme, use a more reasonable default
@@ -68,7 +67,7 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
         // For portrait videos, use null to let the layout builder handle sizing
         // For landscape videos, use the natural aspect ratio
         aspectRatio: isPortrait ? null : aspectRatio,
-        autoPlay: false, // Don't auto-play - let user decide when to play
+                    autoPlay: false,
         looping: true, // Loop the video for better user experience
         allowFullScreen: true, // Enable built-in fullscreen functionality
         allowMuting: true, // Allow muting
@@ -108,7 +107,6 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
         },
       );
 
-      // Add listener to update UI when play state changes
       _videoPlayerController.addListener(() {
         if (mounted) {
           setState(() {
@@ -147,7 +145,7 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
     bool hasNoMedia = (widget.imageUrls == null || widget.imageUrls!.isEmpty) &&
                      widget.videoUrl == null;
     if (hasNoMedia) {
-      return const SizedBox.shrink(); // Return empty widget when no media
+      return const SizedBox.shrink();
     }
 
     // If there's only images, show the image gallery directly
@@ -193,7 +191,6 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
     }
 
     // If both exist, create a tabbed interface
-    // Calculate a reasonable height for the tabbed interface
     final double tabHeight = widget.height - 40; // Subtract tab bar height
 
     return Container(
@@ -285,7 +282,6 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
                                 maxHeight: 400, // Consistent with container constraints
                                 minHeight: 150, // Reduced minimum height for small images
                                 maintainAspectRatio: true,
-                                // Use MediaQuery to get the available width
                                 width: MediaQuery.of(context).size.width - 32, // Account for padding
                                 isInTabbedView: true, // Flag to indicate we're in tabbed view
                               ),
@@ -311,7 +307,6 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
   }
 
   Widget _buildVideoPlayer() {
-    // Build video player with consistent height constraints and improved styling
 
     if (_hasVideoError) {
       return GestureDetector(
@@ -442,7 +437,6 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
     }
 
     // For community notices, we want videos to be prominent with consistent appearance
-    // Use a height that works well for all video orientations
     double safeHeight = 350.0; // Default height for videos
 
     // Adjust height for portrait videos to provide more vertical space
@@ -484,19 +478,15 @@ class _MediaGalleryWidgetState extends State<MediaGalleryWidget>
               child: Center(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    // Get video aspect ratio
                     final aspectRatio = _videoPlayerController.value.aspectRatio;
 
-                    // Calculate the size that maintains aspect ratio within constraints
                     double targetWidth, targetHeight;
 
-                    // Check if this is a small video (width or height less than 400px)
                     final bool isSmallVideo = _videoPlayerController.value.size.width < 400 ||
                                              _videoPlayerController.value.size.height < 400;
 
                     if (aspectRatio < 1.0) {
                       // Portrait video - constrain by width first to prevent horizontal overflow
-                      // Add a small buffer (4px) to ensure it never overflows
                       targetWidth = constraints.maxWidth - 4;
                       targetHeight = targetWidth / aspectRatio;
                     } else {

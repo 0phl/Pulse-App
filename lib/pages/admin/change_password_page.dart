@@ -25,7 +25,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   @override
   void initState() {
     super.initState();
-    // Add listeners to both password fields to check for matching
     _confirmPasswordController.addListener(_checkPasswordsMatch);
     _newPasswordController.addListener(_checkPasswordsMatch);
   }
@@ -107,7 +106,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
       if (!mounted) return;
 
-      // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Password changed successfully'),
@@ -374,7 +372,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                             });
                           },
                         ),
-                        // Show error text as part of the decoration if passwords don't match
                         errorText: (_confirmPasswordController.text.isNotEmpty &&
                                 !_passwordsMatch)
                             ? 'Passwords do not match'

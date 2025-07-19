@@ -32,19 +32,16 @@ class _LoadingScreenState extends State<LoadingScreen>
   @override
   void initState() {
     super.initState();
-    // Create a one-way animation controller (small to big)
     _controller = AnimationController(
       duration: const Duration(milliseconds: 3000),
       vsync: this,
     )..forward(); // Only go forward (small to big)
 
-    // Use a more natural curve for the animation
     _animation = CurvedAnimation(
       parent: _controller,
       curve: Curves.easeInOutCubic,
     );
 
-    // Create a fade-in animation for a more polished look
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
@@ -105,7 +102,6 @@ class _LoadingScreenState extends State<LoadingScreen>
           AnimatedBuilder(
             animation: Listenable.merge([_animation, _fadeAnimation]),
             builder: (context, child) {
-              // Calculate a scale that goes from small to big
               final scale =
                   0.85 + (_animation.value * 0.3); // Scale from 0.85 to 1.15
 
@@ -135,7 +131,6 @@ class _LoadingScreenState extends State<LoadingScreen>
         AnimatedBuilder(
           animation: _animation,
           builder: (context, child) {
-            // Create a pulsing effect for the loading indicator
             final pulseValue =
                 0.8 + (_animation.value * 0.4); // Pulse between 0.8 and 1.2
 
@@ -210,7 +205,6 @@ class _LoadingScreenState extends State<LoadingScreen>
         AnimatedBuilder(
           animation: _animation,
           builder: (context, child) {
-            // Create a pulsing effect for the loading indicator
             final pulseValue =
                 0.85 + (_animation.value * 0.3); // Pulse between 0.85 and 1.15
 
