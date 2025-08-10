@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
-// auth_service import removed as it's no longer needed
 import '../../models/market_item.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/image_viewer_page.dart';
@@ -907,8 +906,6 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
     );
   }
 
-  // Settings tab removed as requested
-
   @override
   Widget build(BuildContext context) {
     return AdminScaffold(
@@ -978,45 +975,93 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
   }
 
   Widget _buildStatsGrid() {
-    return GridView.count(
-      crossAxisCount: 2,
+    // Get screen width to determine responsive layout
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Determine number of columns based on screen width
+    int crossAxisCount;
+    double childAspectRatio;
+    
+    if (screenWidth < 360) {
+      // Very small screens (old phones)
+      crossAxisCount = 1;
+      childAspectRatio = 2.5;
+    } else if (screenWidth < 600) {
+      // Regular phones
+      crossAxisCount = 2;
+      childAspectRatio = 1.3; // Adjusted for better height
+    } else if (screenWidth < 900) {
+      // Large phones, small tablets
+      crossAxisCount = 3;
+      childAspectRatio = 1.2;
+    } else {
+      // Tablets and larger screens
+      crossAxisCount = 4;
+      childAspectRatio = 1.1;
+    }
+    
+    return GridView.builder(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: childAspectRatio,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+      ),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      children: [
-        _buildStatCard(
-          'Total Items',
-          _marketStats['totalItems'].toString(),
-          Icons.inventory,
-          const Color(0xFF1976D2),
-        ),
-        _buildStatCard(
-          'Active Listings',
-          _marketStats['activeItems'].toString(),
-          Icons.store,
-          const Color(0xFF00C49A),
-        ),
-        _buildStatCard(
-          'Items Sold',
-          _marketStats['soldItems'].toString(),
-          Icons.shopping_cart,
-          const Color(0xFFFF9800),
-        ),
-        _buildStatCard(
-          'Pending Approval',
-          _marketStats['pendingItems'].toString(),
-          Icons.pending_actions,
-          const Color(0xFFFFA000),
-        ),
-        _buildStatCard(
-          'Total Value',
-          '₱${_marketStats['totalValue'].toStringAsFixed(2)}',
-          Icons.attach_money,
-          const Color(0xFF9C27B0),
-        ),
-      ],
+      itemCount: 5,
+      itemBuilder: (context, index) {
+        switch (index) {
+          case 0:
+            return _buildStatCard(
+              'Total Items',
+              _marketStats['totalItems'].toString(),
+              Icons.inventory,
+              const Color(0xFF1976D2),
+            );
+          case 1:
+            return _buildStatCard(
+              'Active Listings',
+              _marketStats['activeItems'].toString(),
+              Icons.store,
+              const Color(0xFF00C49A),
+            );
+          case 2:
+            return _buildStatCard(
+              'Items Sold',
+              _marketStats['soldItems'].toString(),
+              Icons.shopping_cart,
+              const Color(0xFFFF9800),
+            );
+          case 3:
+            return _buildStatCard(
+              'Pending Approval',
+              _marketStats['pendingItems'].toString(),
+              Icons.pending_actions,
+              const Color(0xFFFFA000),
+            );
+          case 4:
+            return _buildStatCard(
+              'Total Value',
+              '₱${_formatCurrency(_marketStats['totalValue'])}',
+              Icons.attach_money,
+              const Color(0xFF9C27B0),
+            );
+          default:
+            return const SizedBox.shrink();
+        }
+      },
     );
+  }
+
+  String _formatCurrency(double value) {
+    if (value >= 1000000) {
+      return '${(value / 1000000).toStringAsFixed(1)}M';
+    } else if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(1)}K';
+    } else {
+      return value.toStringAsFixed(2);
+    }
   }
 
   Widget _buildStatCard(
@@ -1026,36 +1071,51 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, size: 32, color: color),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.black54,
+              child: Icon(
+                icon, 
+                size: 24,
+                color: color
               ),
-              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: color,
+            Flexible(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black54,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                  maxLines: 1,
+                ),
               ),
             ),
           ],
