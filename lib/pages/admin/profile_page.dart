@@ -256,7 +256,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> with WidgetsBinding
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Profile updated successfully'),
-            backgroundColor: Colors.green,
+            backgroundColor: const Color(0xFF00C49A),
           ),
         );
 

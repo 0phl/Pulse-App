@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:path_provider/path_provider.dart' as path_provider;
 import 'dart:io';
 import '../services/auth_service.dart';
 import '../services/cloudinary_service.dart';
@@ -160,7 +158,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
       final XFile? image = await _imagePicker.pickImage(
         source: source,
-        imageQuality: 70,
+        maxWidth: 1000,
+        maxHeight: 1000,
+        imageQuality: 85,
       );
 
       if (image != null) {
@@ -196,26 +196,21 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final croppedFile = await ImageCropper().cropImage(
         sourcePath: imageFile.path,
+        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+        compressQuality: 85,
+        compressFormat: ImageCompressFormat.jpg,
         uiSettings: [
           AndroidUiSettings(
-            toolbarTitle: 'Crop Profile Picture',
+            toolbarTitle: 'Crop Image',
             toolbarColor: const Color(0xFF00C49A),
             toolbarWidgetColor: Colors.white,
             initAspectRatio: CropAspectRatioPreset.square,
             lockAspectRatio: true,
-            activeControlsWidgetColor: const Color(0xFF00C49A),
-            aspectRatioPresets: [
-              CropAspectRatioPreset.square,
-            ],
           ),
           IOSUiSettings(
-            title: 'Crop Profile Picture',
+            title: 'Crop Image',
             aspectRatioLockEnabled: true,
             resetAspectRatioEnabled: false,
-            aspectRatioPickerButtonHidden: true,
-            aspectRatioPresets: [
-              CropAspectRatioPreset.square,
-            ],
           ),
         ],
       );
@@ -251,28 +246,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Helper method to compress images before uploading
   Future<File> _compressImage(File file) async {
-    final String filePath = file.path;
-    final int lastIndex = filePath.lastIndexOf(Platform.isWindows ? '\\' : '/');
-    final String fileName = filePath.substring(lastIndex + 1);
-
-    final tempDir = await path_provider.getTemporaryDirectory();
-    final targetPath = '${tempDir.path}${Platform.isWindows ? '\\' : '/'}compressed_$fileName';
-
-    // Compress the image with reduced quality (50%)
-    final result = await FlutterImageCompress.compressAndGetFile(
-      file.path,
-      targetPath,
-      quality: 50,
-      minWidth: 1000,
-      minHeight: 1000,
-    );
-
-    if (result != null) {
-      return File(result.path);
+    try {
+      // In a production app, you might want to use a more sophisticated compression library
+      return file;
+    } catch (e) {
+      // If compression fails, return the original file
+      return file;
     }
-
-    // If compression fails, return the original file
-    return file;
   }
 
   Future<void> _updateProfile() async {
@@ -326,7 +306,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Profile updated successfully'),
-            backgroundColor: Colors.green,
+            backgroundColor: const Color(0xFF00C49A),
           ),
         );
 
@@ -369,89 +349,56 @@ class _ProfilePageState extends State<ProfilePage> {
                     GestureDetector(
                       onTap: _isProcessingImage ? null : _pickImage,
                       child: Stack(
+                        alignment: Alignment.bottomRight,
                         children: [
                           Container(
                             width: 120,
                             height: 120,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE0F7F3),
-                              borderRadius: BorderRadius.circular(60),
-                              border: Border.all(color: const Color(0xFF00C49A), width: 2),
-                            ),
-                            child: _newProfileImage != null
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(58),
-                                    child: Image.file(
-                                      _newProfileImage!,
-                                      width: 116,
-                                      height: 116,
+                              shape: BoxShape.circle,
+                              color: Colors.grey[200],
+                              image: _newProfileImage != null
+                                  ? DecorationImage(
+                                      image: FileImage(_newProfileImage!),
                                       fit: BoxFit.cover,
-                                    ),
-                                  )
-                                : _userData != null && _userData!['profileImageUrl'] != null
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(58),
-                                        child: Image.network(
-                                          _userData!['profileImageUrl'],
-                                          width: 116,
-                                          height: 116,
+                                    )
+                                  : _userData != null && _userData!['profileImageUrl'] != null
+                                      ? DecorationImage(
+                                          image: NetworkImage(
+                                              _userData!['profileImageUrl']),
                                           fit: BoxFit.cover,
-                                          loadingBuilder: (context, child, loadingProgress) {
-                                            if (loadingProgress == null) return child;
-                                            return Center(
-                                              child: CircularProgressIndicator(
-                                                value: loadingProgress.expectedTotalBytes != null
-                                                    ? loadingProgress.cumulativeBytesLoaded /
-                                                        loadingProgress.expectedTotalBytes!
-                                                    : null,
-                                              ),
-                                            );
-                                          },
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return const Icon(
-                                              Icons.person,
-                                              color: Color(0xFF00C49A),
-                                              size: 50,
-                                            );
-                                          },
-                                        ),
-                                      )
-                                    : const Icon(
+                                        )
+                                      : null,
+                            ),
+                            child: _isProcessingImage
+                                ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
+                                : (_newProfileImage == null &&
+                                        (_userData == null || _userData!['profileImageUrl'] == null))
+                                    ? const Icon(
                                         Icons.person,
-                                        color: Color(0xFF00C49A),
-                                        size: 50,
-                                      ),
+                                        size: 60,
+                                        color: Colors.grey,
+                                      )
+                                    : null,
                           ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF00C49A),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt,
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00C49A),
+                              shape: BoxShape.circle,
+                              border: Border.all(
                                 color: Colors.white,
-                                size: 20,
+                                width: 2,
                               ),
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 20,
                             ),
                           ),
-                          if (_isProcessingImage)
-                            Positioned.fill(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.5),
-                                  borderRadius: BorderRadius.circular(60),
-                                ),
-                                child: const Center(
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
                         ],
                       ),
                     ),

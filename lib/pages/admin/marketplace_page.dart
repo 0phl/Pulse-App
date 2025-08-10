@@ -975,10 +975,8 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
   }
 
   Widget _buildStatsGrid() {
-    // Get screen width to determine responsive layout
     final screenWidth = MediaQuery.of(context).size.width;
     
-    // Determine number of columns based on screen width
     int crossAxisCount;
     double childAspectRatio;
     
@@ -989,7 +987,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
     } else if (screenWidth < 600) {
       // Regular phones
       crossAxisCount = 2;
-      childAspectRatio = 1.3; // Adjusted for better height
+      childAspectRatio = 1.3;
     } else if (screenWidth < 900) {
       // Large phones, small tablets
       crossAxisCount = 3;
