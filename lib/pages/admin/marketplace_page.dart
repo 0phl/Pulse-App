@@ -1009,7 +1009,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
       ),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: 5,
+      itemCount: 5, // Number of stat cards
       itemBuilder: (context, index) {
         switch (index) {
           case 0:
@@ -1054,6 +1054,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
     );
   }
 
+  // Helper method to format currency with proper abbreviation for large numbers
   String _formatCurrency(double value) {
     if (value >= 1000000) {
       return '${(value / 1000000).toStringAsFixed(1)}M';
@@ -1085,7 +1086,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
               ),
               child: Icon(
                 icon, 
-                size: 24,
+                size: 24, // Reduced icon size for better fit
                 color: color
               ),
             ),
@@ -1094,7 +1095,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
               child: Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 12, // Reduced font size
                   fontWeight: FontWeight.w500,
                   color: Colors.black54,
                 ),
@@ -1110,7 +1111,7 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
                 child: Text(
                   value,
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 18, // Reduced from 24
                     fontWeight: FontWeight.bold,
                     color: color,
                   ),
