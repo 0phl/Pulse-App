@@ -32,6 +32,7 @@ class _PdfExportDialogState extends State<PdfExportDialog> {
   DateTime? _endDate;
   String? _selectedStatus;
   bool _includeDetailedList = false;
+  String _selectedPeriod = 'current_month'; // Track selected quick date option
 
   final DateFormat _dateFormat = DateFormat('MMM d, yyyy');
 
@@ -117,6 +118,7 @@ class _PdfExportDialogState extends State<PdfExportDialog> {
     setState(() {
       _startDate = null;
       _endDate = null;
+      _selectedPeriod = 'all_time';
     });
   }
 
@@ -125,6 +127,7 @@ class _PdfExportDialogState extends State<PdfExportDialog> {
     setState(() {
       _startDate = DateTime(now.year, now.month, 1);
       _endDate = DateTime(now.year, now.month + 1, 0);
+      _selectedPeriod = 'current_month';
     });
   }
 
@@ -134,6 +137,7 @@ class _PdfExportDialogState extends State<PdfExportDialog> {
     setState(() {
       _startDate = DateTime(lastMonth.year, lastMonth.month, 1);
       _endDate = DateTime(lastMonth.year, lastMonth.month + 1, 0);
+      _selectedPeriod = 'last_month';
     });
   }
 
@@ -142,6 +146,7 @@ class _PdfExportDialogState extends State<PdfExportDialog> {
     setState(() {
       _startDate = DateTime(now.year, 1, 1);
       _endDate = DateTime(now.year, 12, 31);
+      _selectedPeriod = 'current_year';
     });
   }
 
@@ -151,10 +156,11 @@ class _PdfExportDialogState extends State<PdfExportDialog> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 500),
-        padding: const EdgeInsets.all(24),
-        child: Column(
+      child: SingleChildScrollView(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          padding: const EdgeInsets.all(24),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -214,16 +220,20 @@ class _PdfExportDialogState extends State<PdfExportDialog> {
             ),
             const SizedBox(height: 12),
 
-            // Quick date selectors
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildQuickDateChip('Current Month', _setCurrentMonth),
-                _buildQuickDateChip('Last Month', _setLastMonth),
-                _buildQuickDateChip('Current Year', _setCurrentYear),
-                _buildQuickDateChip('All Time', _clearDateRange),
-              ],
+            // Quick date selectors - Make responsive
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildQuickDateChip('Current Month', 'current_month', _setCurrentMonth),
+                    _buildQuickDateChip('Last Month', 'last_month', _setLastMonth),
+                    _buildQuickDateChip('Current Year', 'current_year', _setCurrentYear),
+                    _buildQuickDateChip('All Time', 'all_time', _clearDateRange),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 12),
 
@@ -355,29 +365,37 @@ class _PdfExportDialogState extends State<PdfExportDialog> {
             ),
           ],
         ),
+        ),
       ),
     );
   }
 
-  Widget _buildQuickDateChip(String label, VoidCallback onTap) {
+  Widget _buildQuickDateChip(String label, String periodKey, VoidCallback onTap) {
+    final bool isSelected = _selectedPeriod == periodKey;
+    
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: const Color(0xFF00C49A).withOpacity(0.1),
+          color: isSelected
+              ? const Color(0xFF00C49A)
+              : const Color(0xFF00C49A).withOpacity(0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: const Color(0xFF00C49A).withOpacity(0.3),
+            color: isSelected
+                ? const Color(0xFF00C49A)
+                : const Color(0xFF00C49A).withOpacity(0.3),
+            width: isSelected ? 2 : 1,
           ),
         ),
         child: Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: Color(0xFF00C49A),
-            fontWeight: FontWeight.w500,
+            color: isSelected ? Colors.white : const Color(0xFF00C49A),
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
           ),
         ),
       ),
@@ -417,12 +435,15 @@ class _PdfExportDialogState extends State<PdfExportDialog> {
                   color: Colors.grey.shade600,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  date != null ? _dateFormat.format(date) : 'Select date',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: date != null ? FontWeight.w500 : FontWeight.normal,
-                    color: date != null ? Colors.black : Colors.grey,
+                Flexible(
+                  child: Text(
+                    date != null ? _dateFormat.format(date) : 'Select date',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: date != null ? FontWeight.w500 : FontWeight.normal,
+                      color: date != null ? Colors.black : Colors.grey,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
