@@ -189,7 +189,7 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: const Color(0xFF00C49A),
+        activeThumbColor: const Color(0xFF00C49A),
       ),
     );
   }

@@ -33,18 +33,18 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
   // Error states
   bool _contentError = false;
   bool _pollQuestionError = false;
-  List<bool> _pollOptionErrors = [false, false];
+  final List<bool> _pollOptionErrors = [false, false];
 
   // Media state variables for Community Notice
-  List<XFile> _selectedImages = [];
+  final List<XFile> _selectedImages = [];
   XFile? _selectedVideo;
-  List<XFile> _selectedAttachments = [];
+  final List<XFile> _selectedAttachments = [];
   bool _showPollCreator = false;
 
   // Media state variables for Poll
-  List<XFile> _pollSelectedImages = [];
+  final List<XFile> _pollSelectedImages = [];
   XFile? _pollSelectedVideo;
-  List<XFile> _pollSelectedAttachments = [];
+  final List<XFile> _pollSelectedAttachments = [];
 
   // Variables to track existing media for community notices
   List<String> _existingImageUrls = [];
@@ -54,7 +54,7 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
   // Variables to track existing media for polls
   List<String> _existingPollImageUrls = [];
   String? _existingPollVideoUrl;
-  List<Map<String, dynamic>> _existingPollAttachments = [];
+  final List<Map<String, dynamic>> _existingPollAttachments = [];
 
   // Poll state variables
   final _pollQuestionController = TextEditingController();
@@ -1832,7 +1832,7 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                               _allowMultipleChoices = value;
                                             });
                                           },
-                                          activeColor: const Color(0xFF00C49A),
+                                          activeThumbColor: const Color(0xFF00C49A),
                                         ),
                                       ],
                                     ),

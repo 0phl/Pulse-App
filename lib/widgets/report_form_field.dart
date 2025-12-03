@@ -7,12 +7,12 @@ class ReportFormField extends StatelessWidget {
   final bool showOptionalText;
 
   const ReportFormField({
-    Key? key,
+    super.key,
     required this.label,
     required this.child,
     this.isRequired = false,
     this.showOptionalText = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -53,7 +53,7 @@ class Poll {
         try {
           attachments = (map['attachments'] as List)
               .whereType<Map>()
-              .map((attachment) => FileAttachment.fromMap(attachment as Map<dynamic, dynamic>))
+              .map((attachment) => FileAttachment.fromMap(attachment))
               .toList();
         } catch (e) {
           debugPrint('Error parsing poll attachments: $e');
@@ -269,13 +269,13 @@ class CommunityNotice {
           content: data['content'] != null ? data['content'].toString() : '',
           authorId: data['authorId'] != null ? data['authorId'].toString() : '',
           authorName: data['authorName'] != null ? data['authorName'].toString() : '',
-          authorAvatar: data['authorAvatar'] != null ? data['authorAvatar'].toString() : null,
+          authorAvatar: data['authorAvatar']?.toString(),
           imageUrls: data['imageUrls'] != null && data['imageUrls'] is List
               ? (data['imageUrls'] as List).map((url) => url.toString()).toList()
               : data['imageUrl'] != null
                   ? [data['imageUrl'].toString()]
                   : null,
-          videoUrl: data['videoUrl'] != null ? data['videoUrl'].toString() : null,
+          videoUrl: data['videoUrl']?.toString(),
           poll: data['poll'] != null && data['poll'] is Map
               ? Poll.fromMap(data['poll'] as Map<dynamic, dynamic>)
               : null,
@@ -315,13 +315,13 @@ class CommunityNotice {
         content: map['content'] != null ? map['content'].toString() : '',
         authorId: map['authorId'] != null ? map['authorId'].toString() : '',
         authorName: map['authorName'] != null ? map['authorName'].toString() : '',
-        authorAvatar: map['authorAvatar'] != null ? map['authorAvatar'].toString() : null,
+        authorAvatar: map['authorAvatar']?.toString(),
         imageUrls: map['imageUrls'] != null && map['imageUrls'] is List
             ? (map['imageUrls'] as List).map((url) => url.toString()).toList()
             : map['imageUrl'] != null
                 ? [map['imageUrl'].toString()]
                 : null,
-        videoUrl: map['videoUrl'] != null ? map['videoUrl'].toString() : null,
+        videoUrl: map['videoUrl']?.toString(),
         poll: map['poll'] != null ? (() {
             try {
               if (map['poll'] is Map) {
@@ -512,14 +512,14 @@ class Comment {
         content: map['content'] != null ? map['content'].toString() : '',
         authorId: map['authorId'] != null ? map['authorId'].toString() : '',
         authorName: map['authorName'] != null ? map['authorName'].toString() : '',
-        authorAvatar: map['authorAvatar'] != null ? map['authorAvatar'].toString() : null,
+        authorAvatar: map['authorAvatar']?.toString(),
         createdAt: map['createdAt'] is Timestamp
             ? (map['createdAt'] as Timestamp).toDate()
             : DateTime.fromMillisecondsSinceEpoch(map['createdAt'] is int ? map['createdAt'] : 0),
         likedBy: likedBy,
         replies: replies,
-        parentId: map['parentId'] != null ? map['parentId'].toString() : null,
-        replyToId: map['replyToId'] != null ? map['replyToId'].toString() : null,
+        parentId: map['parentId']?.toString(),
+        replyToId: map['replyToId']?.toString(),
       );
     } catch (e) {
       

@@ -7,9 +7,9 @@ class AddCommunityNoticePage extends StatefulWidget {
   final Function(String) onNoticeAdded;
 
   const AddCommunityNoticePage({
-    Key? key,
+    super.key,
     required this.onNoticeAdded,
-  }) : super(key: key);
+  });
 
   @override
   State<AddCommunityNoticePage> createState() => _AddCommunityNoticePageState();

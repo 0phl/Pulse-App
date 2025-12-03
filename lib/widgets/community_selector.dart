@@ -8,11 +8,11 @@ class CommunitySelector extends StatelessWidget {
   final bool showCreateOption;
 
   CommunitySelector({
-    Key? key,
+    super.key,
     this.selectedCommunityId,
     required this.onCommunitySelected,
     this.showCreateOption = false,
-  }) : super(key: key);
+  });
 
   final CommunityService _communityService = CommunityService();
 
@@ -108,7 +108,7 @@ class CommunitySelector extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
-              value: selectedCommunityId,
+              initialValue: selectedCommunityId,
               decoration: const InputDecoration(
                 labelText: 'Select Community',
                 border: OutlineInputBorder(),

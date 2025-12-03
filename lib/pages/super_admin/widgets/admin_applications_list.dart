@@ -426,14 +426,14 @@ class _AdminApplicationsListState extends State<AdminApplicationsList>
           value: _statusFilter,
           icon: const Icon(Icons.filter_list_rounded, size: 18),
           borderRadius: BorderRadius.circular(12),
-          items: [
+          items: const [
             DropdownMenuItem(
               value: 'all',
               child: Row(
                 children: [
-                  const Icon(Icons.filter_alt_outlined, size: 18),
-                  const SizedBox(width: 8),
-                  const Text('All Status'),
+                  Icon(Icons.filter_alt_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('All Status'),
                 ],
               ),
             ),
@@ -441,10 +441,10 @@ class _AdminApplicationsListState extends State<AdminApplicationsList>
               value: 'pending',
               child: Row(
                 children: [
-                  const Icon(Icons.pending_rounded,
+                  Icon(Icons.pending_rounded,
                       size: 18, color: Color(0xFFF59E0B)),
-                  const SizedBox(width: 8),
-                  const Text('Pending'),
+                  SizedBox(width: 8),
+                  Text('Pending'),
                 ],
               ),
             ),
@@ -452,10 +452,10 @@ class _AdminApplicationsListState extends State<AdminApplicationsList>
               value: 'approved',
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle_rounded,
+                  Icon(Icons.check_circle_rounded,
                       size: 18, color: Color(0xFF10B981)),
-                  const SizedBox(width: 8),
-                  const Text('Approved'),
+                  SizedBox(width: 8),
+                  Text('Approved'),
                 ],
               ),
             ),
@@ -463,10 +463,10 @@ class _AdminApplicationsListState extends State<AdminApplicationsList>
               value: 'rejected',
               child: Row(
                 children: [
-                  const Icon(Icons.cancel_rounded,
+                  Icon(Icons.cancel_rounded,
                       size: 18, color: Color(0xFFEF4444)),
-                  const SizedBox(width: 8),
-                  const Text('Rejected'),
+                  SizedBox(width: 8),
+                  Text('Rejected'),
                 ],
               ),
             ),
@@ -556,7 +556,7 @@ class _AdminApplicationsListState extends State<AdminApplicationsList>
             _searchQuery.isNotEmpty
                 ? 'No applications match your search'
                 : _statusFilter != 'all'
-                    ? 'No ${_statusFilter} applications found'
+                    ? 'No $_statusFilter applications found'
                     : 'No admin applications available',
             style: const TextStyle(
               fontSize: 16,

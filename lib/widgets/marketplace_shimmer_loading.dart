@@ -194,7 +194,7 @@ class _MarketplaceShimmerLoadingState extends State<MarketplaceShimmerLoading>
                 highlightColor,
                 baseColor,
               ],
-              stops: [
+              stops: const [
                 0.0,
                 0.5,
                 1.0,

@@ -211,7 +211,7 @@ class _BarangayProfilingPageState extends State<BarangayProfilingPage> {
 
   Widget _buildSortDropdown() {
     return DropdownButtonFormField<String>(
-      value: _selectedSortBy,
+      initialValue: _selectedSortBy,
       decoration: InputDecoration(
         labelText: 'Sort by',
         border: OutlineInputBorder(

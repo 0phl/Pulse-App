@@ -10,10 +10,10 @@ class SellerProfilePage extends StatefulWidget {
   final String? sellerName;
 
   const SellerProfilePage({
-    Key? key,
+    super.key,
     required this.sellerId,
     this.sellerName,
-  }) : super(key: key);
+  });
 
   @override
   State<SellerProfilePage> createState() => _SellerProfilePageState();

@@ -138,7 +138,7 @@ class _PollWidgetState extends State<PollWidget> {
                             Container(
                               padding: const EdgeInsets.all(2),
                               margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 color: appThemeColor,
                                 shape: BoxShape.circle,
                               ),
@@ -267,12 +267,12 @@ class _PollWidgetState extends State<PollWidget> {
                     showDialog(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: Row(
+                        title: const Row(
                           children: [
                             Icon(Icons.calendar_today,
                                 size: 20, color: appThemeColor),
-                            const SizedBox(width: 8),
-                            const Text('Poll End Date'),
+                            SizedBox(width: 8),
+                            Text('Poll End Date'),
                           ],
                         ),
                         content: Text(
@@ -284,7 +284,7 @@ class _PollWidgetState extends State<PollWidget> {
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(context),
-                            child: Text('Close',
+                            child: const Text('Close',
                                 style: TextStyle(color: appThemeColor)),
                           ),
                         ],
@@ -300,12 +300,12 @@ class _PollWidgetState extends State<PollWidget> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.timer_outlined,
+                        const Icon(Icons.timer_outlined,
                             size: 12, color: appThemeColor),
                         const SizedBox(width: 4),
                         Text(
                           _formatExpiryDate(poll.expiresAt),
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: appThemeColor,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -359,7 +359,7 @@ class _PollWidgetState extends State<PollWidget> {
         children: [
           Row(
             children: [
-              Icon(Icons.poll_outlined, color: appThemeColor, size: 20),
+              const Icon(Icons.poll_outlined, color: appThemeColor, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -409,7 +409,7 @@ class _PollWidgetState extends State<PollWidget> {
                             Container(
                               padding: const EdgeInsets.all(2),
                               margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 color: appThemeColor,
                                 shape: BoxShape.circle,
                               ),
@@ -538,12 +538,12 @@ class _PollWidgetState extends State<PollWidget> {
                     showDialog(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: Row(
+                        title: const Row(
                           children: [
                             Icon(Icons.calendar_today,
                                 size: 20, color: appThemeColor),
-                            const SizedBox(width: 8),
-                            const Text('Poll End Date'),
+                            SizedBox(width: 8),
+                            Text('Poll End Date'),
                           ],
                         ),
                         content: Text(
@@ -555,7 +555,7 @@ class _PollWidgetState extends State<PollWidget> {
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(context),
-                            child: Text('Close',
+                            child: const Text('Close',
                                 style: TextStyle(color: appThemeColor)),
                           ),
                         ],
@@ -571,12 +571,12 @@ class _PollWidgetState extends State<PollWidget> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.timer_outlined,
+                        const Icon(Icons.timer_outlined,
                             size: 12, color: appThemeColor),
                         const SizedBox(width: 4),
                         Text(
                           _formatExpiryDate(poll.expiresAt),
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: appThemeColor,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,

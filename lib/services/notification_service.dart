@@ -1659,7 +1659,7 @@ class NotificationService with WidgetsBindingObserver {
             priority: Priority.high,
             color: const Color(0xFF00C49A),
           ),
-          iOS: DarwinNotificationDetails(
+          iOS: const DarwinNotificationDetails(
             presentAlert: true,
             presentBadge: true,
             presentSound: true,

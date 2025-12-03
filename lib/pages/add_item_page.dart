@@ -74,7 +74,7 @@ class _AddItemPageState extends State<AddItemPage> {
   }
 
   Future<void> _pickImage() async {
-    final List<XFile>? images = await _picker.pickMultiImage();
+    final List<XFile> images = await _picker.pickMultiImage();
     if (images != null && images.isNotEmpty) {
       setState(() {
         // If we already have images, add new ones up to a maximum of 5

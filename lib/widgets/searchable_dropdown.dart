@@ -10,7 +10,7 @@ class SearchableDropdown extends StatefulWidget {
   final bool allowCustomValue;
 
   const SearchableDropdown({
-    Key? key,
+    super.key,
     required this.controller,
     required this.items,
     required this.onItemSelected,
@@ -18,7 +18,7 @@ class SearchableDropdown extends StatefulWidget {
     this.selectedItem,
     this.hintText = 'Select an item',
     this.allowCustomValue = false,
-  }) : super(key: key);
+  });
 
   @override
   State<SearchableDropdown> createState() => _SearchableDropdownState();

@@ -439,7 +439,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: Theme.of(context).primaryColor,
+        activeThumbColor: Theme.of(context).primaryColor,
       ),
       onTap: () {
         onChanged(!value);

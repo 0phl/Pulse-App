@@ -91,7 +91,7 @@ class ItemCardWidget {
                       ),
                       errorWidget: (context, url, error) => Container(
                         color: Colors.grey[200],
-                        child: Icon(
+                        child: const Icon(
                           Icons.image_not_supported_outlined,
                           size: 48,
                           color: Colors.grey,
@@ -241,8 +241,8 @@ class ItemCardWidget {
                         const SizedBox(height: 6),
                         Text(
                           item.rejectionReason!,
-                          style: TextStyle(
-                            color: const Color(0xFFEF4444),
+                          style: const TextStyle(
+                            color: Color(0xFFEF4444),
                             fontSize: 13,
                           ),
                         ),

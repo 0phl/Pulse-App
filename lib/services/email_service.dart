@@ -53,7 +53,7 @@ class EmailService {
     try {
       print('Attempting to send email to: ${message.recipients.join(", ")}');
       final sendReport = await send(message, _smtpServer);
-      print('Message sent: ' + sendReport.toString());
+      print('Message sent: $sendReport');
     } catch (e) {
       print('Error sending email: $e');
       throw Exception('Failed to send email: $e');
@@ -68,7 +68,7 @@ class EmailService {
     await _saveOTP(recipientEmail, hashedOTP);
 
     final message = Message()
-      ..from = Address(_senderEmail, 'PULSE App')
+      ..from = const Address(_senderEmail, 'PULSE App')
       ..recipients = [recipientEmail]
       ..subject = 'Your OTP Verification Code'
       ..html = '''
@@ -218,7 +218,7 @@ class EmailService {
     } else {
       try {
         final message = Message()
-          ..from = Address(_senderEmail, 'PULSE App')
+          ..from = const Address(_senderEmail, 'PULSE App')
           ..recipients = [email]
           ..subject = 'Your Admin Account Credentials'
           ..html = '''
@@ -365,7 +365,7 @@ class EmailService {
       try {
         print('Sending rejection notification via SMTP');
         final message = Message()
-          ..from = Address(_senderEmail, 'PULSE App')
+          ..from = const Address(_senderEmail, 'PULSE App')
           ..recipients = [email]
           ..subject = 'Application Status Update'
           ..html = '''

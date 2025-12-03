@@ -6,11 +6,11 @@ class CommentText extends StatelessWidget {
   final Color mentionColor;
 
   const CommentText({
-    Key? key,
+    super.key,
     required this.text,
     this.style,
     this.mentionColor = const Color(0xFF00C49A),
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -855,22 +855,22 @@ class _AdminMarketplacePageState extends State<AdminMarketplacePage>
             ),
           ),
           const SizedBox(height: 24),
-          Card(
+          const Card(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Category Distribution',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   // TODO: Add category distribution chart
-                  const Center(
+                  Center(
                     child:
                         Text('Category distribution chart will be added here'),
                   ),

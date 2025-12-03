@@ -6,7 +6,6 @@ import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 import '../services/file_downloader_service.dart';
 import 'comments_sheet.dart';
-import 'image_gallery_viewer.dart';
 import 'video_player_page.dart';
 import 'media_gallery_widget.dart';
 import 'multi_image_viewer_page.dart';

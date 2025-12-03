@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import '../widgets/market_item_card.dart';
 import '../models/market_item.dart';
 import 'chat_page.dart';

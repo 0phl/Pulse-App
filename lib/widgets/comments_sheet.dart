@@ -13,10 +13,10 @@ class CommentsSheet extends StatefulWidget {
   final VoidCallback? onCommentAdded;
 
   const CommentsSheet({
-    Key? key,
+    super.key,
     required this.notice,
     this.onCommentAdded,
-  }) : super(key: key);
+  });
 
   @override
   State<CommentsSheet> createState() => _CommentsSheetState();
@@ -176,7 +176,6 @@ class _CommentsSheetState extends State<CommentsSheet> {
           }
         }
       }
-    } catch (e) {
     } finally {
       if (mounted) {
         setState(() {

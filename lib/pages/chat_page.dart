@@ -975,24 +975,24 @@ class _ChatPageState extends State<ChatPage> {
           borderRadius: BorderRadius.circular(16),
         ),
         contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 10),
-        title: Text(
+        title: const Text(
           'Mark as Sold',
           style: TextStyle(
-            color: const Color(0xFF00C49A),
+            color: Color(0xFF00C49A),
             fontWeight: FontWeight.w600,
           ),
           textAlign: TextAlign.center,
         ),
-        content: Column(
+        content: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.sell,
-              color: const Color(0xFF00C49A),
+              color: Color(0xFF00C49A),
               size: 48,
             ),
-            const SizedBox(height: 16),
-            const Text(
+            SizedBox(height: 16),
+            Text(
               'Are you sure you want to mark this item as sold?',
               style: TextStyle(
                 fontSize: 15,
@@ -1000,8 +1000,8 @@ class _ChatPageState extends State<ChatPage> {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'This action cannot be undone.',
               style: TextStyle(
                 fontSize: 13,
@@ -1106,10 +1106,10 @@ class _ChatPageState extends State<ChatPage> {
             borderRadius: BorderRadius.circular(16),
           ),
           contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 10),
-          title: Text(
+          title: const Text(
             'Rate Seller',
             style: TextStyle(
-              color: const Color(0xFF00C49A),
+              color: Color(0xFF00C49A),
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,

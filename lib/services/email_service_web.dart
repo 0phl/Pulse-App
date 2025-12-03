@@ -1,13 +1,11 @@
-@JS()
 library email_service_web;
 
 import 'dart:convert';
-import 'dart:js_util';
-import 'package:js/js.dart';
-import 'dart:html';
+import 'dart:js_interop';
 
 @JS()
 @anonymous
+@staticInterop
 class EmailJSApprovalParams {
   external factory EmailJSApprovalParams({
     String to_email,
@@ -19,6 +17,7 @@ class EmailJSApprovalParams {
 
 @JS()
 @anonymous
+@staticInterop
 class EmailJSRejectionParams {
   external factory EmailJSRejectionParams({
     String to_email,
@@ -27,14 +26,14 @@ class EmailJSRejectionParams {
 }
 
 @JS('emailjs')
-external dynamic get emailjs;
+external JSObject get emailjs;
 
 @JS('emailjs.init')
 external void initEmailJs(String publicKey);
 
 @JS('emailjs.send')
-external dynamic sendEmailJS(
-    String serviceId, String templateId, dynamic params);
+external JSPromise sendEmailJS(
+    String serviceId, String templateId, JSAny params);
 
 class EmailPlatform {
   static bool _initialized = false;
@@ -85,7 +84,7 @@ class EmailPlatform {
           to_name: params['to_name'] as String,
           community_name: params['community_name'] as String,
           password: params['password'] as String,
-        );
+        ) as JSAny;
         print('Created approval parameters for: ${params['to_email']}');
       } else if (templateId == 'template_8z8syof') {  // Rejection template
         // Validate rejection-specific parameters
@@ -96,7 +95,7 @@ class EmailPlatform {
         emailParams = EmailJSRejectionParams(
           to_email: params['to_email'] as String,
           rejection_reason: params['rejection_reason'] as String,
-        );
+        ) as JSAny;
         print('Created rejection parameters for: ${params['to_email']}');
       } else {
         throw Exception('Unknown template ID: $templateId');
@@ -108,12 +107,10 @@ class EmailPlatform {
 
       try {
         // Send email using EmailJS
-        final result = await promiseToFuture(
-            sendEmailJS(serviceId, templateId, emailParams));
+        final result = await sendEmailJS(serviceId, templateId, emailParams).toDart;
 
         print('Raw EmailJS Response: $result');
-        final response = dartify(result);
-        print('Parsed EmailJS Response: $response');
+        print('Email sent successfully');
 
         print('Email sent successfully via EmailJS');
       } catch (jsError) {

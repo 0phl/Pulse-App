@@ -16,7 +16,7 @@ class AdminScaffold extends StatefulWidget {
   final bool showNotificationIcon;
 
   const AdminScaffold({
-    Key? key,
+    super.key,
     required this.title,
     required this.body,
     this.actions,
@@ -26,7 +26,7 @@ class AdminScaffold extends StatefulWidget {
     this.extendBodyBehindAppBar = false,
     this.appBar,
     this.showNotificationIcon = true,
-  }) : super(key: key);
+  });
 
   @override
   State<AdminScaffold> createState() => _AdminScaffoldState();

@@ -30,8 +30,7 @@ import '../utils/dashboard_utils.dart';
 class SellerDashboardPage extends StatefulWidget {
   final int initialTabIndex;
 
-  const SellerDashboardPage({Key? key, this.initialTabIndex = 0})
-      : super(key: key);
+  const SellerDashboardPage({super.key, this.initialTabIndex = 0});
 
   @override
   State<SellerDashboardPage> createState() => _SellerDashboardPageState();
@@ -45,20 +44,20 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
 
   // Search and filtering
   String _currentFilter = 'all';
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
 
   // Refresh controllers for different tabs
-  RefreshController _overviewRefreshController =
+  final RefreshController _overviewRefreshController =
       RefreshController(initialRefresh: false);
-  RefreshController _pendingRefreshController =
+  final RefreshController _pendingRefreshController =
       RefreshController(initialRefresh: false);
-  RefreshController _rejectedRefreshController =
+  final RefreshController _rejectedRefreshController =
       RefreshController(initialRefresh: false);
-  RefreshController _soldRefreshController =
+  final RefreshController _soldRefreshController =
       RefreshController(initialRefresh: false);
 
   // Theme mode
-  bool _isDarkMode = false;
+  final bool _isDarkMode = false;
 
   // Dashboard stats
   Map<String, dynamic> _dashboardStats = {};
@@ -704,7 +703,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
                                         errorWidget: (context, url, error) =>
                                             Container(
                                           color: Colors.grey[200],
-                                          child: Icon(Icons.error,
+                                          child: const Icon(Icons.error,
                                               color: Colors.grey),
                                         ),
                                       )
@@ -712,7 +711,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
                                         width: 60,
                                         height: 60,
                                         color: Colors.grey[200],
-                                        child: Icon(Icons.image_not_supported,
+                                        child: const Icon(Icons.image_not_supported,
                                             color: Colors.grey),
                                       ),
                               ),

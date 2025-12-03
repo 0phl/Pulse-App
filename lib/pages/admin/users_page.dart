@@ -44,7 +44,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   List<FirestoreUser> _residentUsers = [];
   List<FirestoreUser> _filteredResidentUsers = [];
   String _selectedAgeFilter = 'All';
-  bool _groupByHousehold = false;
+  final bool _groupByHousehold = false;
   Map<String, dynamic>? _demographics;
   Map<String, List<FirestoreUser>>? _households;
 
@@ -83,7 +83,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       final initialTab = arguments?['initialTab'] as int? ?? 0;
 
       _tabController =
-          TabController(length: 3, vsync: this, initialIndex: initialTab);
+          TabController(length: 2, vsync: this, initialIndex: initialTab);
       _tabController.addListener(_handleTabChange);
       _isTabControllerInitialized = true;
     }
@@ -115,7 +115,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
 
       if (_tabController.index == 0) {
         debugPrint('Loading All Users tab data');
-        _loadUsers().then((_) {
+        _loadResidentUsers().then((_) {
           if (mounted) {
             setState(() {
               _isLoading = false;
@@ -133,15 +133,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
             });
           }
         });
-      } else {
-        debugPrint('Loading Resident Directory tab data');
-        _loadResidentUsers().then((_) {
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
-          }
-        });
       }
     }
   }
@@ -153,7 +144,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
 
     setState(() {
       if (_tabController.index == 0) {
-        _applyCurrentFilter();
+        // Filter resident directory users
+        _applyResidentFilters();
       } else if (_tabController.index == 1) {
         // Filter pending/rejected users based on the current filter
         final searchTerm = _searchController.text.toLowerCase();
@@ -210,9 +202,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                 'Rejected user in list: ${user.fullName}, status: ${user.verificationStatus}');
           }
         }
-      } else if (_tabController.index == 2) {
-        // Filter resident directory users
-        _applyResidentFilters();
       }
     });
 
@@ -986,9 +975,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
     });
 
     if (_tabController.index == 0) {
-      await _loadUsers();
-      // Apply filter after loading
-      _applyCurrentFilter();
+      await _loadResidentUsers();
     } else {
       await _loadPendingUsers();
       // Force a rebuild of the filtered list
@@ -1019,7 +1006,6 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
           tabs: const [
             Tab(text: 'All Users'),
             Tab(text: 'Pending Verification'),
-            Tab(text: 'Resident Directory'),
           ],
           indicatorColor: Colors.white,
           indicatorWeight: 3,
@@ -1044,24 +1030,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // All Users Tab
-                  _buildTabContent(
-                    isLoading: _isLoading,
-                    isEmpty: _filteredUsers.isEmpty,
-                    onRefresh: _refreshData,
-                    emptyWidget: _buildEmptyState(
-                      icon: Icons.people_outline,
-                      message: 'No users found',
-                      subMessage: 'Try adjusting your search or filters',
-                    ),
-                    contentWidget: ListView.builder(
-                      padding: const EdgeInsets.only(top: 8, bottom: 16),
-                      itemCount: _filteredUsers.length,
-                      itemBuilder: (context, index) {
-                        return _buildUserCard(_filteredUsers[index]);
-                      },
-                    ),
-                  ),
+                  // All Users Tab (formerly Resident Directory)
+                  _buildResidentDirectoryTab(),
 
                   // Pending Verification Tab
                   _buildTabContent(
@@ -1216,14 +1186,11 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                                 itemBuilder: (context, index) {
                                   return _buildRejectedUserCard(
                                       _filteredRejectedUsers[index]);
-                                },
-                              )),
-                  ),
-
-                  // Resident Directory Tab
-                  _buildResidentDirectoryTab(),
-                ],
-              ),
+                               },
+                             )),
+                 ),
+               ],
+             ),
             ),
           ],
         ),
@@ -1236,7 +1203,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
               elevation: 2,
               child: const Icon(Icons.qr_code_scanner),
             )
-          : _tabController.index == 2
+          : _tabController.index == 0
               ? FloatingActionButton(
                   onPressed: _showExportOptions,
                   backgroundColor: const Color(0xFF00C49A),
@@ -1337,24 +1304,20 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   children: [
                     Icon(
                       _tabController.index == 0
-                          ? Icons.people
-                          : _tabController.index == 2
-                              ? Icons.groups
-                              : _pendingTabFilter == 'Pending Approval'
-                                  ? Icons.pending_outlined
-                                  : Icons.person_off_outlined,
+                          ? Icons.groups
+                          : _pendingTabFilter == 'Pending Approval'
+                              ? Icons.pending_outlined
+                              : Icons.person_off_outlined,
                       size: 14,
                       color: Colors.white.withOpacity(0.9),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       _tabController.index == 0
-                          ? '${_filteredUsers.length} Members'
-                          : _tabController.index == 2
-                              ? '${_filteredResidentUsers.length} Residents'
-                              : _pendingTabFilter == 'Pending Approval'
-                                  ? '${_filteredPendingUsers.length} Pending'
-                                  : '${_filteredRejectedUsers.length} Rejected',
+                          ? '${_filteredResidentUsers.length} Residents'
+                          : _pendingTabFilter == 'Pending Approval'
+                              ? '${_filteredPendingUsers.length} Pending'
+                              : '${_filteredRejectedUsers.length} Rejected',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -1389,7 +1352,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: _tabController.index == 2
+                      hintText: _tabController.index == 0
                           ? 'Search by name or address...'
                           : 'Search members...',
                       hintStyle: TextStyle(
@@ -1421,53 +1384,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: _tabController.index == 0
-                  ? _filterOptions.map((filter) {
-                      final isSelected = _selectedFilter == filter;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilterChip(
-                          label: Text(
-                            filter,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: isSelected
-                                  ? Colors.white
-                                  : Colors.black.withOpacity(0.7),
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setState(() {
-                              _selectedFilter = filter;
-                              _filterUsers();
-                            });
-                          },
-                          backgroundColor: Colors.white,
-                          selectedColor: const Color(0xFF00C49A),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          labelPadding:
-                              const EdgeInsets.symmetric(horizontal: 4),
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? const Color(0xFF00C49A)
-                                  : Colors.grey.withOpacity(0.2),
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList()
-                  : _tabController.index == 2
-                      ? _buildResidentAgeFilters()
-                      : _pendingFilterOptions.map((filter) {
+                  ? _buildResidentAgeFilters()
+                  : _pendingFilterOptions.map((filter) {
                           final isSelected = _pendingTabFilter == filter;
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
@@ -2568,22 +2486,15 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
         message: 'No residents found',
         subMessage: 'Verified residents will appear here',
       ),
-      contentWidget: Column(
-        children: [
-          if (_demographics != null) _buildDemographicsDashboard(),
-          Expanded(
-            child: _groupByHousehold && _households != null
-                ? _buildHouseholdList()
-                : ListView.builder(
-                    padding: const EdgeInsets.only(top: 8, bottom: 16),
-                    itemCount: _filteredResidentUsers.length,
-                    itemBuilder: (context, index) {
-                      return _buildResidentCard(_filteredResidentUsers[index]);
-                    },
-                  ),
-          ),
-        ],
-      ),
+      contentWidget: _groupByHousehold && _households != null
+          ? _buildHouseholdList()
+          : ListView.builder(
+              padding: const EdgeInsets.only(top: 8, bottom: 16),
+              itemCount: _filteredResidentUsers.length,
+              itemBuilder: (context, index) {
+                return _buildResidentCard(_filteredResidentUsers[index]);
+              },
+            ),
     );
   }
 

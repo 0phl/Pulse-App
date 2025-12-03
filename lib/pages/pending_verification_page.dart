@@ -5,10 +5,10 @@ import '../services/auth_service.dart';
 class PendingVerificationPage extends StatelessWidget {
   final String registrationId;
 
-  PendingVerificationPage({
-    Key? key,
+  const PendingVerificationPage({
+    super.key,
     required this.registrationId,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

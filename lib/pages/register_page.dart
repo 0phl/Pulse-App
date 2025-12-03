@@ -14,9 +14,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
-import 'package:path/path.dart' as path;
 import '../services/cloudinary_service.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 class RegisterPage extends StatefulWidget {

@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'register_page.dart';
-import '../main.dart';
 import '../services/auth_service.dart';
-import '../services/admin_service.dart';
-import 'package:firebase_database/firebase_database.dart';
-import '../models/admin_application.dart';
 import 'community_registration_page.dart';
-import 'admin/change_password_page.dart';
-import 'admin/dashboard_page.dart';
 import '../widgets/delayed_auth_wrapper.dart';
 import 'admin/deactivated_account_page.dart';
 

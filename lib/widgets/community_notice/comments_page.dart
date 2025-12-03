@@ -133,7 +133,6 @@ class _CommentsPageState extends State<CommentsPage> {
           }
         }
       }
-    } catch (e) {
     } finally {
       if (mounted) {
         setState(() {

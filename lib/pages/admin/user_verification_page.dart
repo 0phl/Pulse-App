@@ -5,7 +5,7 @@ import '../scan_qr_page.dart';
 import './admin_drawer.dart';
 
 class UserVerificationPage extends StatefulWidget {
-  const UserVerificationPage({Key? key}) : super(key: key);
+  const UserVerificationPage({super.key});
 
   @override
   State<UserVerificationPage> createState() => _UserVerificationPageState();

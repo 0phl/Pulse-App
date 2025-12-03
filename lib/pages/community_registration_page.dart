@@ -39,8 +39,8 @@ class _CommunityRegistrationPageState extends State<CommunityRegistrationPage> {
       GlobalKey();
   final GlobalKey<DropdownSearchState<Barangay>> _barangayDropdownKey =
       GlobalKey();
-  List<String> _documents = [];
-  List<File> _selectedFiles = [];
+  final List<String> _documents = [];
+  final List<File> _selectedFiles = [];
   bool _isLoading = false;
   bool _isUploadingFiles = false;
   bool _isCheckingCommunity = false;

@@ -5,9 +5,9 @@ class ScanQRPage extends StatefulWidget {
   final String title;
 
   const ScanQRPage({
-    Key? key,
+    super.key,
     required this.title,
-  }) : super(key: key);
+  });
 
   @override
   State<ScanQRPage> createState() => _ScanQRPageState();
@@ -71,9 +71,9 @@ class _ScanQRPageState extends State<ScanQRPage> {
             child: Container(
               padding: const EdgeInsets.all(16),
               width: double.infinity,
-              child: Column(
+              child: const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
+                children: [
                   Text(
                     'Position the QR code within the frame to scan',
                     textAlign: TextAlign.center,

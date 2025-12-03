@@ -363,12 +363,15 @@ class BarangayProfilingService {
   String _buildFullAddress(Map<dynamic, dynamic> communityData) {
     final parts = <String>[];
 
-    if (communityData['name'] != null)
+    if (communityData['name'] != null) {
       parts.add(communityData['name'].toString());
-    if (communityData['municipality'] != null)
+    }
+    if (communityData['municipality'] != null) {
       parts.add(communityData['municipality'].toString());
-    if (communityData['province'] != null)
+    }
+    if (communityData['province'] != null) {
       parts.add(communityData['province'].toString());
+    }
 
     return parts.join(', ');
   }

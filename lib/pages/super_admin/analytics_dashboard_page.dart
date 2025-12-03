@@ -532,7 +532,7 @@ class _SuperAdminAnalyticsDashboardPageState
     final avgEngagement = _analyticsData['userEngagementRate'] ?? 0.0;
 
     // Define explicit colors for backgrounds
-    final lightBgColor = PdfColors.white;
+    const lightBgColor = PdfColors.white;
     final panelBgColor = PdfColor.fromHex('F5F7FA'); // Light gray background
     final separatorColor =
         PdfColor.fromHex('E1E5EA'); // Medium gray for separators
@@ -914,7 +914,7 @@ class _SuperAdminAnalyticsDashboardPageState
                       : '0.0';
 
                   return pw.TableRow(
-                    decoration: pw.BoxDecoration(
+                    decoration: const pw.BoxDecoration(
                       color: PdfColors.white,
                     ),
                     children: [
@@ -923,7 +923,7 @@ class _SuperAdminAnalyticsDashboardPageState
                       _buildPdfTableCell('$percentage%', textColor, false, 2),
                     ],
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),
@@ -1014,7 +1014,7 @@ class _SuperAdminAnalyticsDashboardPageState
         // Data rows
         ...communities
             .map((community) => pw.TableRow(
-                  decoration: pw.BoxDecoration(color: PdfColors.white),
+                  decoration: const pw.BoxDecoration(color: PdfColors.white),
                   children: [
                     _buildPdfTableCell(community['name'], textColor, false, 1),
                     _buildPdfTableCell(
@@ -1023,7 +1023,7 @@ class _SuperAdminAnalyticsDashboardPageState
                         '${community['engagement']}%', textColor, false, 2),
                   ],
                 ))
-            .toList(),
+            ,
       ],
     );
   }
@@ -1081,7 +1081,7 @@ class _SuperAdminAnalyticsDashboardPageState
       final percentage =
           total > 0 ? (count / total * 100).toStringAsFixed(1) : '0.0';
       rows.add(pw.TableRow(
-        decoration: pw.BoxDecoration(color: PdfColors.white),
+        decoration: const pw.BoxDecoration(color: PdfColors.white),
         children: [
           _buildPdfTableCell(region, textColor, false, 1),
           _buildPdfTableCell(count.toString(), textColor, false, 2),

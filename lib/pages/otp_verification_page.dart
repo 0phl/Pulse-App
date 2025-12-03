@@ -14,9 +14,9 @@ class OTPVerificationPage extends StatefulWidget {
   final RegistrationData registrationData;
 
   const OTPVerificationPage({
-    Key? key,
+    super.key,
     required this.registrationData,
-  }) : super(key: key);
+  });
 
   @override
   State<OTPVerificationPage> createState() => _OTPVerificationPageState();
@@ -324,8 +324,8 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
             width: 24,
             height: 24,
             margin: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF00C49A),
+            decoration: const BoxDecoration(
+              color: Color(0xFF00C49A),
               shape: BoxShape.circle,
             ),
             child: Center(

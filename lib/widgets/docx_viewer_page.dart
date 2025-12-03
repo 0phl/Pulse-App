@@ -11,10 +11,10 @@ class DocxViewerPage extends StatefulWidget {
   final String fileName;
 
   const DocxViewerPage({
-    Key? key,
+    super.key,
     required this.docxUrl,
     required this.fileName,
-  }) : super(key: key);
+  });
 
   @override
   State<DocxViewerPage> createState() => _DocxViewerPageState();

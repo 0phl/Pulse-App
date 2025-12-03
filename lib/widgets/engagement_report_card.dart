@@ -51,7 +51,7 @@ class EngagementReportCard extends StatelessWidget {
                   child: const Icon(
                     Icons.insights,
                     size: 24,
-                    color: const Color(0xFF4A90E2),
+                    color: Color(0xFF4A90E2),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -61,7 +61,7 @@ class EngagementReportCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF4A90E2),
+                      color: Color(0xFF4A90E2),
                     ),
                     overflow: TextOverflow.visible,
                   ),
