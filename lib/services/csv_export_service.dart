@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:printing/printing.dart';
+import 'dart:typed_data';
 import '../models/firestore_user.dart';
 
 class CsvExportService {
@@ -90,16 +92,17 @@ class CsvExportService {
   // Save and share CSV file using share dialog
   Future<String> saveAndShareCsv(String csvData, String filename) async {
     try {
-      final filePath = await saveCsvToFile(csvData, filename);
+      // Convert CSV string to bytes
+      final bytes = Uint8List.fromList(csvData.codeUnits);
 
-      // Share the file using share dialog (works on Android/iOS)
-      await Share.shareXFiles(
-        [XFile(filePath)],
-        text: 'Resident Directory Export',
-        subject: filename,
+      // Use the printing package to save the file (same as PDF)
+      // This opens the native save dialog instead of share sheet
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: filename,
       );
 
-      return filePath;
+      return filename;
     } catch (e) {
       debugPrint('Error in saveAndShareCsv: $e');
       rethrow;
