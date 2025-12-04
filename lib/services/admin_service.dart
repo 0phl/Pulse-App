@@ -1231,6 +1231,57 @@ class AdminService {
     }
 
     await _reportsCollection.doc(reportId).update(updates);
+
+    // Send notification to the user who created the report
+    try {
+      final String reporterId = reportData['userId'] as String;
+      final String issueType = reportData['issueType'] as String? ?? 'issue';
+      
+      // Format status for display
+      String statusText;
+      switch (newStatus) {
+        case 'in_progress':
+          statusText = 'In Progress';
+          break;
+        case 'resolved':
+          statusText = 'Resolved';
+          break;
+        case 'rejected':
+          statusText = 'Rejected';
+          break;
+        default:
+          statusText = newStatus;
+      }
+
+      // Create notification in Firestore for the reporter
+      final notificationRef = await _firestore.collection('user_notifications').add({
+        'title': 'Report Status Updated',
+        'body': 'Your report "$issueType" has been updated to: $statusText',
+        'type': 'reports',
+        'data': {
+          'reportId': reportId,
+          'status': newStatus,
+          'issueType': issueType,
+          'resolutionDetails': resolutionDetails ?? '',
+        },
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': currentUserId ?? 'admin',
+      });
+
+      // Create notification status for the reporter
+      await _firestore.collection('notification_status').add({
+        'userId': reporterId,
+        'notificationId': notificationRef.id,
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        'type': 'reports',
+      });
+
+      debugPrint('Report status notification sent to user: $reporterId');
+    } catch (e) {
+      debugPrint('Error sending report status notification: $e');
+      // Don't throw - notification failure shouldn't prevent status update
+    }
   }
 
   Future<void> removeMarketItem(String itemId) async {

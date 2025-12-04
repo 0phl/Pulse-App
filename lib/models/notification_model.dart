@@ -223,8 +223,18 @@ class NotificationModel {
       return true;
     }
 
+    // Report notifications: distinguish between admin and user notifications
+    // - Report submissions (new reports from users) → Admin notifications
+    // - Report status updates (admin updating report status) → User notifications
     if (type == 'reports' || type == 'report') {
-      return true;
+      // If the notification contains a 'status' field in data, it's a status update for the user
+      if (data.containsKey('status')) {
+        debugPrint('REPORT NOTIFICATION: This is a status update notification for user');
+        return false; // User notification, not admin
+      }
+      // Otherwise, it's a new report submission for the admin
+      debugPrint('REPORT NOTIFICATION: This is a new report submission for admin');
+      return true; // Admin notification
     }
 
     if (data.containsKey('adminAction') &&
