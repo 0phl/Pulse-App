@@ -5,6 +5,7 @@ import 'package:chewie/chewie.dart';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 import '../services/file_downloader_service.dart';
+import '../services/social_share_service.dart';
 import 'comments_sheet.dart';
 import 'video_player_page.dart';
 import 'media_gallery_widget.dart';
@@ -37,6 +38,7 @@ class NoticeCard extends StatefulWidget {
 class _NoticeCardState extends State<NoticeCard> {
   late CommunityNotice _notice;
   final AdminService _adminService = AdminService();
+  final SocialShareService _shareService = SocialShareService();
 
   @override
   void initState() {
@@ -1099,8 +1101,12 @@ class _NoticeCardState extends State<NoticeCard> {
                             Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                onTap: () {
-                                  // Implement share functionality
+                                onTap: () async {
+                                  // Show beautiful social media-style share with preview
+                                  await _shareService.shareWithPreview(
+                                    notice,
+                                    context,
+                                  );
                                 },
                                 customBorder: const CircleBorder(),
                                 child: Padding(

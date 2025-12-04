@@ -281,6 +281,14 @@ service cloud.firestore {
     }
     // <<< END OF NEW RULE >>>
 
+    // Deleted Notifications collection
+    match /deleted_notifications/{deletedId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if false; // Deleted notifications should not be updated
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
     // Deny access to other collections by default
     // This should be the last rule in this block
     match /{document=**} {

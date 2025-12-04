@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../models/community_notice.dart';
 import '../../services/community_notice_service.dart';
+import '../../services/social_share_service.dart';
 import '../media_gallery_widget.dart';
 import '../multi_image_viewer_page.dart';
 import 'comments_page.dart';
@@ -51,6 +52,7 @@ class CommunityNoticeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final CommunityNoticeService noticeService = CommunityNoticeService();
+    final SocialShareService shareService = SocialShareService();
 
     return Card(
       elevation: 0,
@@ -700,8 +702,12 @@ class CommunityNoticeCard extends StatelessWidget {
                         child: Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: () {
-                              // Implement share functionality
+                            onTap: () async {
+                              // Show beautiful social media-style share with preview
+                              await shareService.shareWithPreview(
+                                notice,
+                                context,
+                              );
                             },
                             borderRadius: BorderRadius.circular(20),
                             child: Padding(

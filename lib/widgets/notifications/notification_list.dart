@@ -34,6 +34,7 @@ class _NotificationListState extends State<NotificationList> {
   bool _isAdmin = false;
   StreamSubscription? _notificationSubscription;
   StreamSubscription? _statusSubscription; // Listen to status changes
+  Set<String> _deletedNotificationIds = {}; // Track deleted notifications
   String? _communityId;
   final _refreshKey = GlobalKey<RefreshIndicatorState>();
 
@@ -122,6 +123,18 @@ class _NotificationListState extends State<NotificationList> {
             return;
           }
 
+          // Get deleted notifications for this user
+          final deletedSnapshot = await FirebaseFirestore.instance
+              .collection('deleted_notifications')
+              .where('userId', isEqualTo: user.uid)
+              .get();
+
+          _deletedNotificationIds = deletedSnapshot.docs
+              .map((doc) => doc.data()['notificationId'] as String)
+              .toSet();
+
+          debugPrint('NOTIFICATION DEBUG: User has ${_deletedNotificationIds.length} deleted notifications');
+
           final statusSnapshot = await FirebaseFirestore.instance
               .collection('notification_status')
               .where('userId', isEqualTo: user.uid)
@@ -144,6 +157,12 @@ class _NotificationListState extends State<NotificationList> {
 
           for (final doc in snapshot.docs) {
             try {
+              // Skip deleted notifications
+              if (_deletedNotificationIds.contains(doc.id)) {
+                debugPrint('NOTIFICATION DEBUG: Skipping deleted notification: ${doc.id}');
+                continue;
+              }
+
               debugPrint(
                   'NOTIFICATION DEBUG: Processing community notification: ${doc.id}');
 
@@ -271,6 +290,16 @@ class _NotificationListState extends State<NotificationList> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
+      // Get deleted notifications
+      final deletedSnapshot = await FirebaseFirestore.instance
+          .collection('deleted_notifications')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+
+      _deletedNotificationIds = deletedSnapshot.docs
+          .map((doc) => doc.data()['notificationId'] as String)
+          .toSet();
+
       final notificationSnapshot = await FirebaseFirestore.instance
           .collection('community_notifications')
           .where('communityId', isEqualTo: _communityId)
@@ -297,6 +326,11 @@ class _NotificationListState extends State<NotificationList> {
 
       for (final doc in notificationSnapshot.docs) {
         try {
+          // Skip deleted notifications
+          if (_deletedNotificationIds.contains(doc.id)) {
+            continue;
+          }
+
           final data = doc.data();
           final isRead = !readStatusMap.containsKey(doc.id);
 
@@ -769,9 +803,28 @@ class _NotificationListState extends State<NotificationList> {
 
               // If user confirmed deletion, proceed with deletion
               if (shouldDelete) {
-                notificationService.deleteNotification(notification.id);
+                // Pass both notificationId and statusId to deleteNotification
+                await notificationService.deleteNotification(
+                  notification.notificationId,
+                  notification.id,
+                  isRead: notification.read,
+                );
 
+                // Immediately update the local state to remove the notification
                 if (mounted) {
+                  setState(() {
+                    // Add to deleted set
+                    _deletedNotificationIds.add(notification.notificationId);
+                    
+                    // Remove from local lists immediately for instant UI update
+                    _notifications.removeWhere(
+                      (n) => n.notificationId == notification.notificationId
+                    );
+                    _readNotifications.removeWhere(
+                      (n) => n.notificationId == notification.notificationId
+                    );
+                  });
+
                   scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: const Text('Notification removed'),
