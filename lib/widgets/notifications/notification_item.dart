@@ -266,9 +266,11 @@ class _NotificationItemState extends State<NotificationItem>
     // Determine icon based on notification type
     switch (widget.notification.type) {
       case 'community_notice':
+      case 'communityNotices':
         iconData = Icons.campaign_rounded;
         break;
       case 'social_interaction':
+      case 'socialInteractions':
         iconData = Icons.thumb_up_alt_rounded;
         break;
       case 'marketplace':
@@ -278,6 +280,7 @@ class _NotificationItemState extends State<NotificationItem>
         iconData = Icons.chat_rounded;
         break;
       case 'report':
+      case 'reports':
         iconData = Icons.report_problem_rounded;
         break;
       case 'volunteer':
@@ -318,14 +321,17 @@ class _NotificationItemState extends State<NotificationItem>
 
     switch (widget.notification.type) {
       case 'community_notice':
+      case 'communityNotices':
         return Colors.blue;
       case 'social_interaction':
+      case 'socialInteractions':
         return Colors.green;
       case 'marketplace':
         return Colors.orange;
       case 'chat':
         return Colors.purple;
       case 'report':
+      case 'reports':
         return Colors.red;
       case 'volunteer':
         return Colors.teal;

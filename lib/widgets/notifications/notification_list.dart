@@ -620,12 +620,20 @@ class _NotificationListState extends State<NotificationList> {
         switch (widget.filter) {
           case 'unread':
             return !notification.read;
-          case 'social':
-            return notification.type == 'social_interaction';
           case 'community':
-            return notification.type == 'community_notice';
+            return notification.type == 'community_notice' ||
+                notification.type == 'communityNotices' ||
+                notification.type == 'volunteer';
+          case 'social':
+            return notification.type == 'social_interaction' ||
+                notification.type == 'socialInteractions';
+          case 'market':
           case 'marketplace':
-            return notification.type == 'marketplace';
+            return notification.type == 'marketplace' ||
+                notification.type == 'chat';
+          case 'reports':
+            return notification.type == 'report' ||
+                notification.type == 'reports';
           default:
             return true;
         }
