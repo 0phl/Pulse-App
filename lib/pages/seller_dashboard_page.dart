@@ -10,6 +10,7 @@ import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // Models and services
 import '../models/market_item.dart';
@@ -26,6 +27,9 @@ import '../widgets/modern_shimmer_loading.dart';
 
 // Utils
 import '../utils/dashboard_utils.dart';
+
+// Pages
+import '../pages/seller_profile_page.dart';
 
 class SellerDashboardPage extends StatefulWidget {
   final int initialTabIndex;
@@ -412,71 +416,90 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          // Quick Actions
-          DashboardWidgets.buildQuickActions(
-            textPrimaryColor,
-            cardShadow,
-            () => Navigator.pushNamed(context, '/add_item')
-                .then((_) => _loadSellerData()),
-            _tabController,
-          ),
-
-          const SizedBox(height: 16),
-
           // Seller Rating Card
-          DashboardWidgets.buildDashboardCard(
-            cardBackgroundColor: cardBackgroundColor,
-            cardShadow: cardShadow,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Your Seller Rating',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2D3748),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.star,
-                        color: Colors.amber,
-                        size: 28,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                final currentUser = FirebaseAuth.instance.currentUser;
+                if (currentUser != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SellerProfilePage(
+                        sellerId: currentUser.uid,
+                        sellerName: 'My Profile',
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  );
+                }
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: DashboardWidgets.buildDashboardCard(
+                cardBackgroundColor: cardBackgroundColor,
+                cardShadow: cardShadow,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          _averageRating.toStringAsFixed(1),
+                        const Text(
+                          'Your Seller Rating',
                           style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: textPrimaryColor,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2D3748),
                           ),
                         ),
-                        Text(
-                          '($_totalRatings ${_totalRatings == 1 ? 'review' : 'reviews'})',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: textSecondaryColor,
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 16,
+                          color: Color(0xFF718096),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
                           ),
+                          child: const Icon(
+                            Icons.star,
+                            color: Colors.amber,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _averageRating.toStringAsFixed(1),
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: textPrimaryColor,
+                              ),
+                            ),
+                            Text(
+                              '($_totalRatings ${_totalRatings == 1 ? 'review' : 'reviews'})',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: textSecondaryColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
 
@@ -611,7 +634,8 @@ class _SellerDashboardPageState extends State<SellerDashboardPage>
                   ),
                   const SizedBox(height: 16),
                   ...DashboardWidgets.buildRecentActivityList(
-                    _dashboardStats,
+                    Map<String, dynamic>.from(_dashboardStats)..['recentActivity'] = 
+                        (_dashboardStats['recentActivity'] as List).take(5).toList(),
                     textPrimaryColor,
                     textSecondaryColor,
                   ),

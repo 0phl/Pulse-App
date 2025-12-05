@@ -364,36 +364,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                     child: const Text('Save Preferences'),
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // Test notification section
-                _buildSectionHeader('Testing'),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _testNotification,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12.0),
-                    ),
-                    child: const Text('Send Test Notification'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _showFcmToken,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12.0),
-                    ),
-                    child: const Text('Show FCM Token'),
-                  ),
-                ),
                 const SizedBox(height: 32),
               ],
             ),

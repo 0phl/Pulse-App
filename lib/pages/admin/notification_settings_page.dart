@@ -79,76 +79,7 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
     }
   }
 
-  Future<void> _showFcmToken() async {
-    try {
-      final token = await _notificationService.getFcmToken();
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('FCM Token'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Use this token to send test notifications from Firebase Console:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: SelectableText(
-                    token != null && token.isNotEmpty && !token.startsWith('Error:')
-                        ? token
-                        : 'No token available',
-                    style: const TextStyle(fontFamily: 'monospace'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Copy this token to use in Firebase Console to send test notifications.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  if (token != null && token.isNotEmpty && !token.startsWith('Error:')) {
-                    Clipboard.setData(ClipboardData(text: token));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Token copied to clipboard'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  }
-                  Navigator.of(context).pop();
-                },
-                child: const Text('Copy & Close'),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error getting FCM token: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
+  // _showFcmToken method removed
 
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -283,22 +214,7 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
                   color: Colors.teal,
                 ),
                 const Divider(),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.token,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  title: const Text('Show FCM Token'),
-                  subtitle: const Text('View your device token for testing notifications'),
-                  onTap: _showFcmToken,
-                ),
+                // Removed Show FCM Token ListTile
                 const SizedBox(height: 16),
                 Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -316,4 +232,7 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
             ),
     );
   }
+
+  // _showFcmToken method removed
+
 }

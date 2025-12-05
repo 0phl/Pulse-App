@@ -1045,14 +1045,6 @@ class _ChatPageState extends State<ChatPage> {
     try {
       await _marketService.markItemAsSold(widget.itemId);
 
-      String sellerName = _userNames[_currentUserId] ?? 'The seller';
-
-      // Send a system message to the chat
-      await _sendMessage(
-        message: ' $sellerName has marked this item as sold!',
-        isSystemMessage: true,
-      );
-
       // The real-time listener will automatically update the UI
       // but we'll also update the local state immediately for better UX
       if (mounted) {
@@ -1274,13 +1266,6 @@ class _ChatPageState extends State<ChatPage> {
       );
 
       await _marketService.addSellerRating(newRating);
-
-      // Send a system message to the chat
-      await _sendMessage(
-        message:
-            ' the buyer has left a $rating-star rating for this transaction!',
-        isSystemMessage: true,
-      );
 
       setState(() {
         _hasRatedSeller = true;
