@@ -604,6 +604,48 @@ class _ChatPageState extends State<ChatPage> {
         final currentUnreadCount = (unreadSnapshot.value as int?) ?? 0;
         await _chatRef.child('unreadCount').update({recipientId: currentUnreadCount + 1});
 
+        // Send notification to the recipient about the new media message
+        try {
+          final senderName = _userNames[currentUser.uid] ?? 'User';
+          final mediaTypeText = isImage ? '📷 Photo' : '🎥 Video';
+          
+          // Create notification in Firestore
+          final notificationRef = await FirebaseFirestore.instance
+              .collection('user_notifications')
+              .add({
+            'title': 'New Message from $senderName',
+            'body': 'About "${widget.itemTitle}": $mediaTypeText',
+            'type': 'marketplace',
+            'data': {
+              'chatId': _chatId,
+              'itemId': widget.itemId,
+              'itemTitle': widget.itemTitle,
+              'senderId': currentUser.uid,
+              'senderName': senderName,
+              'messagePreview': mediaTypeText,
+              'isMarketplaceMessage': true,
+            },
+            'createdAt': FieldValue.serverTimestamp(),
+            'createdBy': currentUser.uid,
+          });
+
+          // Create notification status for the recipient
+          await FirebaseFirestore.instance
+              .collection('notification_status')
+              .add({
+            'userId': recipientId,
+            'notificationId': notificationRef.id,
+            'read': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'type': 'marketplace',
+          });
+
+          debugPrint('Marketplace media notification sent to: $recipientId');
+        } catch (e) {
+          debugPrint('Error sending marketplace media notification: $e');
+          // Don't throw - notification failure shouldn't prevent message sending
+        }
+
         // Always include buyerId when sending a message
         if (!widget.isSeller) {
           await _chatRef.update({'buyerId': currentUser.uid});
@@ -704,6 +746,50 @@ class _ChatPageState extends State<ChatPage> {
         await _chatRef
             .child('unreadCount')
             .update({recipientId: currentUnreadCount + 1});
+
+        // Send notification to the recipient about the new message
+        try {
+          final senderName = _userNames[currentUser.uid] ?? 'User';
+          final messagePreview = messageText.length > 50
+              ? '${messageText.substring(0, 50)}...'
+              : messageText;
+          
+          // Create notification in Firestore
+          final notificationRef = await FirebaseFirestore.instance
+              .collection('user_notifications')
+              .add({
+            'title': 'New Message from $senderName',
+            'body': 'About "${widget.itemTitle}": $messagePreview',
+            'type': 'marketplace',
+            'data': {
+              'chatId': _chatId,
+              'itemId': widget.itemId,
+              'itemTitle': widget.itemTitle,
+              'senderId': currentUser.uid,
+              'senderName': senderName,
+              'messagePreview': messagePreview,
+              'isMarketplaceMessage': true,
+            },
+            'createdAt': FieldValue.serverTimestamp(),
+            'createdBy': currentUser.uid,
+          });
+
+          // Create notification status for the recipient
+          await FirebaseFirestore.instance
+              .collection('notification_status')
+              .add({
+            'userId': recipientId,
+            'notificationId': notificationRef.id,
+            'read': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'type': 'marketplace',
+          });
+
+          debugPrint('Marketplace message notification sent to: $recipientId');
+        } catch (e) {
+          debugPrint('Error sending marketplace message notification: $e');
+          // Don't throw - notification failure shouldn't prevent message sending
+        }
       }
 
       // Always include buyerId when sending a message

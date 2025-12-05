@@ -112,6 +112,7 @@ Future<void> handleNotification(RemoteMessage message) async {
             'body': message.notification?.body ?? message.data['body'],
             'type': notificationType,
             'data': message.data,
+            'userId': user.uid, // Add userId so it can be queried by the notification list
             'createdAt': FieldValue.serverTimestamp(),
             'createdBy': 'system',
             'requestId': requestId,
