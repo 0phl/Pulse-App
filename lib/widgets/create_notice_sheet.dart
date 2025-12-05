@@ -1448,6 +1448,34 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
     );
   }
 
+  void _toggleBold() {
+    final text = _contentController.text;
+    final selection = _contentController.selection;
+
+    if (selection.start < 0 || selection.end < 0 || selection.isCollapsed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select text to make it bold'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+      return;
+    }
+
+    final selectedText = text.substring(selection.start, selection.end);
+    final newText = text.replaceRange(
+      selection.start,
+      selection.end,
+      '**$selectedText**',
+    );
+
+    _contentController.text = newText;
+    _contentController.selection = TextSelection(
+      baseOffset: selection.start,
+      extentOffset: selection.end + 4, // +4 for the added asterisks
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -1523,10 +1551,30 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                 ),
                               ),
                               const SizedBox(height: 16),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: _toggleBold,
+                                    icon: const Icon(Icons.format_bold, size: 20),
+                                    label: const Text('Bold'),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: const Color(0xFF00C49A),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
                               Stack(
                                 children: [
                                   TextField(
                                     controller: _contentController,
+                                    keyboardType: TextInputType.multiline,
+                                    minLines: 5,
+                                    maxLines: null,
                                     decoration: InputDecoration(
                                       hintText:
                                           'What\'s happening in your community?',
@@ -1559,7 +1607,6 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                       filled: true,
                                       fillColor: Colors.grey.shade50,
                                     ),
-                                    maxLines: 3,
                                     onChanged: (value) {
                                       if (_contentError && value.isNotEmpty) {
                                         setState(() {
