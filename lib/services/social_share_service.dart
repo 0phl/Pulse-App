@@ -1,8 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:screenshot/screenshot.dart';
@@ -162,6 +160,7 @@ class SocialShareService {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
+          clipBehavior: Clip.hardEdge,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -170,7 +169,6 @@ class SocialShareService {
                 padding: const EdgeInsets.all(20),
                 decoration: const BoxDecoration(
                   color: Color(0xFF00C49A),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
                 child: const Row(
                   children: [
@@ -191,15 +189,22 @@ class SocialShareService {
               // Preview
               Container(
                 constraints: const BoxConstraints(maxHeight: 400),
+                width: double.infinity,
+                color: Colors.grey[100],
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
-                  child: ShareCardWidget(notice: notice),
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: ShareCardWidget(notice: notice),
+                    ),
+                  ),
                 ),
               ),
               
               // Info text
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.only(top: 16, left: 20, right: 20),
                 child: Text(
                   'This is how your share will look',
                   style: TextStyle(

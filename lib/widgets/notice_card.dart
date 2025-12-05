@@ -1121,39 +1121,39 @@ class _NoticeCardState extends State<NoticeCard> {
                         color: Colors.grey.shade200,
                       ),
                       Expanded(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () async {
-                                  // Show beautiful social media-style share with preview
-                                  await _shareService.shareWithPreview(
-                                    notice,
-                                    context,
-                                  );
-                                },
-                                customBorder: const CircleBorder(),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8),
-                                  child: Icon(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () async {
+                              // Show beautiful social media-style share with preview
+                              await _shareService.shareWithPreview(
+                                notice,
+                                context,
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
                                     Icons.share_outlined,
                                     size: 20,
                                     color: Colors.grey[600],
                                   ),
-                                ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Share',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Share',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ],

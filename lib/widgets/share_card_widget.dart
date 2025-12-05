@@ -136,12 +136,15 @@ class ShareCardWidget extends StatelessWidget {
               const SizedBox(height: 24),
               
               // Full content (no truncation since it's an image)
-              Text(
-                notice.content,
-                style: const TextStyle(
-                  fontSize: 17,
-                  height: 1.5,
-                  color: Color(0xFF2A2A2A),
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 17,
+                    height: 1.5,
+                    color: Color(0xFF2A2A2A),
+                    fontFamily: 'Inter', // Explicitly set font family since RichText doesn't inherit it automatically
+                  ),
+                  children: _parseContent(notice.content),
                 ),
                 maxLines: 15, // Show more lines
                 overflow: TextOverflow.ellipsis,
@@ -276,65 +279,10 @@ class ShareCardWidget extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
               ],
-          
-              // Engagement stats
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8F9FA),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildStat(Icons.favorite_border, notice.likesCount.toString(), 'Likes'),
-                    Container(width: 1, height: 30, color: Colors.grey.shade300),
-                    _buildStat(Icons.chat_bubble_outline, notice.commentsCount.toString(), 'Comments'),
-                    if (notice.poll != null) ...[
-                      Container(width: 1, height: 30, color: Colors.grey.shade300),
-                      _buildStat(
-                        Icons.how_to_vote_outlined,
-                        notice.poll!.options.fold(0, (sum, opt) => sum + opt.voteCount).toString(),
-                        'Votes',
-                      ),
-                    ],
-                  ],
-                ),
-              ),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildStat(IconData icon, String count, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: const Color(0xFF666666), size: 18),
-        const SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              count,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A1A),
-              ),
-            ),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: Color(0xFF666666),
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 
@@ -384,16 +332,26 @@ class ShareCardWidget extends StatelessWidget {
     );
   }
 
-  String _truncateContent(String content, int maxLength) {
-    if (content.length <= maxLength) {
-      return content;
+  List<TextSpan> _parseContent(String text) {
+    final List<TextSpan> spans = [];
+    final RegExp exp = RegExp(r'\*\*(.*?)\*\*');
+    int start = 0;
+
+    for (final Match match in exp.allMatches(text)) {
+      if (match.start > start) {
+        spans.add(TextSpan(text: text.substring(start, match.start)));
+      }
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ));
+      start = match.end;
     }
-    
-    final truncateAt = content.lastIndexOf(' ', maxLength);
-    if (truncateAt == -1) {
-      return '${content.substring(0, maxLength)}...';
+
+    if (start < text.length) {
+      spans.add(TextSpan(text: text.substring(start)));
     }
-    
-    return '${content.substring(0, truncateAt)}...';
+
+    return spans;
   }
 }
