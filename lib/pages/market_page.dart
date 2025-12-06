@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import '../widgets/market_item_card.dart';
 import '../models/market_item.dart';
 import 'chat_page.dart';
@@ -410,6 +409,7 @@ class _MarketPageState extends State<MarketPage>
       }
 
       final userData = userSnapshot.value as Map<dynamic, dynamic>;
+      final sellerName = userData['fullName'] ?? userData['username'] ?? 'Unknown User';
 
       // Upload images to Cloudinary and get the download URLs
       List<String> downloadUrls = await _uploadImages(item.imageUrls);
@@ -419,8 +419,7 @@ class _MarketPageState extends State<MarketPage>
         'price': item.price,
         'description': item.description,
         'sellerId': currentUser.uid,
-        'sellerName':
-            userData['fullName'] ?? userData['username'] ?? 'Unknown User',
+        'sellerName': sellerName,
         'imageUrls': downloadUrls,
         'communityId': _currentUserCommunityId,
         'createdAt': FieldValue.serverTimestamp(),

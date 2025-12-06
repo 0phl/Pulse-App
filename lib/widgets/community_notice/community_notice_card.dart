@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../models/community_notice.dart';
 import '../../services/community_notice_service.dart';
+import '../../services/social_share_service.dart';
 import '../media_gallery_widget.dart';
 import '../multi_image_viewer_page.dart';
 import 'comments_page.dart';
@@ -48,9 +49,33 @@ class CommunityNoticeCard extends StatelessWidget {
     }
   }
 
+  List<TextSpan> _parseContent(String text) {
+    final List<TextSpan> spans = [];
+    final RegExp exp = RegExp(r'\*\*(.*?)\*\*');
+    int start = 0;
+
+    for (final Match match in exp.allMatches(text)) {
+      if (match.start > start) {
+        spans.add(TextSpan(text: text.substring(start, match.start)));
+      }
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ));
+      start = match.end;
+    }
+
+    if (start < text.length) {
+      spans.add(TextSpan(text: text.substring(start)));
+    }
+
+    return spans;
+  }
+
   @override
   Widget build(BuildContext context) {
     final CommunityNoticeService noticeService = CommunityNoticeService();
+    final SocialShareService shareService = SocialShareService();
 
     return Card(
       elevation: 0,
@@ -583,12 +608,15 @@ class CommunityNoticeCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                 ],
-                Text(
-                  notice.content,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.grey[800],
-                    height: 1.5,
+                RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey[800],
+                      height: 1.5,
+                      fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
+                    ),
+                    children: _parseContent(notice.content),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -700,8 +728,12 @@ class CommunityNoticeCard extends StatelessWidget {
                         child: Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: () {
-                              // Implement share functionality
+                            onTap: () async {
+                              // Show beautiful social media-style share with preview
+                              await shareService.shareWithPreview(
+                                notice,
+                                context,
+                              );
                             },
                             borderRadius: BorderRadius.circular(20),
                             child: Padding(

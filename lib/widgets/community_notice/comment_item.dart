@@ -16,7 +16,7 @@ class CommentItem extends StatelessWidget {
   final Map<String, Map<String, dynamic>> replyUserProfiles;
 
   const CommentItem({
-    Key? key,
+    super.key,
     required this.comment,
     this.userProfile,
     required this.isExpanded,
@@ -26,7 +26,7 @@ class CommentItem extends StatelessWidget {
     required this.onLikeReply,
     required this.onReplyToReply,
     required this.replyUserProfiles,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

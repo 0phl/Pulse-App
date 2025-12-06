@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../models/report.dart';
 import '../../services/admin_service.dart';
-// Auth service import removed as it's not used
+import '../../services/pdf_report_service.dart';
 import '../../widgets/report_card.dart';
 import '../../widgets/pie_chart_painter.dart';
 import '../../widgets/report_detail_dialog.dart';
 import '../../widgets/report_action_dialogs.dart';
 import '../../widgets/reports_analytics.dart';
 import '../../widgets/report_filter_chip.dart';
+import '../../widgets/pdf_export_dialog.dart';
 import '../../constants/report_styles.dart';
 import '../../widgets/admin_scaffold.dart';
 
@@ -784,9 +785,13 @@ class AdminReportsPage extends StatefulWidget {
 class _AdminReportsPageState extends State<AdminReportsPage>
     with SingleTickerProviderStateMixin {
   final _adminService = AdminService();
+  final _pdfService = PdfReportService();
   late TabController _tabController;
   String _communityName = '';
+  String _barangayAddress = '';
+  String _adminName = '';
   bool _isLoading = true;
+  bool _isGeneratingPdf = false;
   String _selectedFilter = 'All';
   Map<String, dynamic> _reportStats = {
     'statusCounts': {
@@ -864,7 +869,25 @@ class _AdminReportsPageState extends State<AdminReportsPage>
     try {
       final community = await _adminService.getCurrentAdminCommunity();
       if (community != null && mounted) {
-        setState(() => _communityName = community.name);
+        setState(() {
+          _communityName = community.name;
+          // Use description or name as address fallback since Community doesn't have fullAddress
+          _barangayAddress = community.description ?? community.name;
+        });
+      }
+      
+      // Get admin name
+      final user = _adminService.currentUserId;
+      if (user != null) {
+        final adminStream = _adminService.getAdminUser(user);
+        await for (final admin in adminStream.take(1)) {
+          if (admin != null && mounted) {
+            setState(() {
+              _adminName = admin.fullName;
+            });
+            break;
+          }
+        }
       }
     } catch (e) {
       _showErrorSnackBar('Error loading community data');
@@ -930,6 +953,72 @@ class _AdminReportsPageState extends State<AdminReportsPage>
     }
   }
 
+  // PDF Export Methods
+  void _showPdfExportDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => PdfExportDialog(
+        onGenerate: _generatePdf,
+      ),
+    );
+  }
+
+  Future<void> _generatePdf(PdfExportConfig config) async {
+    setState(() {
+      _isGeneratingPdf = true;
+    });
+
+    try {
+      // Get all reports based on filter
+      List<Report> reports = [];
+      final reportsStream = _adminService.getReports(status: config.statusFilter);
+      await for (final reportList in reportsStream.take(1)) {
+        reports = reportList;
+        
+        // Filter by date range if specified
+        if (config.startDate != null || config.endDate != null) {
+          reports = reports.where((report) {
+            if (config.startDate != null && report.createdAt.isBefore(config.startDate!)) {
+              return false;
+            }
+            if (config.endDate != null && report.createdAt.isAfter(config.endDate!.add(const Duration(days: 1)))) {
+              return false;
+            }
+            return true;
+          }).toList();
+        }
+        break;
+      }
+
+      // Generate and open/download PDF using Printing.layoutPdf
+      await _pdfService.generateComplaintReportsPdf(
+        reports: reports,
+        reportStats: _reportStats,
+        barangayName: _communityName,
+        adminName: _adminName,
+        barangayAddress: _barangayAddress,
+        startDate: config.startDate,
+        endDate: config.endDate,
+        includeDetailedList: config.includeDetailedList,
+        filterStatus: config.statusFilter,
+      );
+
+      if (mounted) {
+        _showSuccessSnackBar('PDF report generated successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('Error generating PDF: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingPdf = false;
+        });
+      }
+    }
+  }
+
   // Unused methods removed
 
   @override
@@ -956,6 +1045,21 @@ class _AdminReportsPageState extends State<AdminReportsPage>
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadInitialData,
+            tooltip: 'Refresh',
+          ),
+          IconButton(
+            icon: _isGeneratingPdf
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.picture_as_pdf, color: Colors.white),
+            onPressed: _isGeneratingPdf ? null : _showPdfExportDialog,
+            tooltip: 'Generate PDF Report',
           ),
         ],
       ),

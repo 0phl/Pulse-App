@@ -94,14 +94,14 @@ class _CommunitiesListState extends State<CommunitiesList>
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFFD1FAE5)),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.info_outline_rounded,
                     color: Color(0xFF059669),
                     size: 20,
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Only active and inactive communities are shown here. Pending and rejected applications can be found in the Admin Applications section.',
@@ -201,16 +201,16 @@ class _CommunitiesListState extends State<CommunitiesList>
         value: _statusFilter,
         icon: const Icon(Icons.filter_list_rounded, size: 18),
         borderRadius: BorderRadius.circular(12),
-        items: [
+        items: const [
           DropdownMenuItem(
             value: 'all',
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.all_inclusive_rounded,
+                Icon(Icons.all_inclusive_rounded,
                     size: 18, color: Color(0xFF64748B)),
-                const SizedBox(width: 8),
-                const Text('All Status'),
+                SizedBox(width: 8),
+                Text('All Status'),
               ],
             ),
           ),
@@ -219,10 +219,10 @@ class _CommunitiesListState extends State<CommunitiesList>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.check_circle_rounded,
+                Icon(Icons.check_circle_rounded,
                     size: 18, color: Color(0xFF10B981)),
-                const SizedBox(width: 8),
-                const Text('Active'),
+                SizedBox(width: 8),
+                Text('Active'),
               ],
             ),
           ),
@@ -231,10 +231,10 @@ class _CommunitiesListState extends State<CommunitiesList>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.cancel_rounded,
+                Icon(Icons.cancel_rounded,
                     size: 18, color: Color(0xFFEF4444)),
-                const SizedBox(width: 8),
-                const Text('Inactive'),
+                SizedBox(width: 8),
+                Text('Inactive'),
               ],
             ),
           ),
@@ -615,7 +615,7 @@ class _CommunitiesListState extends State<CommunitiesList>
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Deactivate Community'),
-        content: Container(
+        content: SizedBox(
           width: MediaQuery.of(context).size.width * 0.8 > 400
               ? 400
               : MediaQuery.of(context).size.width * 0.8,
@@ -643,7 +643,7 @@ class _CommunitiesListState extends State<CommunitiesList>
                       borderRadius: BorderRadius.circular(8.0),
                     ),
                     contentPadding:
-                        EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                     alignLabelWithHint: true,
                   ),
                   maxLines: 4,

@@ -6,11 +6,11 @@ class ReportFilterChip extends StatelessWidget {
   final Function(bool)? onSelected;
 
   const ReportFilterChip({
-    Key? key,
+    super.key,
     required this.label,
     this.isSelected = false,
     this.onSelected,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -112,6 +112,7 @@ Future<void> handleNotification(RemoteMessage message) async {
             'body': message.notification?.body ?? message.data['body'],
             'type': notificationType,
             'data': message.data,
+            'userId': user.uid, // Add userId so it can be queried by the notification list
             'createdAt': FieldValue.serverTimestamp(),
             'createdBy': 'system',
             'requestId': requestId,
@@ -1659,7 +1660,7 @@ class NotificationService with WidgetsBindingObserver {
             priority: Priority.high,
             color: const Color(0xFF00C49A),
           ),
-          iOS: DarwinNotificationDetails(
+          iOS: const DarwinNotificationDetails(
             presentAlert: true,
             presentBadge: true,
             presentSound: true,
@@ -1804,15 +1805,33 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  Future<void> deleteNotification(String statusId) async {
-    try {
-      // Only delete the status record, not the actual notification
-      // This preserves the notification for other users
-      await _firestore.collection('notification_status').doc(statusId).delete();
+  Future<void> deleteNotification(String notificationId, String statusId, {bool isRead = false}) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      debugPrint('Cannot delete notification: User not logged in');
+      return;
+    }
 
-      debugPrint('Notification status deleted');
+    try {
+      // Create a deleted notification record to prevent it from showing again
+      await _firestore.collection('deleted_notifications').add({
+        'userId': user.uid,
+        'notificationId': notificationId,
+        'deletedAt': FieldValue.serverTimestamp(),
+      });
+      debugPrint('Created deleted notification record for user ${user.uid}, notification $notificationId');
+
+      // Also delete the status record if it exists (for unread notifications)
+      if (!isRead) {
+        try {
+          await _firestore.collection('notification_status').doc(statusId).delete();
+          debugPrint('Notification status deleted for unread notification');
+        } catch (e) {
+          debugPrint('Error deleting notification status (may not exist): $e');
+        }
+      }
     } catch (e) {
-      debugPrint('Error deleting notification status: $e');
+      debugPrint('Error deleting notification: $e');
     }
   }
 

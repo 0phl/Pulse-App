@@ -1347,7 +1347,7 @@ class AdminService {
     final notices = <CommunityNotice>[];
 
     try {
-      final dataMap = data as Map<dynamic, dynamic>;
+      final dataMap = data;
 
       for (var entry in dataMap.entries) {
         try {

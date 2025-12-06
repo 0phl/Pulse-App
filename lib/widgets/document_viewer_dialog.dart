@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import '../services/file_downloader_service.dart';
 import 'image_viewer_page.dart';
-import 'file_download_progress.dart';
 import 'pdf_viewer_page.dart';
 import 'video_player_page.dart';
 import 'docx_viewer_page.dart';

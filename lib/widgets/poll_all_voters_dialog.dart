@@ -153,8 +153,8 @@ class _PollAllVotersDialogState extends State<PollAllVotersDialog> {
                 const Icon(Icons.poll_outlined,
                   color: Color(0xFF00C49A), size: 20),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: const Text(
+                const Expanded(
+                  child: Text(
                     'Poll Voters',
                     style: TextStyle(
                       fontSize: 18,

@@ -22,14 +22,14 @@ class SaveMediaButton extends StatelessWidget {
   final Color? color;
 
   const SaveMediaButton({
-    Key? key,
+    super.key,
     required this.filePath,
     this.isVideo = false,
     this.album,
     this.icon = Icons.download,
     this.text = 'Save to Gallery',
     this.color,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

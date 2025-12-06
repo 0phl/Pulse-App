@@ -6,10 +6,10 @@ class RejectedVerificationPage extends StatelessWidget {
   final String? rejectionReason;
 
   const RejectedVerificationPage({
-    Key? key,
+    super.key,
     required this.registrationId,
     this.rejectionReason,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

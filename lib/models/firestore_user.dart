@@ -26,6 +26,54 @@ class FirestoreUser {
     return '$firstName $lastName';
   }
 
+  // Calculate age from birthDate
+  int get age {
+    final now = DateTime.now();
+    int calculatedAge = now.year - birthDate.year;
+    if (now.month < birthDate.month ||
+        (now.month == birthDate.month && now.day < birthDate.day)) {
+      calculatedAge--;
+    }
+    return calculatedAge;
+  }
+
+  // Get age group category
+  String get ageGroup {
+    final currentAge = age;
+    if (currentAge <= 11) {
+      return 'Children';
+    } else if (currentAge <= 17) {
+      return 'Youth';
+    } else if (currentAge <= 59) {
+      return 'Adults';
+    } else {
+      return 'Seniors';
+    }
+  }
+
+  // Get full address with barangay and municipality
+  String get fullAddress {
+    final parts = <String>[];
+
+    // Add street address
+    if (address.isNotEmpty) {
+      parts.add(address);
+    }
+
+    // Add barangay
+    if (location.containsKey('barangay') && location['barangay']!.isNotEmpty) {
+      parts.add(location['barangay']!);
+    }
+
+    // Add municipality
+    if (location.containsKey('municipality') &&
+        location['municipality']!.isNotEmpty) {
+      parts.add(location['municipality']!);
+    }
+
+    return parts.join(', ');
+  }
+
   FirestoreUser({
     required this.uid,
     required this.firstName,
@@ -49,9 +97,11 @@ class FirestoreUser {
     return {
       'uid': uid,
       'firstName': firstName,
-      if (middleName != null && middleName!.isNotEmpty) 'middleName': middleName,
+      if (middleName != null && middleName!.isNotEmpty)
+        'middleName': middleName,
       'lastName': lastName,
-      'fullName': fullName, // Store the combined name for backward compatibility
+      'fullName':
+          fullName, // Store the combined name for backward compatibility
       'username': username,
       'email': email,
       'mobile': mobile,

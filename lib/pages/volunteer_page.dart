@@ -19,7 +19,7 @@ class _VolunteerPageState extends State<VolunteerPage> {
   final CommunityService _communityService = CommunityService();
   Stream<List<VolunteerPost>>? _postsStream;
   String? _currentUserCommunityId;
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   @override
   void initState() {
@@ -69,7 +69,7 @@ class _VolunteerPageState extends State<VolunteerPage> {
       _postsStream = query.snapshots().map((snapshot) {
         return snapshot.docs
             .map((doc) => VolunteerPost.fromMap(
-                doc.data() as Map<String, dynamic>, doc.id))
+                doc.data(), doc.id))
             .where((post) => post.eventDate.isAfter(DateTime.now()))
             .toList();
       });
@@ -165,10 +165,10 @@ class _VolunteerPageState extends State<VolunteerPage> {
                 ),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('Yes'),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.red,
                   ),
+                  child: const Text('Yes'),
                 ),
               ],
             ),

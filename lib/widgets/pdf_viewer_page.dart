@@ -27,8 +27,8 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
   bool _hasError = false;
   String? _localPdfPath;
   String? _errorMessage;
-  int _totalPages = 0;
-  int _currentPage = 0;
+  final int _totalPages = 0;
+  final int _currentPage = 0;
   final MediaSaverService _mediaSaverService = MediaSaverService();
 
   @override
@@ -290,8 +290,8 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
             child: FloatingActionButton(
               backgroundColor: const Color(0xFF00C49A),
               foregroundColor: Colors.white,
-              child: const Icon(Icons.download),
               onPressed: _openInBrowser,
+              child: const Icon(Icons.download),
             ),
           ),
         ],

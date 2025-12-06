@@ -4,7 +4,6 @@ import 'widgets/admin_applications_list.dart';
 import 'widgets/communities_list.dart';
 import 'analytics_dashboard_page.dart';
 import 'barangay_profiling_page.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SuperAdminDashboardPage extends StatefulWidget {
   const SuperAdminDashboardPage({super.key});

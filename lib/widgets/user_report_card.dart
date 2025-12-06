@@ -10,14 +10,14 @@ class UserReportCard extends StatelessWidget {
   final VoidCallback? onViewDetails;
 
   const UserReportCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.location,
     required this.date,
     required this.status,
     required this.statusColor,
     this.onViewDetails,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

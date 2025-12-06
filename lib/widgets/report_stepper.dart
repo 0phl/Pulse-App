@@ -8,13 +8,13 @@ class ReportStepIndicator extends StatelessWidget {
   final VoidCallback? onTap;
 
   const ReportStepIndicator({
-    Key? key,
+    super.key,
     required this.step,
     required this.title,
     required this.isActive,
     required this.isCompleted,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

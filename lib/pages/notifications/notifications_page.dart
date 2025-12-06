@@ -19,9 +19,10 @@ class _NotificationsPageState extends State<NotificationsPage>
   final List<String> _filterOptions = [
     'All',
     'Unread',
-    'Social',
     'Community',
-    'Marketplace'
+    'Social',
+    'Market',
+    'Reports'
   ];
   String _currentFilter = 'All';
   bool _isRefreshing = false;

@@ -223,8 +223,48 @@ class NotificationModel {
       return true;
     }
 
+    // Report notifications: distinguish between admin and user notifications
+    // - Report submissions (new reports from users) → Admin notifications
+    // - Report status updates (admin updating report status) → User notifications
     if (type == 'reports' || type == 'report') {
-      return true;
+      // If the notification contains a 'status' field in data, it's a status update for the user
+      if (data.containsKey('status')) {
+        debugPrint('REPORT NOTIFICATION: This is a status update notification for user');
+        return false; // User notification, not admin
+      }
+      // Otherwise, it's a new report submission for the admin
+      debugPrint('REPORT NOTIFICATION: This is a new report submission for admin');
+      return true; // Admin notification
+    }
+
+    // Marketplace notifications: distinguish between admin and user notifications
+    // - Pending items (new items from sellers) → Admin notifications
+    // - Approval/rejection (admin updating item status) → User notifications
+    // - Messages → User notifications (seller or buyer)
+    if (type == 'marketplace') {
+      // Check if it's a message notification
+      if (data.containsKey('isMarketplaceMessage') &&
+          (data['isMarketplaceMessage'] == true || data['isMarketplaceMessage'] == 'true')) {
+        debugPrint('MARKETPLACE NOTIFICATION: This is a message notification for user');
+        return false; // User notification, not admin
+      }
+      
+      // If the notification contains 'isForAdmin', it's a pending item for admin
+      if (data.containsKey('isForAdmin') &&
+          (data['isForAdmin'] == true || data['isForAdmin'] == 'true')) {
+        debugPrint('MARKETPLACE NOTIFICATION: This is a pending item for admin');
+        return true; // Admin notification
+      }
+      
+      // If the notification contains approval/rejection status, it's for the seller (user)
+      if (data.containsKey('status') &&
+          (data['status'] == 'approved' || data['status'] == 'rejected')) {
+        debugPrint('MARKETPLACE NOTIFICATION: This is an approval/rejection notification for user');
+        return false; // User notification, not admin
+      }
+      
+      // Default: treat as user notification
+      return false;
     }
 
     if (data.containsKey('adminAction') &&

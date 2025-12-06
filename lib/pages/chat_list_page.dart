@@ -115,8 +115,8 @@ class _ChatListPageState extends State<ChatListPage> {
   bool _isLoading = true;
   List<ChatInfo> _chats = [];
   String? _error;
-  Map<String, String> _userNames = {};
-  Map<String, dynamic> _itemDetails = {};
+  final Map<String, String> _userNames = {};
+  final Map<String, dynamic> _itemDetails = {};
   String? _currentUserCommunityId;
 
   @override
@@ -347,7 +347,7 @@ class _ChatListPageState extends State<ChatListPage> {
                 print('Missing sellerId for chat: $chatId');
                 continue;
               }
-              if (messagesMap == null || messagesMap.isEmpty) {
+              if (messagesMap.isEmpty) {
                 print('Missing or empty messages for chat: $chatId');
                 continue;
               }
@@ -519,7 +519,7 @@ class _ChatListPageState extends State<ChatListPage> {
                           Icon(
                             Icons.chat_bubble_outline,
                             size: 80,
-                            color: Color(0xFF00C49A).withOpacity(0.5),
+                            color: const Color(0xFF00C49A).withOpacity(0.5),
                           ),
                           const SizedBox(height: 16),
                           Container(

@@ -114,7 +114,7 @@ class CommunityService {
       barangayCode,
     );
 
-    final status = 'pending';
+    const status = 'pending';
     final locationStatusId = Community.createLocationStatusId(
       regionCode,
       provinceCode,

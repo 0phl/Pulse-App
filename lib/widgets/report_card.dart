@@ -36,13 +36,13 @@ class ReportCard extends StatelessWidget {
   final Function(String)? onShowRejectDialog;
 
   const ReportCard({
-    Key? key,
+    super.key,
     required this.report,
     required this.onViewDetails,
     required this.onHandleReport,
     required this.onShowResolveDialog,
     this.onShowRejectDialog,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +61,7 @@ class ReportCard extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               color: ReportStyles.getStatusColor(status).withOpacity(0.1),
-              borderRadius: BorderRadius.only(
+              borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(ReportStyles.cardBorderRadius),
                 topRight: Radius.circular(ReportStyles.cardBorderRadius),
               ),
@@ -100,7 +100,7 @@ class ReportCard extends StatelessWidget {
 
           // Report content
           Padding(
-            padding: EdgeInsets.all(ReportStyles.cardPadding),
+            padding: const EdgeInsets.all(ReportStyles.cardPadding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

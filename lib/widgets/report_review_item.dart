@@ -7,12 +7,12 @@ class ReportReviewItem extends StatelessWidget {
   final VoidCallback? onEdit;
 
   const ReportReviewItem({
-    Key? key,
+    super.key,
     required this.icon,
     required this.label,
     required this.value,
     this.onEdit,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

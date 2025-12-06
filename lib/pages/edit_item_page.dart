@@ -9,10 +9,10 @@ class EditItemPage extends StatefulWidget {
   final Function(MarketItem updatedItem, List<String>? newImagePaths) onItemUpdated;
 
   const EditItemPage({
-    Key? key,
+    super.key,
     required this.item,
     required this.onItemUpdated,
-  }) : super(key: key);
+  });
 
   @override
   State<EditItemPage> createState() => _EditItemPageState();
@@ -57,7 +57,7 @@ class _EditItemPageState extends State<EditItemPage> {
       return;
     }
 
-    final List<XFile>? images = await _picker.pickMultiImage();
+    final List<XFile> images = await _picker.pickMultiImage();
     if (images != null && images.isNotEmpty) {
       setState(() {
         final int remainingSlots = 5 - (_newImages.length + _currentImageUrls.length);

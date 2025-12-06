@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
@@ -530,6 +529,11 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
                         _primaryChartColor,
                         widget.textSecondaryColor,
                       ),
+                    _buildLegendItem(
+                      'Average',
+                      Colors.blue,
+                      widget.textSecondaryColor,
+                    ),
                   ],
                 ),
               ),
@@ -566,6 +570,9 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
   }
 
   Widget _buildAreaChart() {
+    // Calculate average
+    double average = _salesData.isEmpty ? 0 : _salesData.map((e) => e.value).reduce((a, b) => a + b) / _salesData.length;
+
     return LineChart(
       LineChartData(
         gridData: FlGridData(
@@ -578,6 +585,28 @@ class _SalesChartContentState extends State<_SalesChartContent> with SingleTicke
               strokeWidth: 1,
             );
           },
+        ),
+        extraLinesData: ExtraLinesData(
+          horizontalLines: [
+            if (average > 0)
+              HorizontalLine(
+                y: average,
+                color: Colors.blue.withOpacity(0.5),
+                strokeWidth: 1,
+                dashArray: [5, 5],
+                label: HorizontalLineLabel(
+                  show: true,
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(right: 5, bottom: 5),
+                  style: TextStyle(
+                    color: Colors.blue.shade700,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  labelResolver: (line) => 'Avg: ₱${average.toStringAsFixed(0)}',
+                ),
+              ),
+          ],
         ),
         titlesData: _buildTitlesData(),
         borderData: FlBorderData(

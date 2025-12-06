@@ -5,8 +5,8 @@ import 'package:chewie/chewie.dart';
 import '../models/community_notice.dart';
 import '../services/admin_service.dart';
 import '../services/file_downloader_service.dart';
+import '../services/social_share_service.dart';
 import 'comments_sheet.dart';
-import 'image_gallery_viewer.dart';
 import 'video_player_page.dart';
 import 'media_gallery_widget.dart';
 import 'multi_image_viewer_page.dart';
@@ -38,6 +38,7 @@ class NoticeCard extends StatefulWidget {
 class _NoticeCardState extends State<NoticeCard> {
   late CommunityNotice _notice;
   final AdminService _adminService = AdminService();
+  final SocialShareService _shareService = SocialShareService();
 
   @override
   void initState() {
@@ -121,6 +122,29 @@ class _NoticeCardState extends State<NoticeCard> {
     } else {
       return 'Ends in ${difference.inSeconds == 1 ? '1 second' : '${difference.inSeconds} seconds'}';
     }
+  }
+
+  List<TextSpan> _parseContent(String text) {
+    final List<TextSpan> spans = [];
+    final RegExp exp = RegExp(r'\*\*(.*?)\*\*');
+    int start = 0;
+
+    for (final Match match in exp.allMatches(text)) {
+      if (match.start > start) {
+        spans.add(TextSpan(text: text.substring(start, match.start)));
+      }
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ));
+      start = match.end;
+    }
+
+    if (start < text.length) {
+      spans.add(TextSpan(text: text.substring(start)));
+    }
+
+    return spans;
   }
 
   @override
@@ -970,12 +994,15 @@ class _NoticeCardState extends State<NoticeCard> {
                   ),
                   const SizedBox(height: 12),
                 ],
-                Text(
-                  notice.content,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.grey[800],
-                    height: 1.5,
+                RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey[800],
+                      height: 1.5,
+                      fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
+                    ),
+                    children: _parseContent(notice.content),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -1094,35 +1121,39 @@ class _NoticeCardState extends State<NoticeCard> {
                         color: Colors.grey.shade200,
                       ),
                       Expanded(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () {
-                                  // Implement share functionality
-                                },
-                                customBorder: const CircleBorder(),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8),
-                                  child: Icon(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () async {
+                              // Show beautiful social media-style share with preview
+                              await _shareService.shareWithPreview(
+                                notice,
+                                context,
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
                                     Icons.share_outlined,
                                     size: 20,
                                     color: Colors.grey[600],
                                   ),
-                                ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Share',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Share',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ],

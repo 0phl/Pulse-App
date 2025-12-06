@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../services/admin_service.dart';
+import '../../services/resident_statistics_service.dart';
+import '../../services/csv_export_service.dart';
+import '../../services/resident_pdf_service.dart';
 import 'dart:async';
 import '../scan_qr_page.dart';
 import '../../models/firestore_user.dart';
 import '../../widgets/admin_scaffold.dart';
+import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UsersPage extends StatefulWidget {
   const UsersPage({super.key});
@@ -14,6 +19,9 @@ class UsersPage extends StatefulWidget {
 
 class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   final _adminService = AdminService();
+  final _residentStatsService = ResidentStatisticsService();
+  final _csvExportService = CsvExportService();
+  final _pdfExportService = ResidentPdfService();
   final _searchController = TextEditingController();
   late TabController _tabController;
   late AnimationController _controller;
@@ -31,6 +39,14 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   String _pendingTabFilter = 'Pending Approval';
   final List<String> _filterOptions = ['All', 'Active', 'Inactive'];
   final List<String> _pendingFilterOptions = ['Pending Approval', 'Rejected'];
+
+  // Resident Directory state
+  List<FirestoreUser> _residentUsers = [];
+  List<FirestoreUser> _filteredResidentUsers = [];
+  String _selectedAgeFilter = 'All';
+  final bool _groupByHousehold = false;
+  Map<String, dynamic>? _demographics;
+  Map<String, List<FirestoreUser>>? _households;
 
   @override
   void initState() {
@@ -99,14 +115,14 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
 
       if (_tabController.index == 0) {
         debugPrint('Loading All Users tab data');
-        _loadUsers().then((_) {
+        _loadResidentUsers().then((_) {
           if (mounted) {
             setState(() {
               _isLoading = false;
             });
           }
         });
-      } else {
+      } else if (_tabController.index == 1) {
         debugPrint('Loading Pending Verification tab data');
         _loadPendingUsers().then((_) {
           if (mounted) {
@@ -122,27 +138,32 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   }
 
   void _filterUsers() {
-    debugPrint('_filterUsers called with search text: "${_searchController.text}"');
+    debugPrint(
+        '_filterUsers called with search text: "${_searchController.text}"');
     debugPrint('Current tab index: ${_tabController.index}');
 
     setState(() {
       if (_tabController.index == 0) {
-        _applyCurrentFilter();
-      } else {
+        // Filter resident directory users
+        _applyResidentFilters();
+      } else if (_tabController.index == 1) {
         // Filter pending/rejected users based on the current filter
         final searchTerm = _searchController.text.toLowerCase();
 
         debugPrint('Current pending tab filter: $_pendingTabFilter');
-        debugPrint('Pending users: ${_pendingUsers.length}, Rejected users: ${_rejectedUsers.length}');
+        debugPrint(
+            'Pending users: ${_pendingUsers.length}, Rejected users: ${_rejectedUsers.length}');
 
         if (_pendingTabFilter == 'Pending Approval') {
-          debugPrint('Filtering ${_pendingUsers.length} pending approval users with search term: "$searchTerm"');
+          debugPrint(
+              'Filtering ${_pendingUsers.length} pending approval users with search term: "$searchTerm"');
 
           // Always show all pending users if search is empty
           if (searchTerm.isEmpty) {
             _filteredPendingUsers = List.from(_pendingUsers);
             _filteredRejectedUsers = [];
-            debugPrint('Search term empty, showing all ${_filteredPendingUsers.length} pending approval users');
+            debugPrint(
+                'Search term empty, showing all ${_filteredPendingUsers.length} pending approval users');
           } else {
             _filteredPendingUsers = _pendingUsers.where((user) {
               return user.fullName.toLowerCase().contains(searchTerm) ||
@@ -150,16 +171,20 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   user.mobile.toLowerCase().contains(searchTerm);
             }).toList();
             _filteredRejectedUsers = [];
-            debugPrint('After filtering, showing ${_filteredPendingUsers.length} pending approval users');
+            debugPrint(
+                'After filtering, showing ${_filteredPendingUsers.length} pending approval users');
           }
-        } else { // Rejected filter
-          debugPrint('Filtering ${_rejectedUsers.length} rejected users with search term: "$searchTerm"');
+        } else {
+          // Rejected filter
+          debugPrint(
+              'Filtering ${_rejectedUsers.length} rejected users with search term: "$searchTerm"');
 
           // Always show all rejected users if search is empty
           if (searchTerm.isEmpty) {
             _filteredRejectedUsers = List.from(_rejectedUsers);
             _filteredPendingUsers = [];
-            debugPrint('Search term empty, showing all ${_filteredRejectedUsers.length} rejected users');
+            debugPrint(
+                'Search term empty, showing all ${_filteredRejectedUsers.length} rejected users');
           } else {
             _filteredRejectedUsers = _rejectedUsers.where((user) {
               return user.fullName.toLowerCase().contains(searchTerm) ||
@@ -167,12 +192,14 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   user.mobile.toLowerCase().contains(searchTerm);
             }).toList();
             _filteredPendingUsers = [];
-            debugPrint('After filtering, showing ${_filteredRejectedUsers.length} rejected users');
+            debugPrint(
+                'After filtering, showing ${_filteredRejectedUsers.length} rejected users');
           }
 
           // Debug each rejected user
           for (var user in _rejectedUsers) {
-            debugPrint('Rejected user in list: ${user.fullName}, status: ${user.verificationStatus}');
+            debugPrint(
+                'Rejected user in list: ${user.fullName}, status: ${user.verificationStatus}');
           }
         }
       }
@@ -260,7 +287,10 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
         case 'Active':
           return matchesSearch && isActive;
         case 'Inactive':
-          return matchesSearch && !isActive && verificationStatus != 'pending' && verificationStatus != 'rejected';
+          return matchesSearch &&
+              !isActive &&
+              verificationStatus != 'pending' &&
+              verificationStatus != 'rejected';
         default:
           return matchesSearch;
       }
@@ -285,7 +315,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       final List<FirestoreUser> rejectedUsers = [];
       final Set<String> processedUserIds = {}; // Track processed users by UID
 
-      debugPrint('Separating ${pendingUsers.length} users into pending and rejected...');
+      debugPrint(
+          'Separating ${pendingUsers.length} users into pending and rejected...');
       for (var user in pendingUsers) {
         // Skip if we've already processed this user
         if (processedUserIds.contains(user.uid)) {
@@ -294,7 +325,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
         }
 
         processedUserIds.add(user.uid);
-        debugPrint('User ${user.fullName}: verificationStatus=${user.verificationStatus}');
+        debugPrint(
+            'User ${user.fullName}: verificationStatus=${user.verificationStatus}');
 
         if (user.verificationStatus == 'pending') {
           pendingApprovalUsers.add(user);
@@ -303,11 +335,13 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
           rejectedUsers.add(user);
           debugPrint('Rejected user: ${user.fullName} (${user.uid})');
         } else {
-          debugPrint('User with unknown status: ${user.fullName}, status: ${user.verificationStatus}');
+          debugPrint(
+              'User with unknown status: ${user.fullName}, status: ${user.verificationStatus}');
         }
       }
 
-      debugPrint('Found ${pendingApprovalUsers.length} pending approval users and ${rejectedUsers.length} rejected users');
+      debugPrint(
+          'Found ${pendingApprovalUsers.length} pending approval users and ${rejectedUsers.length} rejected users');
 
       if (mounted) {
         setState(() {
@@ -325,8 +359,10 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
 
           _isLoading = false;
           _isInitialLoad = false;
-          debugPrint('Updated state with ${_pendingUsers.length} pending approval users');
-          debugPrint('Updated state with ${_rejectedUsers.length} rejected users');
+          debugPrint(
+              'Updated state with ${_pendingUsers.length} pending approval users');
+          debugPrint(
+              'Updated state with ${_rejectedUsers.length} rejected users');
         });
       }
     } catch (e) {
@@ -344,6 +380,191 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
         );
       }
     }
+  }
+
+  Future<void> _loadResidentUsers() async {
+    if (!mounted) return;
+
+    try {
+      if (_isInitialLoad) {
+        setState(() => _isLoading = true);
+      }
+
+      debugPrint('Loading resident users...');
+
+      // Get all users from RTDB
+      final allUsers = await _adminService.getRTDBUsers();
+
+      // Convert to FirestoreUser objects and filter for verified users
+      List<FirestoreUser> residents = [];
+
+      for (var userData in allUsers) {
+        if (userData['verificationStatus'] == 'verified') {
+          try {
+            // Get additional data from Firestore if needed
+            final firestoreUser = await _getUserFromData(userData);
+            if (firestoreUser != null) {
+              residents.add(firestoreUser);
+            }
+          } catch (e) {
+            debugPrint('Error converting user data: $e');
+          }
+        }
+      }
+
+      debugPrint('Found ${residents.length} verified residents');
+
+      if (mounted) {
+        setState(() {
+          _residentUsers = residents;
+          _filteredResidentUsers = residents;
+          _isLoading = false;
+          _isInitialLoad = false;
+        });
+
+        // Calculate demographics
+        _calculateDemographics();
+      }
+    } catch (e) {
+      debugPrint('Error loading resident users: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isInitialLoad = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading residents: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<FirestoreUser?> _getUserFromData(Map<String, dynamic> userData) async {
+    try {
+      // Get user ID from userData
+      final uid = userData['uid'] as String?;
+      if (uid == null) return null;
+
+      // Fetch from Firestore to get birthDate and other missing fields
+      try {
+        // Use the getPendingVerificationUsers method's logic to access Firestore
+        // We'll access Firestore directly using Firebase
+        final userDoc =
+            await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+        if (userDoc.exists) {
+          final firestoreData = userDoc.data() as Map<String, dynamic>;
+          // Merge RTDB data with Firestore data, preferring Firestore for critical fields
+          final mergedData = Map<String, dynamic>.from(userData);
+
+          // Add missing fields from Firestore
+          if (firestoreData['birthDate'] != null) {
+            mergedData['birthDate'] = firestoreData['birthDate'];
+          }
+          if (firestoreData['firstName'] != null) {
+            mergedData['firstName'] = firestoreData['firstName'];
+          }
+          if (firestoreData['lastName'] != null) {
+            mergedData['lastName'] = firestoreData['lastName'];
+          }
+          if (firestoreData['middleName'] != null) {
+            mergedData['middleName'] = firestoreData['middleName'];
+          }
+          if (firestoreData['profileImageUrl'] != null) {
+            mergedData['profileImageUrl'] = firestoreData['profileImageUrl'];
+          }
+
+          // Ensure required fields exist
+          mergedData['uid'] = uid;
+          mergedData['username'] =
+              mergedData['username'] ?? mergedData['fullName'] ?? '';
+          mergedData['registrationId'] = mergedData['registrationId'] ?? '';
+
+          return FirestoreUser.fromMap(mergedData);
+        }
+      } catch (firestoreError) {
+        debugPrint(
+            'Error fetching from Firestore for user $uid: $firestoreError');
+      }
+
+      // Fallback: try to create from RTDB data if it has birthDate
+      if (userData['birthDate'] != null) {
+        final userMap = Map<String, dynamic>.from(userData);
+        userMap['uid'] = uid;
+        userMap['firstName'] = userData['firstName'] ?? '';
+        userMap['lastName'] = userData['lastName'] ?? '';
+        userMap['username'] =
+            userData['username'] ?? userData['fullName'] ?? '';
+        userMap['email'] = userData['email'] ?? '';
+        userMap['mobile'] = userData['mobile'] ?? '';
+        userMap['address'] = userData['address'] ?? '';
+        userMap['location'] = userData['location'] ?? {};
+        userMap['communityId'] = userData['communityId'] ?? '';
+        userMap['role'] = userData['role'] ?? 'member';
+        userMap['registrationId'] = userData['registrationId'] ?? '';
+        userMap['verificationStatus'] =
+            userData['verificationStatus'] ?? 'pending';
+
+        return FirestoreUser.fromMap(userMap);
+      }
+    } catch (e) {
+      debugPrint('Error creating user from data: $e');
+    }
+    return null;
+  }
+
+  Future<void> _calculateDemographics() async {
+    try {
+      final demographics =
+          await _residentStatsService.getResidentDemographics(_residentUsers);
+
+      if (_groupByHousehold) {
+        final households =
+            await _residentStatsService.groupByAddress(_residentUsers);
+        if (mounted) {
+          setState(() {
+            _demographics = demographics;
+            _households = households;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _demographics = demographics;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error calculating demographics: $e');
+    }
+  }
+
+  void _applyResidentFilters() {
+    var filtered = List<FirestoreUser>.from(_residentUsers);
+
+    // Apply age filter
+    if (_selectedAgeFilter != 'All') {
+      filtered = filtered
+          .where((user) => user.ageGroup == _selectedAgeFilter)
+          .toList();
+    }
+
+    // Apply search filter
+    final searchTerm = _searchController.text.toLowerCase();
+    if (searchTerm.isNotEmpty) {
+      filtered = filtered.where((user) {
+        return user.fullName.toLowerCase().contains(searchTerm) ||
+            user.email.toLowerCase().contains(searchTerm) ||
+            user.mobile.toLowerCase().contains(searchTerm) ||
+            user.address.toLowerCase().contains(searchTerm) ||
+            user.fullAddress.toLowerCase().contains(searchTerm);
+      }).toList();
+    }
+
+    _filteredResidentUsers = filtered;
   }
 
   Future<void> _openQRScanner() async {
@@ -384,22 +605,21 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _verifyUser(FirestoreUser user, bool isApproved, {String? rejectionReason}) async {
+  Future<void> _verifyUser(FirestoreUser user, bool isApproved,
+      {String? rejectionReason}) async {
     try {
       setState(() => _isLoading = true);
 
       final newStatus = isApproved ? 'verified' : 'rejected';
-      debugPrint('Updating user ${user.fullName} (${user.uid}) status to: $newStatus');
+      debugPrint(
+          'Updating user ${user.fullName} (${user.uid}) status to: $newStatus');
 
       if (rejectionReason != null) {
         debugPrint('Rejection reason: $rejectionReason');
       }
 
-      await _adminService.updateUserVerificationStatus(
-        user.uid,
-        newStatus,
-        rejectionReason: rejectionReason
-      );
+      await _adminService.updateUserVerificationStatus(user.uid, newStatus,
+          rejectionReason: rejectionReason);
       debugPrint('User status updated successfully');
 
       // Refresh the lists
@@ -501,7 +721,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                      Icon(Icons.info_outline,
+                          color: Colors.blue[700], size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -532,7 +753,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
             children: [
               OutlinedButton(
                 onPressed: () {
-                  final TextEditingController reasonController = TextEditingController();
+                  final TextEditingController reasonController =
+                      TextEditingController();
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
@@ -608,13 +830,13 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                         ElevatedButton(
                           onPressed: () {
                             final reason = reasonController.text.trim();
-                            Navigator.of(context).pop(); // Close confirmation dialog
-                            Navigator.of(context).pop(); // Close verification dialog
-                            _verifyUser(
-                              user,
-                              false,
-                              rejectionReason: reason.isNotEmpty ? reason : null
-                            );
+                            Navigator.of(context)
+                                .pop(); // Close confirmation dialog
+                            Navigator.of(context)
+                                .pop(); // Close verification dialog
+                            _verifyUser(user, false,
+                                rejectionReason:
+                                    reason.isNotEmpty ? reason : null);
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red[700],
@@ -684,8 +906,10 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                         ),
                         ElevatedButton(
                           onPressed: () {
-                            Navigator.of(context).pop(); // Close confirmation dialog
-                            Navigator.of(context).pop(); // Close verification dialog
+                            Navigator.of(context)
+                                .pop(); // Close confirmation dialog
+                            Navigator.of(context)
+                                .pop(); // Close verification dialog
                             _verifyUser(user, true);
                           },
                           style: ElevatedButton.styleFrom(
@@ -751,9 +975,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
     });
 
     if (_tabController.index == 0) {
-      await _loadUsers();
-      // Apply filter after loading
-      _applyCurrentFilter();
+      await _loadResidentUsers();
     } else {
       await _loadPendingUsers();
       // Force a rebuild of the filtered list
@@ -808,24 +1030,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // All Users Tab
-                  _buildTabContent(
-                    isLoading: _isLoading,
-                    isEmpty: _filteredUsers.isEmpty,
-                    onRefresh: _refreshData,
-                    emptyWidget: _buildEmptyState(
-                      icon: Icons.people_outline,
-                      message: 'No users found',
-                      subMessage: 'Try adjusting your search or filters',
-                    ),
-                    contentWidget: ListView.builder(
-                      padding: const EdgeInsets.only(top: 8, bottom: 16),
-                      itemCount: _filteredUsers.length,
-                      itemBuilder: (context, index) {
-                        return _buildUserCard(_filteredUsers[index]);
-                      },
-                    ),
-                  ),
+                  // All Users Tab (formerly Resident Directory)
+                  _buildResidentDirectoryTab(),
 
                   // Pending Verification Tab
                   _buildTabContent(
@@ -848,7 +1054,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                               message: _pendingTabFilter == 'Pending Approval'
                                   ? 'No pending verification users'
                                   : 'No rejected users',
-                              subMessage: _pendingTabFilter == 'Pending Approval'
+                              subMessage: _pendingTabFilter ==
+                                      'Pending Approval'
                                   ? 'Scan a QR code to verify a new user'
                                   : 'Rejected users will appear here after refresh',
                               button: _pendingTabFilter == 'Pending Approval'
@@ -857,14 +1064,16 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                                       icon: const Icon(Icons.qr_code_scanner),
                                       label: const Text('Scan QR Code'),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF00C49A),
+                                        backgroundColor:
+                                            const Color(0xFF00C49A),
                                         foregroundColor: Colors.white,
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 24,
                                           vertical: 12,
                                         ),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
                                         textStyle: const TextStyle(
                                           fontSize: 14,
@@ -874,7 +1083,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                                     )
                                   : ElevatedButton.icon(
                                       onPressed: () {
-                                        debugPrint('Manual refresh of rejected users');
+                                        debugPrint(
+                                            'Manual refresh of rejected users');
                                         _refreshData();
                                       },
                                       icon: const Icon(Icons.refresh),
@@ -887,7 +1097,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                                           vertical: 12,
                                         ),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
                                         textStyle: const TextStyle(
                                           fontSize: 14,
@@ -901,80 +1112,85 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                       ],
                     ),
                     contentWidget: _pendingTabFilter == 'Pending Approval'
-                      ? (_pendingUsers.isEmpty && !_isLoading
-                          ? _buildEmptyState(
-                              icon: Icons.person_add_outlined,
-                              message: 'No pending verification users',
-                              subMessage: 'Scan a QR code to verify a new user',
-                              button: ElevatedButton.icon(
-                                onPressed: _openQRScanner,
-                                icon: const Icon(Icons.qr_code_scanner),
-                                label: const Text('Scan QR Code'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF00C49A),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  textStyle: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
+                        ? (_pendingUsers.isEmpty && !_isLoading
+                            ? _buildEmptyState(
+                                icon: Icons.person_add_outlined,
+                                message: 'No pending verification users',
+                                subMessage:
+                                    'Scan a QR code to verify a new user',
+                                button: ElevatedButton.icon(
+                                  onPressed: _openQRScanner,
+                                  icon: const Icon(Icons.qr_code_scanner),
+                                  label: const Text('Scan QR Code'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF00C49A),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.only(top: 8, bottom: 16),
-                              itemCount: _filteredPendingUsers.length,
-                              itemBuilder: (context, index) {
-                                return _buildPendingUserCard(
-                                    _filteredPendingUsers[index]);
-                              },
-                            ))
-                      : (_rejectedUsers.isEmpty && !_isLoading
-                          ? _buildEmptyState(
-                              icon: Icons.person_off_outlined,
-                              message: 'No rejected users',
-                              subMessage: 'Rejected users will appear here after refresh',
-                              button: ElevatedButton.icon(
-                                onPressed: () {
-                                  debugPrint('Manual refresh of rejected users');
-                                  _refreshData();
+                              )
+                            : ListView.builder(
+                                padding:
+                                    const EdgeInsets.only(top: 8, bottom: 16),
+                                itemCount: _filteredPendingUsers.length,
+                                itemBuilder: (context, index) {
+                                  return _buildPendingUserCard(
+                                      _filteredPendingUsers[index]);
                                 },
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Refresh'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red[700],
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  textStyle: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
+                              ))
+                        : (_rejectedUsers.isEmpty && !_isLoading
+                            ? _buildEmptyState(
+                                icon: Icons.person_off_outlined,
+                                message: 'No rejected users',
+                                subMessage:
+                                    'Rejected users will appear here after refresh',
+                                button: ElevatedButton.icon(
+                                  onPressed: () {
+                                    debugPrint(
+                                        'Manual refresh of rejected users');
+                                    _refreshData();
+                                  },
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Refresh'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red[700],
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.only(top: 8, bottom: 16),
-                              itemCount: _filteredRejectedUsers.length,
-                              itemBuilder: (context, index) {
-                                return _buildRejectedUserCard(
-                                    _filteredRejectedUsers[index]);
-                              },
-                            )),
-                  ),
-                ],
-              ),
+                              )
+                            : ListView.builder(
+                                padding:
+                                    const EdgeInsets.only(top: 8, bottom: 16),
+                                itemCount: _filteredRejectedUsers.length,
+                                itemBuilder: (context, index) {
+                                  return _buildRejectedUserCard(
+                                      _filteredRejectedUsers[index]);
+                               },
+                             )),
+                 ),
+               ],
+             ),
             ),
           ],
         ),
@@ -987,7 +1203,15 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
               elevation: 2,
               child: const Icon(Icons.qr_code_scanner),
             )
-          : null,
+          : _tabController.index == 0
+              ? FloatingActionButton(
+                  onPressed: _showExportOptions,
+                  backgroundColor: const Color(0xFF00C49A),
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  child: const Icon(Icons.download),
+                )
+              : null,
     );
   }
 
@@ -1080,7 +1304,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   children: [
                     Icon(
                       _tabController.index == 0
-                          ? Icons.people
+                          ? Icons.groups
                           : _pendingTabFilter == 'Pending Approval'
                               ? Icons.pending_outlined
                               : Icons.person_off_outlined,
@@ -1090,7 +1314,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                     const SizedBox(width: 4),
                     Text(
                       _tabController.index == 0
-                          ? '${_filteredUsers.length} Members'
+                          ? '${_filteredResidentUsers.length} Residents'
                           : _pendingTabFilter == 'Pending Approval'
                               ? '${_filteredPendingUsers.length} Pending'
                               : '${_filteredRejectedUsers.length} Rejected',
@@ -1128,7 +1352,9 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'Search members...',
+                      hintText: _tabController.index == 0
+                          ? 'Search by name or address...'
+                          : 'Search members...',
                       hintStyle: TextStyle(
                         color: Colors.grey[400],
                         fontSize: 15,
@@ -1158,90 +1384,56 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: _tabController.index == 0
-                  ? _filterOptions.map((filter) {
-                      final isSelected = _selectedFilter == filter;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilterChip(
-                          label: Text(
-                            filter,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: isSelected
-                                  ? Colors.white
-                                  : Colors.black.withOpacity(0.7),
-                              fontWeight:
-                                  isSelected ? FontWeight.w600 : FontWeight.normal,
-                            ),
-                          ),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setState(() {
-                              _selectedFilter = filter;
-                              _filterUsers();
-                            });
-                          },
-                          backgroundColor: Colors.white,
-                          selectedColor: const Color(0xFF00C49A),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? const Color(0xFF00C49A)
-                                  : Colors.grey.withOpacity(0.2),
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList()
+                  ? _buildResidentAgeFilters()
                   : _pendingFilterOptions.map((filter) {
-                      final isSelected = _pendingTabFilter == filter;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilterChip(
-                          label: Text(
-                            filter,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: isSelected
-                                  ? Colors.white
-                                  : Colors.black.withOpacity(0.7),
-                              fontWeight:
-                                  isSelected ? FontWeight.w600 : FontWeight.normal,
+                          final isSelected = _pendingTabFilter == filter;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: Text(
+                                filter,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.black.withOpacity(0.7),
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                setState(() {
+                                  _pendingTabFilter = filter;
+                                  _filterUsers();
+                                });
+                              },
+                              backgroundColor: Colors.white,
+                              selectedColor: filter == 'Rejected'
+                                  ? Colors.red[700]!
+                                  : const Color(0xFF00C49A),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              labelPadding:
+                                  const EdgeInsets.symmetric(horizontal: 4),
+                              visualDensity: VisualDensity.compact,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                side: BorderSide(
+                                  color: isSelected
+                                      ? (filter == 'Rejected'
+                                          ? Colors.red[700]!
+                                          : const Color(0xFF00C49A))
+                                      : Colors.grey.withOpacity(0.2),
+                                  width: 1,
+                                ),
+                              ),
                             ),
-                          ),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setState(() {
-                              _pendingTabFilter = filter;
-                              _filterUsers();
-                            });
-                          },
-                          backgroundColor: Colors.white,
-                          selectedColor: filter == 'Rejected'
-                              ? Colors.red[700]!
-                              : const Color(0xFF00C49A),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? (filter == 'Rejected' ? Colors.red[700]! : const Color(0xFF00C49A))
-                                  : Colors.grey.withOpacity(0.2),
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                          );
+                        }).toList(),
             ),
           ),
         ],
@@ -1330,30 +1522,30 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
             children: [
               // User avatar
               user['profileImageUrl'] != null
-                ? Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      image: DecorationImage(
-                        image: NetworkImage(user['profileImageUrl']),
-                        fit: BoxFit.cover,
+                  ? Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        image: DecorationImage(
+                          image: NetworkImage(user['profileImageUrl']),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00C49A).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: const Icon(
+                        Icons.person_outline_rounded,
+                        color: Color(0xFF00C49A),
+                        size: 24,
                       ),
                     ),
-                  )
-                : Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00C49A).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: const Icon(
-                      Icons.person_outline_rounded,
-                      color: Color(0xFF00C49A),
-                      size: 24,
-                    ),
-                  ),
               const SizedBox(width: 16),
               // User information
               Expanded(
@@ -1484,30 +1676,30 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                 children: [
                   // User avatar
                   user.profileImageUrl != null
-                    ? Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          image: DecorationImage(
-                            image: NetworkImage(user.profileImageUrl!),
-                            fit: BoxFit.cover,
+                      ? Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(24),
+                            image: DecorationImage(
+                              image: NetworkImage(user.profileImageUrl!),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00C49A).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: const Icon(
+                            Icons.person_outline_rounded,
+                            color: Color(0xFF00C49A),
+                            size: 24,
                           ),
                         ),
-                      )
-                    : Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF00C49A).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: const Icon(
-                          Icons.person_outline_rounded,
-                          color: Color(0xFF00C49A),
-                          size: 24,
-                        ),
-                      ),
                   const SizedBox(width: 16),
                   // User information
                   Expanded(
@@ -1603,7 +1795,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                 children: [
                   OutlinedButton(
                     onPressed: () {
-                      final TextEditingController reasonController = TextEditingController();
+                      final TextEditingController reasonController =
+                          TextEditingController();
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
@@ -1679,8 +1872,11 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                             ElevatedButton(
                               onPressed: () {
                                 final reason = reasonController.text.trim();
-                                Navigator.of(context).pop(); // Close confirmation dialog
-                                _verifyUser(user, false, rejectionReason: reason.isNotEmpty ? reason : null);
+                                Navigator.of(context)
+                                    .pop(); // Close confirmation dialog
+                                _verifyUser(user, false,
+                                    rejectionReason:
+                                        reason.isNotEmpty ? reason : null);
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.red[700],
@@ -1702,7 +1898,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                     ),
                     child: const Text(
                       'Reject',
@@ -1757,7 +1954,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                             ),
                             ElevatedButton(
                               onPressed: () {
-                                Navigator.of(context).pop(); // Close confirmation dialog
+                                Navigator.of(context)
+                                    .pop(); // Close confirmation dialog
                                 _verifyUser(user, true);
                               },
                               style: ElevatedButton.styleFrom(
@@ -1825,34 +2023,34 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                 children: [
                   // User avatar
                   user.profileImageUrl != null
-                    ? Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          image: DecorationImage(
-                            image: NetworkImage(user.profileImageUrl!),
-                            fit: BoxFit.cover,
+                      ? Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(24),
+                            image: DecorationImage(
+                              image: NetworkImage(user.profileImageUrl!),
+                              fit: BoxFit.cover,
+                            ),
+                            border: Border.all(
+                              color: Colors.red[300]!,
+                              width: 2,
+                            ),
                           ),
-                          border: Border.all(
-                            color: Colors.red[300]!,
-                            width: 2,
+                        )
+                      : Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.red[50],
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: Icon(
+                            Icons.person_off_outlined,
+                            color: Colors.red[700],
+                            size: 24,
                           ),
                         ),
-                      )
-                    : Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.red[50],
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: Icon(
-                          Icons.person_off_outlined,
-                          color: Colors.red[700],
-                          size: 24,
-                        ),
-                      ),
                   const SizedBox(width: 16),
                   // User information
                   Expanded(
@@ -1990,7 +2188,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
                             ),
                             ElevatedButton(
                               onPressed: () {
-                                Navigator.of(context).pop(); // Close confirmation dialog
+                                Navigator.of(context)
+                                    .pop(); // Close confirmation dialog
                                 _verifyUser(user, true);
                               },
                               style: ElevatedButton.styleFrom(
@@ -2104,30 +2303,30 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
         Row(
           children: [
             user['profileImageUrl'] != null
-              ? Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    image: DecorationImage(
-                      image: NetworkImage(user['profileImageUrl']),
-                      fit: BoxFit.cover,
+                ? Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      image: DecorationImage(
+                        image: NetworkImage(user['profileImageUrl']),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  )
+                : Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00C49A).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_outline_rounded,
+                      color: Color(0xFF00C49A),
+                      size: 32,
                     ),
                   ),
-                )
-              : Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00C49A).withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.person_outline_rounded,
-                    color: Color(0xFF00C49A),
-                    size: 32,
-                  ),
-                ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -2230,6 +2429,825 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
         ],
       ),
     );
+  }
+
+  // Build resident age filter chips
+  List<Widget> _buildResidentAgeFilters() {
+    final ageFilters = ['All', 'Children', 'Youth', 'Adults', 'Seniors'];
+
+    return ageFilters.map((filter) {
+      final isSelected = _selectedAgeFilter == filter;
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: FilterChip(
+          label: Text(
+            filter,
+            style: TextStyle(
+              fontSize: 13,
+              color: isSelected ? Colors.white : Colors.black.withOpacity(0.7),
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+          selected: isSelected,
+          onSelected: (selected) {
+            setState(() {
+              _selectedAgeFilter = filter;
+              _filterUsers();
+            });
+          },
+          backgroundColor: Colors.white,
+          selectedColor: const Color(0xFF00C49A),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: isSelected
+                  ? const Color(0xFF00C49A)
+                  : Colors.grey.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  // Build Resident Directory Tab
+  Widget _buildResidentDirectoryTab() {
+    return _buildTabContent(
+      isLoading: _isLoading,
+      isEmpty: _filteredResidentUsers.isEmpty,
+      onRefresh: _refreshData,
+      emptyWidget: _buildEmptyState(
+        icon: Icons.groups_outlined,
+        message: 'No residents found',
+        subMessage: 'Verified residents will appear here',
+      ),
+      contentWidget: _groupByHousehold && _households != null
+          ? _buildHouseholdList()
+          : ListView.builder(
+              padding: const EdgeInsets.only(top: 8, bottom: 16),
+              itemCount: _filteredResidentUsers.length,
+              itemBuilder: (context, index) {
+                return _buildResidentCard(_filteredResidentUsers[index]);
+              },
+            ),
+    );
+  }
+
+  // Build Demographics Dashboard
+  Widget _buildDemographicsDashboard() {
+    if (_demographics == null) return const SizedBox.shrink();
+
+    return Container(
+      height: 120,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          _buildDemographicCard(
+            'Total Residents',
+            _demographics!['totalResidents'].toString(),
+            Icons.groups,
+            const Color(0xFF00C49A),
+          ),
+          _buildDemographicCard(
+            'Children (0-11)',
+            _demographics!['children'].toString(),
+            Icons.child_care,
+            Colors.blue,
+          ),
+          _buildDemographicCard(
+            'Youth (12-17)',
+            _demographics!['youth'].toString(),
+            Icons.school,
+            Colors.purple,
+          ),
+          _buildDemographicCard(
+            'Adults (18-59)',
+            _demographics!['adults'].toString(),
+            Icons.person,
+            Colors.orange,
+          ),
+          _buildDemographicCard(
+            'Seniors (60+)',
+            _demographics!['seniors'].toString(),
+            Icons.elderly,
+            Colors.red,
+          ),
+          _buildDemographicCard(
+            'Verified',
+            '${_demographics!['verificationProgress']}%',
+            Icons.verified,
+            Colors.green,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build demographic card
+  Widget _buildDemographicCard(
+      String label, String value, IconData icon, Color color) {
+    return Container(
+      width: 140,
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build resident card
+  Widget _buildResidentCard(FirestoreUser user) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 0,
+      color: Colors.white,
+      child: InkWell(
+        onTap: () => _viewResidentDetails(user),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // User avatar
+              user.profileImageUrl != null
+                  ? Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        image: DecorationImage(
+                          image: NetworkImage(user.profileImageUrl!),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00C49A).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: const Icon(
+                        Icons.person_outline_rounded,
+                        color: Color(0xFF00C49A),
+                        size: 24,
+                      ),
+                    ),
+              const SizedBox(width: 16),
+              // User information
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // User name and age
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            user.fullName,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${user.age} yrs',
+                            style: TextStyle(
+                              color: Colors.blue[700],
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Address
+                    Row(
+                      children: [
+                        Icon(Icons.location_on,
+                            size: 14, color: Colors.grey[500]),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            user.fullAddress,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 13,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Contact and join date
+                    Row(
+                      children: [
+                        Icon(Icons.phone, size: 12, color: Colors.grey[500]),
+                        const SizedBox(width: 4),
+                        Text(
+                          user.mobile,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Icon(Icons.calendar_today,
+                            size: 12, color: Colors.grey[500]),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatDate(user.createdAt),
+                          style: TextStyle(
+                            color: Colors.grey[500],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Build household list
+  Widget _buildHouseholdList() {
+    if (_households == null || _households!.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.home_outlined,
+        message: 'No households found',
+        subMessage: 'Households with multiple members will appear here',
+      );
+    }
+
+    final householdList = _households!.entries.toList();
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: 8, bottom: 16),
+      itemCount: householdList.length,
+      itemBuilder: (context, index) {
+        final entry = householdList[index];
+        return _buildHouseholdCard(entry.key, entry.value);
+      },
+    );
+  }
+
+  // Build household card
+  Widget _buildHouseholdCard(String address, List<FirestoreUser> members) {
+    final avgAge = members.isEmpty
+        ? 0
+        : (members.fold<int>(0, (sum, m) => sum + m.age) / members.length)
+            .round();
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 0,
+      color: Colors.white,
+      child: ExpansionTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF00C49A).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(
+            Icons.home,
+            color: Color(0xFF00C49A),
+            size: 24,
+          ),
+        ),
+        title: Text(
+          address,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          '${members.length} members • Avg age: $avgAge yrs',
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey[600],
+          ),
+        ),
+        children: members.map((member) {
+          return ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+            leading: member.profileImageUrl != null
+                ? CircleAvatar(
+                    backgroundImage: NetworkImage(member.profileImageUrl!),
+                    radius: 20,
+                  )
+                : CircleAvatar(
+                    backgroundColor: const Color(0xFF00C49A).withOpacity(0.1),
+                    child: Text(
+                      member.fullName[0],
+                      style: const TextStyle(
+                        color: Color(0xFF00C49A),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+            title: Text(
+              member.fullName,
+              style: const TextStyle(fontSize: 14),
+            ),
+            subtitle: Text(
+              '${member.age} yrs • ${member.mobile}',
+              style: const TextStyle(fontSize: 12),
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.info_outline, size: 20),
+              onPressed: () => _viewResidentDetails(member),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // View resident details
+  Future<void> _viewResidentDetails(FirestoreUser user) async {
+    try {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (context) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 32,
+                height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 24),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // User details content
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  child: _buildResidentDetailsList(user),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error viewing resident details: $e')),
+        );
+      }
+    }
+  }
+
+  // Build resident details list
+  Widget _buildResidentDetailsList(FirestoreUser user) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Profile section
+        Row(
+          children: [
+            user.profileImageUrl != null
+                ? Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      image: DecorationImage(
+                        image: NetworkImage(user.profileImageUrl!),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  )
+                : Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00C49A).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_outline_rounded,
+                      color: Color(0xFF00C49A),
+                      size: 32,
+                    ),
+                  ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.fullName,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    user.email,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 32),
+        // Details section
+        _buildDetailItem(
+          icon: Icons.cake_outlined,
+          label: 'Age',
+          value: '${user.age} years old (${user.ageGroup})',
+        ),
+        const Divider(height: 1),
+        _buildDetailItem(
+          icon: Icons.calendar_today_outlined,
+          label: 'Birth Date',
+          value: DateFormat('MMMM dd, yyyy').format(user.birthDate),
+        ),
+        const Divider(height: 1),
+        _buildDetailItem(
+          icon: Icons.phone_outlined,
+          label: 'Mobile',
+          value: user.mobile,
+        ),
+        const Divider(height: 1),
+        _buildDetailItem(
+          icon: Icons.location_on_outlined,
+          label: 'Address',
+          value: user.fullAddress,
+        ),
+        const Divider(height: 1),
+        _buildDetailItem(
+          icon: Icons.verified_user_outlined,
+          label: 'Verification Status',
+          value: user.verificationStatus,
+        ),
+        const Divider(height: 1),
+        _buildDetailItem(
+          icon: Icons.event_outlined,
+          label: 'Member Since',
+          value: DateFormat('MMMM dd, yyyy').format(user.createdAt),
+        ),
+      ],
+    );
+  }
+
+  // Show export options
+  void _showExportOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 32,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                'Export Resident Directory',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildExportOption(
+              icon: Icons.picture_as_pdf,
+              title: 'Export to PDF',
+              subtitle: 'Generate PDF report with all residents',
+              onTap: () {
+                Navigator.pop(context);
+                _exportToPdf();
+              },
+            ),
+            _buildExportOption(
+              icon: Icons.table_chart,
+              title: 'Export to CSV',
+              subtitle: 'Export data to spreadsheet format',
+              onTap: () {
+                Navigator.pop(context);
+                _exportToCsv();
+              },
+            ),
+            _buildExportOption(
+              icon: Icons.filter_list,
+              title: 'Export Filtered Results',
+              subtitle: 'Export only filtered/searched residents',
+              onTap: () {
+                Navigator.pop(context);
+                _exportFilteredResults();
+              },
+            ),
+            if (_groupByHousehold && _households != null)
+              _buildExportOption(
+                icon: Icons.home,
+                title: 'Export Household Report',
+                subtitle: 'Export households with member details',
+                onTap: () {
+                  Navigator.pop(context);
+                  _exportHouseholdReport();
+                },
+              ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Build export option
+  Widget _buildExportOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF00C49A).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: const Color(0xFF00C49A)),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(subtitle),
+      onTap: onTap,
+    );
+  }
+
+  // Export to PDF
+  Future<void> _exportToPdf() async {
+    try {
+      setState(() => _isLoading = true);
+
+      await _pdfExportService.generateResidentDirectoryPdf(
+        _residentUsers,
+        _demographics ?? {},
+        _communityName,
+      );
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF generated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Export to CSV
+  Future<void> _exportToCsv() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final csvData =
+          await _csvExportService.generateResidentCsv(_residentUsers);
+      final filename =
+          _csvExportService.getDefaultFilename('resident_directory');
+      final filePath =
+          await _csvExportService.saveAndShareCsv(csvData, filename);
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('CSV exported: ${_residentUsers.length} residents'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating CSV: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Export filtered results
+  Future<void> _exportFilteredResults() async {
+    try {
+      setState(() => _isLoading = true);
+
+      if (_filteredResidentUsers.isEmpty) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No residents to export'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      final csvData =
+          await _csvExportService.generateResidentCsv(_filteredResidentUsers);
+      final filename =
+          _csvExportService.getDefaultFilename('filtered_residents');
+      final filePath =
+          await _csvExportService.saveAndShareCsv(csvData, filename);
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Filtered CSV exported: ${_filteredResidentUsers.length} residents'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exporting: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Export household report
+  Future<void> _exportHouseholdReport() async {
+    try {
+      setState(() => _isLoading = true);
+
+      if (_households == null || _households!.isEmpty) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No households to export'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      await _pdfExportService.generateHouseholdReportPdf(
+        _households!,
+        _communityName,
+      );
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Household report generated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating report: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 

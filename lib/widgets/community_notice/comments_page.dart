@@ -133,7 +133,6 @@ class _CommentsPageState extends State<CommentsPage> {
           }
         }
       }
-    } catch (e) {
     } finally {
       if (mounted) {
         setState(() {
@@ -141,6 +140,29 @@ class _CommentsPageState extends State<CommentsPage> {
         });
       }
     }
+  }
+
+  List<TextSpan> _parseContent(String text) {
+    final List<TextSpan> spans = [];
+    final RegExp exp = RegExp(r'\*\*(.*?)\*\*');
+    int start = 0;
+
+    for (final Match match in exp.allMatches(text)) {
+      if (match.start > start) {
+        spans.add(TextSpan(text: text.substring(start, match.start)));
+      }
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ));
+      start = match.end;
+    }
+
+    if (start < text.length) {
+      spans.add(TextSpan(text: text.substring(start)));
+    }
+
+    return spans;
   }
 
   @override
@@ -420,10 +442,14 @@ class _CommentsPageState extends State<CommentsPage> {
                           ),
                           if (widget.notice.content.isNotEmpty) ...[
                             const SizedBox(height: 4),
-                            Text(
-                              widget.notice.content,
-                              style: const TextStyle(
-                                fontSize: 14,
+                            RichText(
+                              text: TextSpan(
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black,
+                                  fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
+                                ),
+                                children: _parseContent(widget.notice.content),
                               ),
                             ),
                           ],

@@ -4,9 +4,9 @@ class ReportSuccessDialog extends StatelessWidget {
   final VoidCallback onViewReports;
 
   const ReportSuccessDialog({
-    Key? key,
+    super.key,
     required this.onViewReports,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

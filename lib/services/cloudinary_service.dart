@@ -1,9 +1,6 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:cloudinary_public/cloudinary_public.dart';
-import 'package:http/http.dart' as http;
 import 'package:video_compress/video_compress.dart';
-import 'package:path/path.dart' as path;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';

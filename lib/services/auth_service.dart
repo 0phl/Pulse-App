@@ -3,7 +3,6 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
-import '../models/admin_user.dart';
 import '../models/firestore_user.dart';
 import 'user_session_service.dart';
 import 'community_notice_service.dart';
