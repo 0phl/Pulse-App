@@ -39,6 +39,8 @@ import 'services/user_session_service.dart';
 import 'services/global_state.dart';
 import 'services/media_cache_service.dart';
 import 'services/user_activity_service.dart';
+import 'services/age_restriction_service.dart';
+import 'widgets/restricted_feature_page.dart';
 
 // Top-level function to handle background messages
 @pragma('vm:entry-point')
@@ -214,7 +216,12 @@ class _MainScreenState extends State<MainScreen> {
   final GlobalState _globalState = GlobalState();
   final UserService _userService = UserService();
   final UserActivityService _activityService = UserActivityService();
+  final AgeRestrictionService _ageRestrictionService = AgeRestrictionService();
   StreamSubscription? _communityStatusSubscription;
+  
+  // Age restriction state
+  AgeGroup? _userAgeGroup;
+  bool _isLoadingAge = true;
 
   @override
   void initState() {
@@ -226,6 +233,28 @@ class _MainScreenState extends State<MainScreen> {
 
     // Track that user opened the main screen
     _activityService.trackPageNavigation('MainScreen');
+    
+    // Load user age for feature restrictions
+    _loadUserAge();
+  }
+  
+  Future<void> _loadUserAge() async {
+    try {
+      final ageGroup = await _ageRestrictionService.getUserAgeGroup();
+      if (mounted) {
+        setState(() {
+          _userAgeGroup = ageGroup;
+          _isLoadingAge = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user age: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingAge = false;
+        });
+      }
+    }
   }
 
   @override
@@ -260,15 +289,45 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // Pages with the MarketPage having the callback
-  late final List<Widget> _pages = <Widget>[
-    HomePage(),
-    MarketPage(
-        key: UniqueKey(), // Add a unique key to force rebuild
-        onUnreadChatsChanged: _updateUnreadChats),
-    const VolunteerPage(),
-    const ReportPage(),
-  ];
+  // Get pages based on user's age restrictions
+  List<Widget> get _pages {
+    // Check if marketplace is restricted
+    final bool isMarketplaceRestricted = _userAgeGroup != null && 
+        _userAgeGroup != AgeGroup.adult;
+    
+    // Check if volunteer is restricted (only children can't access)
+    final bool isVolunteerRestricted = _userAgeGroup != null && 
+        _userAgeGroup == AgeGroup.children;
+    
+    // Check if report is restricted
+    final bool isReportRestricted = _userAgeGroup != null && 
+        _userAgeGroup != AgeGroup.adult;
+    
+    return <Widget>[
+      HomePage(),
+      isMarketplaceRestricted && _userAgeGroup != null
+          ? RestrictedFeaturePage(
+              feature: RestrictedFeature.marketplace,
+              userAgeGroup: _userAgeGroup!,
+            )
+          : MarketPage(
+              key: UniqueKey(),
+              onUnreadChatsChanged: _updateUnreadChats,
+            ),
+      isVolunteerRestricted && _userAgeGroup != null
+          ? RestrictedFeaturePage(
+              feature: RestrictedFeature.volunteer,
+              userAgeGroup: _userAgeGroup!,
+            )
+          : const VolunteerPage(),
+      isReportRestricted && _userAgeGroup != null
+          ? RestrictedFeaturePage(
+              feature: RestrictedFeature.report,
+              userAgeGroup: _userAgeGroup!,
+            )
+          : const ReportPage(),
+    ];
+  }
 
   void _onItemTapped(int index) {
     // Track navigation activity
@@ -284,23 +343,25 @@ class _MainScreenState extends State<MainScreen> {
 
     // If selecting the Market tab
     if (index == 1) {
-      // Force refresh of the unread count
-      _globalState.refreshUnreadCount();
+      // Force refresh of the unread count (only if marketplace is not restricted)
+      final bool isMarketplaceRestricted = _userAgeGroup != null && 
+          _userAgeGroup != AgeGroup.adult;
+      
+      if (!isMarketplaceRestricted) {
+        _globalState.refreshUnreadCount();
+      }
 
-      // Always force a complete rebuild of the MarketPage when selecting it
-      // This ensures the notification badge is always visible
       setState(() {
-        // Replace the MarketPage with a new instance to force a rebuild
-        _pages[1] = MarketPage(
-            key: UniqueKey(), onUnreadChatsChanged: _updateUnreadChats);
         _selectedIndex = index;
       });
 
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          _globalState.refreshUnreadCount();
-        }
-      });
+      if (!isMarketplaceRestricted) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) {
+            _globalState.refreshUnreadCount();
+          }
+        });
+      }
     } else {
       // For other tabs, just update the selected index
       setState(() {
