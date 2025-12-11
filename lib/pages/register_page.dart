@@ -342,7 +342,7 @@ class _RegisterPageState extends State<RegisterPage>
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
+      initialDate: DateTime.now().subtract(const Duration(days: 365 * 8)),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
     );
@@ -1130,6 +1130,7 @@ class _RegisterPageState extends State<RegisterPage>
                 prefixIcon: const Icon(Icons.calendar_today_outlined),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                errorMaxLines: 2,
               ),
               validator: (_) {
                 if (_selectedDate == null) {
@@ -1145,8 +1146,8 @@ class _RegisterPageState extends State<RegisterPage>
                         ? 1
                         : 0);
 
-                if (age < 18) {
-                  return 'Registration is only allowed for users 18 years old and above.';
+                if (age < 8) {
+                  return 'You must be at least 8 years old to register.';
                 }
                 return null;
               },
@@ -1307,8 +1308,9 @@ class _RegisterPageState extends State<RegisterPage>
               const SizedBox(height: 16),
               TextFormField(
                 controller: _addressController,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 decoration: InputDecoration(
-                  labelText: 'Address / Street No. (Optional)',
+                  labelText: 'Address / Street No.',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: Colors.grey),
@@ -1325,6 +1327,12 @@ class _RegisterPageState extends State<RegisterPage>
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your address';
+                  }
+                  return null;
+                },
               ),
             ],
           ),
@@ -1430,6 +1438,7 @@ class _RegisterPageState extends State<RegisterPage>
         _selectedProvince != null &&
         _selectedMunicipality != null &&
         _selectedBarangay != null &&
+        _addressController.text.isNotEmpty &&
         _isCommunityActive; // Add check for active community
   }
 }
