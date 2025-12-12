@@ -19,7 +19,6 @@ class _VolunteerPageState extends State<VolunteerPage> {
   final CommunityService _communityService = CommunityService();
   Stream<List<VolunteerPost>>? _postsStream;
   String? _currentUserCommunityId;
-  final bool _isLoading = false;
 
   @override
   void initState() {
@@ -154,23 +153,109 @@ class _VolunteerPageState extends State<VolunteerPage> {
 
       final bool confirm = await showDialog(
             context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Cancel Registration'),
-              content: const Text(
-                  'Are you sure you want to cancel your registration for this volunteer activity?'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('No'),
+            builder: (context) => Dialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.rectangle,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10.0,
+                      offset: const Offset(0.0, 10.0),
+                    ),
+                  ],
                 ),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.red,
-                  ),
-                  child: const Text('Yes'),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.event_busy_rounded,
+                        color: Colors.red[400],
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Cancel Registration?',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A202C),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Are you sure you want to cancel your registration? You might lose your spot if you try to join again later.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.grey[600],
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              backgroundColor: Colors.grey[50],
+                            ),
+                            child: Text(
+                              'Nevermind',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Yes, Cancel',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ) ??
           false;
@@ -202,50 +287,93 @@ class _VolunteerPageState extends State<VolunteerPage> {
         currentUser != null && post.joinedUsers.contains(currentUser.uid);
     final bool isFull = spotsLeft <= 0;
 
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title section with teal background
+          // Header with Gradient
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
-              color: Color(0xFF00C49A),
+              gradient: LinearGradient(
+                colors: [Color(0xFF00C49A), Color(0xFF00A884)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  post.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        post.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: 14,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              post.location,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1,
+                    ),
                   ),
                   child: Text(
                     '$spotsLeft spots left',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -253,145 +381,166 @@ class _VolunteerPageState extends State<VolunteerPage> {
             ),
           ),
 
-          // Description
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: GestureDetector(
-              onTap: () => _showDescriptionDialog(context, post),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    post.description,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  // Only show 'Tap to read more' if description is longer than ~100 characters
-                  // which would likely cause it to be truncated in 2 lines
-                  if (post.description.length > 100) ...[
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Tap to read more',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF00C49A),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-
-          // Details
+          // Body
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Location
-                _buildDetailRow(
-                  Icons.location_on,
-                  post.location,
+                // Info Row (Date & Time)
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoItem(
+                        Icons.calendar_today_rounded,
+                        DateFormat('MMM d').format(post.eventDate),
+                        DateFormat('yyyy').format(post.eventDate),
+                      ),
+                    ),
+                    Container(
+                      height: 40,
+                      width: 1,
+                      color: Colors.grey.shade200,
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    Expanded(
+                      child: _buildInfoItem(
+                        Icons.access_time_rounded,
+                        post.formattedTime,
+                        'Start time',
+                      ),
+                    ),
+                  ],
                 ),
-                const Divider(height: 16, thickness: 0.5),
+                const SizedBox(height: 20),
 
-                // Date
-                _buildDetailRow(
-                  Icons.calendar_today,
-                  DateFormat('EEEE, MMMM d, yyyy').format(post.eventDate),
+                // Description Preview
+                GestureDetector(
+                  onTap: () => _showDescriptionSheet(context, post),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          post.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[700],
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Text(
+                              'Read more details',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF00C49A),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 12,
+                              color: Color(0xFF00C49A),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const Divider(height: 16, thickness: 0.5),
+                const SizedBox(height: 20),
 
-                // Time
-                _buildDetailRow(
-                  Icons.access_time,
-                  post.formattedTime,
+                // Progress Bar
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Volunteers Joined',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        Text(
+                          '${post.joinedUsers.length}/${post.maxVolunteers}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isFull
+                                ? Colors.redAccent
+                                : const Color(0xFF00C49A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: post.maxVolunteers > 0
+                            ? post.joinedUsers.length / post.maxVolunteers
+                            : 0,
+                        backgroundColor: Colors.grey[100],
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          isFull ? Colors.redAccent : const Color(0xFF00C49A),
+                        ),
+                        minHeight: 6,
+                      ),
+                    ),
+                  ],
                 ),
-                const Divider(height: 16, thickness: 0.5),
+                const SizedBox(height: 20),
 
-                // Volunteers count
-                _buildDetailRow(
-                  Icons.people,
-                  '${post.joinedUsers.length}/${post.maxVolunteers} volunteers joined',
-                  trailing: SizedBox(
-                    width: 50,
-                    height: 4,
-                    child: LinearProgressIndicator(
-                      value: post.maxVolunteers > 0
-                          ? post.joinedUsers.length / post.maxVolunteers
-                          : 0,
-                      backgroundColor: Colors.grey[200],
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        post.joinedUsers.length >= post.maxVolunteers
-                            ? Colors.redAccent
-                            : const Color(0xFF00C49A),
+                // Action Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: hasJoined
+                        ? () => _cancelVolunteerPost(context, post)
+                        : (isFull
+                            ? null
+                            : () => _joinVolunteerPost(context, post)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: hasJoined
+                          ? Colors.redAccent.withOpacity(0.1)
+                          : const Color(0xFF00C49A),
+                      foregroundColor:
+                          hasJoined ? Colors.redAccent : Colors.white,
+                      elevation: hasJoined ? 0 : 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      disabledBackgroundColor: Colors.grey[300],
+                    ),
+                    child: Text(
+                      hasJoined
+                          ? 'Cancel Registration'
+                          : (isFull ? 'Activity Full' : 'Join Activity'),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: isFull ? Colors.grey[600] : null,
                       ),
                     ),
                   ),
                 ),
               ],
-            ),
-          ),
-
-          // Join/Cancel button
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: hasJoined
-                  ? Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () =>
-                                _cancelVolunteerPost(context, post),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.redAccent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            child: const Text(
-                              'Cancel Registration',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : ElevatedButton(
-                      onPressed: isFull
-                          ? null
-                          : () => _joinVolunteerPost(context, post),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00C49A),
-                        disabledBackgroundColor: Colors.grey[300],
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        isFull ? 'Activity Full' : 'Join Activity',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: !isFull ? Colors.white : Colors.grey[600],
-                        ),
-                      ),
-                    ),
             ),
           ),
         ],
@@ -399,113 +548,220 @@ class _VolunteerPageState extends State<VolunteerPage> {
     );
   }
 
-  void _showDescriptionDialog(BuildContext context, VolunteerPost post) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget _buildInfoItem(IconData icon, String title, String subtitle) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE6FFFA),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: const Color(0xFF00C49A),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
-                color: Color(0xFF00C49A),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
-              ),
-              child: Text(
-                post.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2D3748),
               ),
             ),
-
-            // Description content
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Description',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF2D3748),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    post.description,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Close button
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.grey[100],
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text(
-                    'Close',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF2D3748),
-                    ),
-                  ),
-                ),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
               ),
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildDetailRow(IconData icon, String text, {Widget? trailing}) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 16,
-          color: const Color(0xFF00C49A),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              color: Colors.grey[800],
-              fontSize: 13,
-            ),
+  void _showDescriptionSheet(BuildContext context, VolunteerPost post) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (_, controller) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Drag Handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  controller: controller,
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  children: [
+                    // Header
+                    Text(
+                      post.title,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A202C),
+                        height: 1.3,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today,
+                            size: 16, color: Colors.grey[600]),
+                        const SizedBox(width: 8),
+                        Text(
+                          DateFormat('MMM d, yyyy').format(post.eventDate),
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Icon(Icons.access_time,
+                            size: 16, color: Colors.grey[600]),
+                        const SizedBox(width: 8),
+                        Text(
+                          post.formattedTime,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 32),
+                    // Content
+                    const Text(
+                      'About this Activity',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2D3748),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      post.description,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[800],
+                        height: 1.6, // Improved line height for readability
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Location Section in Sheet
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF7FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE6FFFA),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.location_on,
+                              color: Color(0xFF00C49A),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Location',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  post.location,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF2D3748),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Close Button Area
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    24, 0, 24, MediaQuery.of(context).padding.bottom + 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[100],
+                      foregroundColor: const Color(0xFF2D3748),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        if (trailing != null) trailing,
-      ],
+      ),
     );
   }
 
