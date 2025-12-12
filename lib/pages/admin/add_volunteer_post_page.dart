@@ -18,8 +18,15 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
   final _maxVolunteersController = TextEditingController(text: "1");
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
-  TimeOfDay _selectedTime = const TimeOfDay(hour: 9, minute: 0);
+  
+  // Start date/time
+  DateTime _startDate = DateTime.now().add(const Duration(days: 1));
+  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
+  
+  // End date/time
+  DateTime _endDate = DateTime.now().add(const Duration(days: 1));
+  TimeOfDay _endTime = const TimeOfDay(hour: 17, minute: 0);
+  
   bool _isCreatingPost = false;
 
   @override
@@ -66,13 +73,37 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
     final userData = userDoc.data()!;
     final communityId = userData['communityId'] as String;
 
-    final eventDateTime = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-      _selectedTime.hour,
-      _selectedTime.minute,
+    final startDateTime = DateTime(
+      _startDate.year,
+      _startDate.month,
+      _startDate.day,
+      _startTime.hour,
+      _startTime.minute,
     );
+
+    final endDateTime = DateTime(
+      _endDate.year,
+      _endDate.month,
+      _endDate.day,
+      _endTime.hour,
+      _endTime.minute,
+    );
+
+    // Validate that end date is after start date
+    if (endDateTime.isBefore(startDateTime)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('End date must be after start date'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isCreatingPost = false;
+        });
+      }
+      return;
+    }
 
     final post = VolunteerPost(
       id: '',
@@ -81,7 +112,8 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
       adminId: currentUser.uid,
       adminName: currentUser.displayName ?? 'Admin',
       date: DateTime.now(),
-      eventDate: eventDateTime,
+      startDate: startDateTime,
+      endDate: endDateTime,
       location: _locationController.text,
       maxVolunteers: int.parse(_maxVolunteersController.text),
       joinedUsers: [],
@@ -119,10 +151,10 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
     }
   }
 
-  Future<void> _selectDate() async {
+  Future<void> _selectStartDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
+      initialDate: _startDate,
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (context, child) {
@@ -137,14 +169,20 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
       },
     );
     if (picked != null && mounted) {
-      setState(() => _selectedDate = picked);
+      setState(() {
+        _startDate = picked;
+        // Auto-update end date if it's before start date
+        if (_endDate.isBefore(picked)) {
+          _endDate = picked;
+        }
+      });
     }
   }
 
-  Future<void> _selectTime() async {
+  Future<void> _selectStartTime() async {
     final TimeOfDay? time = await showTimePicker(
       context: context,
-      initialTime: _selectedTime,
+      initialTime: _startTime,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -157,7 +195,49 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
       },
     );
     if (time != null && mounted) {
-      setState(() => _selectedTime = time);
+      setState(() => _startTime = time);
+    }
+  }
+
+  Future<void> _selectEndDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate.isBefore(_startDate) ? _startDate : _endDate,
+      firstDate: _startDate,
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF00C49A),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && mounted) {
+      setState(() => _endDate = picked);
+    }
+  }
+
+  Future<void> _selectEndTime() async {
+    final TimeOfDay? time = await showTimePicker(
+      context: context,
+      initialTime: _endTime,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF00C49A),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (time != null && mounted) {
+      setState(() => _endTime = time);
     }
   }
 
@@ -209,6 +289,104 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
     );
   }
 
+  Widget _buildDateTimeSection({
+    required String title,
+    required Color color,
+    required IconData icon,
+    required DateTime date,
+    required TimeOfDay time,
+    required VoidCallback onDateTap,
+    required VoidCallback onTimeTap,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: onDateTap,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade200),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.white,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today,
+                            size: 16, color: Colors.grey.shade600),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            DateFormat('MMM dd, yyyy').format(date),
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: InkWell(
+                  onTap: onTimeTap,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade200),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.white,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.access_time,
+                            size: 16, color: Colors.grey.shade600),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            time.format(context),
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AdminScaffold(
@@ -243,87 +421,26 @@ class _AddVolunteerPostPageState extends State<AddVolunteerPostPage> {
                     : null,
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Event Date',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
-                            color: Color(0xFF4A5568),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        InkWell(
-                          onTap: _selectDate,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 16),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade200),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.calendar_today,
-                                    size: 18, color: Color(0xFF00C49A)),
-                                const SizedBox(width: 8),
-                                Text(
-                                  DateFormat('MMM dd, yyyy')
-                                      .format(_selectedDate),
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Event Time',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
-                            color: Color(0xFF4A5568),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        InkWell(
-                          onTap: _selectTime,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 16),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade200),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.access_time,
-                                    size: 18, color: Color(0xFF00C49A)),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _selectedTime.format(context),
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              // Start Date/Time Section
+              _buildDateTimeSection(
+                title: 'Start Date & Time',
+                color: const Color(0xFF3B82F6),
+                icon: Icons.play_circle_outline_rounded,
+                date: _startDate,
+                time: _startTime,
+                onDateTap: _selectStartDate,
+                onTimeTap: _selectStartTime,
+              ),
+              const SizedBox(height: 12),
+              // End Date/Time Section
+              _buildDateTimeSection(
+                title: 'End Date & Time',
+                color: const Color(0xFF10B981),
+                icon: Icons.stop_circle_outlined,
+                date: _endDate,
+                time: _endTime,
+                onDateTap: _selectEndDate,
+                onTimeTap: _selectEndTime,
               ),
               const SizedBox(height: 16),
               _buildFormField(

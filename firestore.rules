@@ -113,6 +113,11 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // Collection-level access for users (for analytics and migrations)
+    match /users/{document=**} {
+      allow read, write: if canAccessStats();
+    }
+
     // Market items collection rules
     match /market_items/{itemId} {
       allow read: if isSignedIn();
@@ -282,7 +287,16 @@ service cloud.firestore {
       allow read: if canAccessStats();
     }
     // <<< END OF NEW RULE >>>
-
+    
+    // Volunteer participation records collection
+    // Stores permanent participation records that persist even if volunteer posts are deleted
+    match /volunteer_participation_records/{recordId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && canAccessStats();
+      allow update: if isSignedIn() && canAccessStats();
+      allow delete: if false; // Never delete participation records to maintain data integrity
+    }
+    
     // Deleted Notifications collection
     match /deleted_notifications/{deletedId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;

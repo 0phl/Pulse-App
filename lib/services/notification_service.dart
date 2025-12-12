@@ -1715,8 +1715,12 @@ class NotificationService with WidgetsBindingObserver {
 
       final notificationData = notificationDoc.data() as Map<String, dynamic>;
 
-      await _firestore.collection('notification_status').doc(statusId).delete();
-      debugPrint('Notification status deleted (marked as read): $statusId');
+      // Update the status to read: true instead of deleting
+      // This keeps the notification visible in the list as "read"
+      await _firestore.collection('notification_status').doc(statusId).update({
+        'read': true,
+      });
+      debugPrint('Notification status updated to read: $statusId');
 
       final combinedData = {
         ...notificationData,
@@ -1733,7 +1737,7 @@ class NotificationService with WidgetsBindingObserver {
     }
   }
 
-  // Mark all notifications as read by deleting their notification_status records
+  // Mark all notifications as read by updating their notification_status records
   // Returns a list of notification data that can still be displayed
   Future<List<Map<String, dynamic>>> markAllNotificationsAsRead() async {
     final user = _auth.currentUser;
@@ -1787,7 +1791,8 @@ class NotificationService with WidgetsBindingObserver {
             }
           }
 
-          batch.delete(doc.reference);
+          // Update to read: true instead of deleting
+          batch.update(doc.reference, {'read': true});
         } catch (e) {
           debugPrint('Error processing notification: $e');
         }
@@ -1797,7 +1802,7 @@ class NotificationService with WidgetsBindingObserver {
       await batch.commit();
 
       debugPrint(
-          'Marked ${unreadNotifications.docs.length} notifications as read');
+          'Marked ${unreadNotifications.docs.length} notifications as read (updated status)');
       return notificationDataList;
     } catch (e) {
       debugPrint('Error marking all notifications as read: $e');

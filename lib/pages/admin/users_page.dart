@@ -47,6 +47,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   final bool _groupByHousehold = false;
   Map<String, dynamic>? _demographics;
   Map<String, List<FirestoreUser>>? _households;
+  bool _isLoadingResidents = true; // Separate loading flag for residents
 
   @override
   void initState() {
@@ -61,6 +62,13 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
     debugPrint('UsersPage: initState called');
     _loadCommunity();
     _loadUsers();
+    // Load resident users for the "All Users" tab (first tab)
+    _loadResidentUsers().then((_) {
+      if (mounted) {
+        debugPrint('Resident users loaded on init');
+        _filterUsers();
+      }
+    });
     _loadPendingUsers().then((_) {
       // Force a rebuild of the filtered list after loading pending users
       if (mounted) {
@@ -111,15 +119,16 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
 
         // Refresh data based on the new tab
         _isLoading = true;
+        if (_tabController.index == 0) {
+          _isLoadingResidents = true;
+        }
       });
 
       if (_tabController.index == 0) {
         debugPrint('Loading All Users tab data');
         _loadResidentUsers().then((_) {
           if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
+            _filterUsers();
           }
         });
       } else if (_tabController.index == 1) {
@@ -386,9 +395,8 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
     if (!mounted) return;
 
     try {
-      if (_isInitialLoad) {
-        setState(() => _isLoading = true);
-      }
+      // Set loading state for residents
+      setState(() => _isLoadingResidents = true);
 
       debugPrint('Loading resident users...');
 
@@ -418,6 +426,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
         setState(() {
           _residentUsers = residents;
           _filteredResidentUsers = residents;
+          _isLoadingResidents = false;
           _isLoading = false;
           _isInitialLoad = false;
         });
@@ -429,6 +438,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
       debugPrint('Error loading resident users: $e');
       if (mounted) {
         setState(() {
+          _isLoadingResidents = false;
           _isLoading = false;
           _isInitialLoad = false;
         });
@@ -2478,7 +2488,7 @@ class _UsersPageState extends State<UsersPage> with TickerProviderStateMixin {
   // Build Resident Directory Tab
   Widget _buildResidentDirectoryTab() {
     return _buildTabContent(
-      isLoading: _isLoading,
+      isLoading: _isLoadingResidents,
       isEmpty: _filteredResidentUsers.isEmpty,
       onRefresh: _refreshData,
       emptyWidget: _buildEmptyState(

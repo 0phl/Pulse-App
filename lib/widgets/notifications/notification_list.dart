@@ -35,7 +35,7 @@ class _NotificationListState extends State<NotificationList> {
   StreamSubscription? _notificationSubscription;
   StreamSubscription? _statusSubscription; // Listen to status changes
   Set<String> _deletedNotificationIds = {}; // Track deleted notifications
-  String? _communityId;
+  DateTime? _userCreatedAt; // Track when the user was created to filter old notifications
   final _refreshKey = GlobalKey<RefreshIndicatorState>();
 
   @override
@@ -55,7 +55,29 @@ class _NotificationListState extends State<NotificationList> {
       }
     }
 
-    _communityId = await notificationService.getUserCommunityId();
+    // Get the user's creation date to filter out notifications created before they joined
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        if (userDoc.exists) {
+          final userData = userDoc.data();
+          if (userData != null && userData['createdAt'] != null) {
+            if (userData['createdAt'] is Timestamp) {
+              _userCreatedAt = (userData['createdAt'] as Timestamp).toDate();
+            } else if (userData['createdAt'] is DateTime) {
+              _userCreatedAt = userData['createdAt'] as DateTime;
+            }
+            debugPrint('NOTIFICATION DEBUG: User created at: $_userCreatedAt');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('NOTIFICATION DEBUG: Error getting user creation date: $e');
+    }
 
     // Log the current unread notification count for debugging
     try {
@@ -119,18 +141,21 @@ class _NotificationListState extends State<NotificationList> {
           debugPrint('NOTIFICATION DEBUG: User has ${_deletedNotificationIds.length} deleted notifications');
 
           final List<NotificationModel> unreadNotifications = [];
+          final List<NotificationModel> readNotificationsFromStatus = [];
           final Set<String> processedNotificationIds = {};
 
-          // Process unread notifications from notification_status
+          // Process all notifications from notification_status (both read and unread)
           for (final statusDoc in snapshot.docs) {
             try {
               final statusData = statusDoc.data();
               final notificationId = statusData['notificationId'] as String?;
               final communityId = statusData['communityId'] as String?;
+              final isRead = statusData['read'] as bool? ?? false;
               
               debugPrint('NOTIFICATION DEBUG: Processing status record ${statusDoc.id}');
               debugPrint('NOTIFICATION DEBUG:   - notificationId: $notificationId');
               debugPrint('NOTIFICATION DEBUG:   - communityId: $communityId');
+              debugPrint('NOTIFICATION DEBUG:   - isRead: $isRead');
               
               if (notificationId == null) {
                 debugPrint('NOTIFICATION DEBUG: Skipping - no notificationId');
@@ -169,68 +194,37 @@ class _NotificationListState extends State<NotificationList> {
                 'userId': user.uid,
                 'statusId': statusDoc.id,
                 'notificationId': notificationId,
-                'read': false, // Notifications with status records are unread
+                'read': isRead, // Use actual read status from the status document
                 'source': communityId != null ? 'community' : 'user',
                 'communityId': communityId,
               };
 
               final notification = NotificationModel.fromMap(completeData);
 
+              // Safety check: skip notifications created before user account
+              if (_userCreatedAt != null && notification.createdAt.isBefore(_userCreatedAt!)) {
+                debugPrint('NOTIFICATION DEBUG: Skipping notification created before user account: ${notification.title}');
+                continue;
+              }
+
               if (!notification.isSelfNotification() ||
                   notification.type == 'community_notice' ||
                   notification.type == 'communityNotices' ||
                   notification.type == 'volunteer') {
-                unreadNotifications.add(notification);
+                // Separate into read and unread lists
+                if (isRead) {
+                  readNotificationsFromStatus.add(notification);
+                } else {
+                  unreadNotifications.add(notification);
+                }
               }
             } catch (e) {
-              debugPrint('NOTIFICATION DEBUG: Error processing unread notification: $e');
+              debugPrint('NOTIFICATION DEBUG: Error processing notification: $e');
             }
           }
 
-          // Fetch read notifications from both collections
-          final List<NotificationModel> readNotifications = [];
-          
-          // Fetch recent community notifications
-          if (_communityId != null) {
-            final communitySnapshot = await FirebaseFirestore.instance
-                .collection('community_notifications')
-                .where('communityId', isEqualTo: _communityId)
-                .orderBy('createdAt', descending: true)
-                .limit(30)
-                .get();
-
-            for (final doc in communitySnapshot.docs) {
-              try {
-                // Skip if already processed as unread
-                if (processedNotificationIds.contains(doc.id)) continue;
-                // Skip if deleted
-                if (_deletedNotificationIds.contains(doc.id)) continue;
-
-                final data = doc.data();
-                final Map<String, dynamic> completeData = {
-                  ...data,
-                  'userId': user.uid,
-                  'statusId': doc.id,
-                  'notificationId': doc.id,
-                  'read': true, // No status record means it's read
-                  'source': 'community',
-                  'communityId': _communityId,
-                };
-
-                final notification = NotificationModel.fromMap(completeData);
-
-                if (!notification.isSelfNotification() ||
-                    notification.type == 'community_notice' ||
-                    notification.type == 'communityNotices' ||
-                    notification.type == 'volunteer') {
-                  readNotifications.add(notification);
-                  processedNotificationIds.add(doc.id);
-                }
-              } catch (e) {
-                debugPrint('NOTIFICATION DEBUG: Error processing community notification: $e');
-              }
-            }
-          }
+          // Combine read notifications from status with any additional ones
+          final List<NotificationModel> readNotifications = [...readNotificationsFromStatus];
 
           // Fetch recent user notifications
           // Note: We don't use orderBy here to avoid needing a composite index

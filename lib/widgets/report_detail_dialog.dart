@@ -275,47 +275,49 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
                       const SizedBox(height: 16),
                       _buildSectionTitle('Images'),
                       const SizedBox(height: 8),
-                      SizedBox(
-                        height: 200,
-                        child: ListView.builder(
+                      Center(
+                        child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
-                          itemCount: (widget.report['photoUrls'] as List).length,
-                          itemBuilder: (context, index) {
-                            final imageUrl = (widget.report['photoUrls'] as List)[index].toString();
-                            return Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              width: 200,
-                              child: GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => ImageViewerPage(
-                                        imageUrl: imageUrl,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: (widget.report['photoUrls'] as List).map((url) {
+                              final imageUrl = url.toString();
+                              return Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                width: 200,
+                                height: 200,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ImageViewerPage(
+                                          imageUrl: imageUrl,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                                child: Hero(
-                                  tag: imageUrl,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      imageUrl,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return Container(
-                                          color: Colors.grey[300],
-                                          alignment: Alignment.center,
-                                          child: const Text('Image not available'),
-                                        );
-                                      },
+                                    );
+                                  },
+                                  child: Hero(
+                                    tag: imageUrl,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            color: Colors.grey[300],
+                                            alignment: Alignment.center,
+                                            child: const Text('Image not available'),
+                                          );
+                                        },
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            }).toList(),
+                          ),
                         ),
                       ),
                     ],
@@ -326,34 +328,35 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
                       const SizedBox(height: 16),
                       _buildSectionTitle('Videos'),
                       const SizedBox(height: 8),
-                      SizedBox(
-                        height: 200,
-                        child: ListView.builder(
+                      Center(
+                        child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
-                          itemCount: (widget.report['videoUrls'] as List).length,
-                          itemBuilder: (context, index) {
-                            final videoUrl = (widget.report['videoUrls'] as List)[index].toString();
-                            return Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              width: 200,
-                              height: 200,
-                              child: VideoThumbnail(
-                                videoUrl: videoUrl,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: (widget.report['videoUrls'] as List).map((url) {
+                              final videoUrl = url.toString();
+                              return Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 4),
                                 width: 200,
                                 height: 200,
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => VideoPlayerPage(
-                                        videoUrl: videoUrl,
+                                child: VideoThumbnail(
+                                  videoUrl: videoUrl,
+                                  width: 200,
+                                  height: 200,
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => VideoPlayerPage(
+                                          videoUrl: videoUrl,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            );
-                          },
+                                    );
+                                  },
+                                ),
+                              );
+                            }).toList(),
+                          ),
                         ),
                       ),
                     ],
@@ -375,15 +378,9 @@ class _ReportDetailDialogState extends State<ReportDetailDialog> {
             // Actions
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                ),
-              ),
+              width: double.infinity,
               child: Wrap(
-                alignment: WrapAlignment.spaceEvenly,
+                alignment: WrapAlignment.center,
                 spacing: 8, // horizontal spacing
                 runSpacing: 8, // vertical spacing
                 children: [

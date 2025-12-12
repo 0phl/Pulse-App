@@ -134,47 +134,48 @@ class UserReportDetailDialog extends StatelessWidget {
                       const SizedBox(height: 16),
                       _buildSectionTitle('Photos'),
                       const SizedBox(height: 8),
-                      SizedBox(
-                        height: 200,
-                        child: ListView.builder(
+                      Center(
+                        child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
-                          itemCount: report.photoUrls.length,
-                          itemBuilder: (context, index) {
-                            final imageUrl = report.photoUrls[index];
-                            return Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              width: 200,
-                              child: GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => ImageViewerPage(
-                                        imageUrl: imageUrl,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: report.photoUrls.map((imageUrl) {
+                              return Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                width: 200,
+                                height: 200,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ImageViewerPage(
+                                          imageUrl: imageUrl,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                                child: Hero(
-                                  tag: imageUrl,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      imageUrl,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return Container(
-                                          color: Colors.grey[300],
-                                          alignment: Alignment.center,
-                                          child: const Text('Image not available'),
-                                        );
-                                      },
+                                    );
+                                  },
+                                  child: Hero(
+                                    tag: imageUrl,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            color: Colors.grey[300],
+                                            alignment: Alignment.center,
+                                            child: const Text('Image not available'),
+                                          );
+                                        },
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            }).toList(),
+                          ),
                         ),
                       ),
                     ],
@@ -183,34 +184,34 @@ class UserReportDetailDialog extends StatelessWidget {
                       const SizedBox(height: 16),
                       _buildSectionTitle('Videos'),
                       const SizedBox(height: 8),
-                      SizedBox(
-                        height: 200,
-                        child: ListView.builder(
+                      Center(
+                        child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
-                          itemCount: report.videoUrls.length,
-                          itemBuilder: (context, index) {
-                            final videoUrl = report.videoUrls[index];
-                            return Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              width: 200,
-                              height: 200,
-                              child: VideoThumbnail(
-                                videoUrl: videoUrl,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: report.videoUrls.map((videoUrl) {
+                              return Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 4),
                                 width: 200,
                                 height: 200,
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => VideoPlayerPage(
-                                        videoUrl: videoUrl,
+                                child: VideoThumbnail(
+                                  videoUrl: videoUrl,
+                                  width: 200,
+                                  height: 200,
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => VideoPlayerPage(
+                                          videoUrl: videoUrl,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            );
-                          },
+                                    );
+                                  },
+                                ),
+                              );
+                            }).toList(),
+                          ),
                         ),
                       ),
                     ],
@@ -308,8 +309,6 @@ class UserReportDetailDialog extends StatelessWidget {
         return Colors.green;
       case ReportStatus.rejected:
         return Colors.red;
-      default:
-        return Colors.grey;
     }
   }
 
