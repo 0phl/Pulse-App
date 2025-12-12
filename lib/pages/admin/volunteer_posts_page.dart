@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../../models/volunteer_post.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/admin_scaffold.dart';
@@ -1166,11 +1169,27 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                    Row(
+                      children: [
+                        if (post.joinedUsers.isNotEmpty)
+                          IconButton(
+                            icon: const Icon(
+                              Icons.picture_as_pdf_rounded,
+                              color: Color(0xFF00C49A),
+                            ),
+                            onPressed: () => _generateVolunteersPDF(post),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Export to PDF',
+                          ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1419,6 +1438,317 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     }
   }
 
+  Future<void> _generateVolunteersPDF(VolunteerPost post) async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+        ),
+      ),
+    );
+
+    try {
+      // Fetch volunteer details
+      final users = await _fetchVolunteerUsers(post.joinedUsers);
+
+      // Fetch community/barangay name from Realtime Database
+      String barangayName = 'Community';
+      try {
+        final communitySnapshot = await FirebaseDatabase.instance
+            .ref()
+            .child('communities/${post.communityId}')
+            .get();
+        if (communitySnapshot.exists) {
+          final data = communitySnapshot.value as Map<dynamic, dynamic>;
+          // Extract barangay name from community name (e.g., "NIOG II Community" -> "NIOG II")
+          String communityName = data['name']?.toString() ?? 'Community';
+          // Remove "Community" suffix if present for cleaner display
+          if (communityName.toLowerCase().endsWith(' community')) {
+            communityName = communityName.substring(0, communityName.length - 10).trim();
+          }
+          barangayName = 'Barangay $communityName';
+        }
+      } catch (e) {
+        debugPrint('Error fetching community name: $e');
+      }
+
+      // Create PDF document
+      final pdf = pw.Document();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(40),
+          header: (context) => _buildPDFHeader(post, barangayName),
+          footer: (context) => _buildPDFFooter(context),
+          build: (context) => [
+            pw.SizedBox(height: 20),
+            _buildPDFEventDetails(post),
+            pw.SizedBox(height: 30),
+            _buildPDFVolunteersTable(users),
+          ],
+        ),
+      );
+
+      // Close loading dialog
+      if (mounted) {
+        Navigator.pop(context);
+      }
+
+      // Show print/share dialog
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name: 'Volunteers_${post.title.replaceAll(' ', '_')}_${DateFormat('yyyyMMdd').format(post.eventDate)}',
+      );
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  pw.Widget _buildPDFHeader(VolunteerPost post, String barangayName) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.only(bottom: 20),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+          bottom: pw.BorderSide(
+            color: PdfColors.teal,
+            width: 2,
+          ),
+        ),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Expanded(
+                child: pw.Text(
+                  'VOLUNTEER LIST',
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.teal700,
+                  ),
+                ),
+              ),
+              pw.Text(
+                barangayName,
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.teal700,
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 8),
+          pw.Text(
+            post.title,
+            style: pw.TextStyle(
+              fontSize: 18,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.grey800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPDFEventDetails(VolunteerPost post) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(16),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.grey100,
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'EVENT DETAILS',
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.teal700,
+              letterSpacing: 1,
+            ),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Row(
+            children: [
+              pw.Expanded(
+                child: _buildPDFDetailItem(
+                  'Date',
+                  DateFormat('EEEE, MMMM d, yyyy').format(post.eventDate),
+                ),
+              ),
+              pw.Expanded(
+                child: _buildPDFDetailItem(
+                  'Time',
+                  post.formattedTime,
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 12),
+          _buildPDFDetailItem(
+            'Location',
+            post.location,
+          ),
+          pw.SizedBox(height: 12),
+          _buildPDFDetailItem(
+            'Description',
+            post.description,
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPDFDetailItem(String label, String value) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          label,
+          style: pw.TextStyle(
+            fontSize: 10,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.grey600,
+          ),
+        ),
+        pw.SizedBox(height: 4),
+        pw.Text(
+          value,
+          style: const pw.TextStyle(
+            fontSize: 12,
+            color: PdfColors.grey800,
+          ),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildPDFVolunteersTable(List<Map<String, dynamic>> users) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'REGISTERED VOLUNTEERS',
+          style: pw.TextStyle(
+            fontSize: 12,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.teal700,
+            letterSpacing: 1,
+          ),
+        ),
+        pw.SizedBox(height: 12),
+        pw.Table(
+          border: pw.TableBorder.all(
+            color: PdfColors.grey300,
+            width: 0.5,
+          ),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(0.5),
+            1: const pw.FlexColumnWidth(2),
+            2: const pw.FlexColumnWidth(2),
+            3: const pw.FlexColumnWidth(1.5),
+          },
+          children: [
+            // Header row
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(
+                color: PdfColors.teal700,
+              ),
+              children: [
+                _buildTableCell('#', isHeader: true),
+                _buildTableCell('Full Name', isHeader: true),
+                _buildTableCell('Email', isHeader: true),
+                _buildTableCell('Contact No.', isHeader: true),
+              ],
+            ),
+            // Data rows
+            ...users.asMap().entries.map((entry) {
+              final index = entry.key;
+              final user = entry.value;
+              return pw.TableRow(
+                decoration: pw.BoxDecoration(
+                  color: index % 2 == 0 ? PdfColors.white : PdfColors.grey50,
+                ),
+                children: [
+                  _buildTableCell('${index + 1}'),
+                  _buildTableCell(user['fullName'] ?? 'Unknown'),
+                  _buildTableCell(user['email'] ?? '-'),
+                  _buildTableCell(user['mobile']?.isNotEmpty == true ? user['mobile'] : '-'),
+                ],
+              );
+            }),
+          ],
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildTableCell(String text, {bool isHeader = false}) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: isHeader ? 10 : 9,
+          fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+          color: isHeader ? PdfColors.white : PdfColors.grey800,
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _buildPDFFooter(pw.Context context) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.only(top: 10),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+          top: pw.BorderSide(
+            color: PdfColors.grey300,
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            'Generated on ${DateFormat('MMM d, yyyy \'at\' h:mm a').format(DateTime.now())}',
+            style: const pw.TextStyle(
+              fontSize: 9,
+              color: PdfColors.grey500,
+            ),
+          ),
+          pw.Text(
+            'Page ${context.pageNumber} of ${context.pagesCount}',
+            style: const pw.TextStyle(
+              fontSize: 9,
+              color: PdfColors.grey500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _editVolunteerPost(String postId) async {
     if (!_formKey.currentState!.validate()) return;
