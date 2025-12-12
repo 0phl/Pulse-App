@@ -1327,10 +1327,6 @@ class _RegisterPageState extends State<RegisterPage>
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),
-                onChanged: (value) {
-                  // Trigger rebuild to update button state
-                  setState(() {});
-                },
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your address';
