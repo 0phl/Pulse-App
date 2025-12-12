@@ -139,22 +139,108 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
   Future<void> _deletePost(String postId, String title) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Post?'),
-        content: Text('Are you sure you want to delete "$title"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.rectangle,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10.0,
+                offset: const Offset(0.0, 10.0),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
-            child: const Text('Delete'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red[400],
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Delete Post?',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A202C),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Are you sure you want to delete "$title"? This action cannot be undone.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey[600],
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        backgroundColor: Colors.grey[50],
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Delete',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
 
@@ -183,56 +269,88 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     }
   }
 
-  void _showCreatePostDialog(
-      {bool keepExistingValues = false, BuildContext? context}) {
-    final currentContext = context ?? this.context;
-    if (!keepExistingValues) {
-      // Only clear values if we're not keeping existing values
+  void _showPostFormSheet(
+      {VolunteerPost? post, bool keepExistingValues = false}) {
+    if (post != null) {
+      // Edit mode
+      _titleController.text = post.title;
+      _descriptionController.text = post.description;
+      _locationController.text = post.location;
+      _maxVolunteersController.text = post.maxVolunteers.toString();
+      _selectedDate = post.eventDate;
+      _selectedTime =
+          TimeOfDay(hour: post.eventDate.hour, minute: post.eventDate.minute);
+    } else if (!keepExistingValues) {
+      // Create mode - clear values
       _titleController.clear();
       _descriptionController.clear();
       _locationController.clear();
-      _maxVolunteersController.text = "1"; // Default value
-      _selectedDate =
-          DateTime.now().add(const Duration(days: 1)); // Default to tomorrow
-      _selectedTime = const TimeOfDay(hour: 9, minute: 0); // Default to 9 AM
+      _maxVolunteersController.text = "1";
+      _selectedDate = DateTime.now().add(const Duration(days: 1));
+      _selectedTime = const TimeOfDay(hour: 9, minute: 0);
     }
 
-    showDialog(
-      context: currentContext,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, controller) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Drag Handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Header
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Create Volunteer Post',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                    Text(
+                      post != null
+                          ? 'Edit Volunteer Post'
+                          : 'Create Volunteer Post',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A202C),
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, size: 20),
+                      icon: const Icon(Icons.close),
                       onPressed: () => Navigator.pop(context),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
-                const Divider(height: 24),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Form(
+              ),
+              const Divider(),
+              // Form
+              Expanded(
+                child: ListView(
+                  controller: controller,
+                  padding: const EdgeInsets.all(24),
+                  children: [
+                    Form(
                       key: _formKey,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,31 +358,32 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                           _buildFormField(
                             label: 'Title',
                             controller: _titleController,
-                            hintText: 'Tree Planting',
+                            hintText: 'e.g. Tree Planting Activity',
                             validator: (value) => value?.isEmpty ?? true
                                 ? 'Please enter a title'
                                 : null,
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 20),
                           _buildFormField(
                             label: 'Description',
                             controller: _descriptionController,
                             hintText:
-                                'Join us for a community tree planting event...',
-                            maxLines: 3,
+                                'Describe the activity, requirements, and other important details...',
+                            minLines: 3,
+                            maxLines: 8,
                             validator: (value) => value?.isEmpty ?? true
                                 ? 'Please enter a description'
                                 : null,
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 20),
                           Row(
                             children: [
                               Expanded(
                                 child: _buildDateField(
                                   label: 'Date',
-                                  value: DateFormat('MM/dd/yyyy')
+                                  value: DateFormat('MMM d, yyyy')
                                       .format(_selectedDate),
-                                  icon: Icons.calendar_today,
+                                  icon: Icons.calendar_today_rounded,
                                   onTap: () async {
                                     final date = await showDatePicker(
                                       context: context,
@@ -278,6 +397,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                                             colorScheme:
                                                 const ColorScheme.light(
                                               primary: Color(0xFF00C49A),
+                                              onPrimary: Colors.white,
+                                              onSurface: Color(0xFF1A202C),
                                             ),
                                           ),
                                           child: child!,
@@ -290,12 +411,12 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                                   },
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 16),
                               Expanded(
                                 child: _buildDateField(
                                   label: 'Time',
                                   value: _selectedTime.format(context),
-                                  icon: Icons.access_time,
+                                  icon: Icons.access_time_rounded,
                                   onTap: () async {
                                     final time = await showTimePicker(
                                       context: context,
@@ -306,6 +427,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                                             colorScheme:
                                                 const ColorScheme.light(
                                               primary: Color(0xFF00C49A),
+                                              onPrimary: Colors.white,
+                                              onSurface: Color(0xFF1A202C),
                                             ),
                                           ),
                                           child: child!,
@@ -320,21 +443,23 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 20),
                           _buildFormField(
                             label: 'Location',
                             controller: _locationController,
-                            hintText: 'Barangay Pulse',
+                            hintText: 'e.g. Barangay Hall',
+                            icon: Icons.location_on_outlined,
                             validator: (value) => value?.isEmpty ?? true
                                 ? 'Please enter a location'
                                 : null,
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 20),
                           _buildFormField(
                             label: 'Maximum Volunteers',
                             controller: _maxVolunteersController,
-                            hintText: '1',
+                            hintText: 'e.g. 20',
                             keyboardType: TextInputType.number,
+                            icon: Icons.people_outline,
                             validator: (value) {
                               if (value?.isEmpty ?? true) {
                                 return 'Please enter maximum volunteers';
@@ -345,70 +470,77 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                               return null;
                             },
                           ),
-                          const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _isCreatingPost
-                                      ? null
-                                      : () => Navigator.pop(context),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    side:
-                                        BorderSide(color: Colors.grey.shade300),
-                                  ),
-                                  child: const Text('Cancel'),
+                          const SizedBox(height: 32),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: _isCreatingPost
+                                  ? null
+                                  : () => post != null
+                                      ? _editVolunteerPost(post.id)
+                                      : _createVolunteerPost(),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00C49A),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
+                                elevation: 0,
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _isCreatingPost
-                                      ? null
-                                      : _createVolunteerPost,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF00C49A),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
+                              child: _isCreatingPost
+                                  ? const SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                Colors.white),
+                                      ),
+                                    )
+                                  : Text(
+                                      post != null
+                                          ? 'Save Changes'
+                                          : 'Create Post',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                    elevation: 0,
-                                  ),
-                                  child: _isCreatingPost
-                                      ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                    Colors.white),
-                                          ),
-                                        )
-                                      : const Text(
-                                          'Create Post',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.grey[600],
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                              height:
+                                  MediaQuery.of(context).viewInsets.bottom),
                         ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -420,7 +552,9 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     required TextEditingController controller,
     required String hintText,
     int maxLines = 1,
+    int minLines = 1,
     TextInputType? keyboardType,
+    IconData? icon,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -429,39 +563,43 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
         Text(
           label,
           style: const TextStyle(
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             fontSize: 14,
-            color: Color(0xFF4A5568),
+            color: Color(0xFF2D3748),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+            prefixIcon: icon != null
+                ? Icon(icon, color: Colors.grey.shade400, size: 20)
+                : null,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.grey.shade200),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.grey.shade200),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF00C49A)),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF00C49A), width: 1.5),
             ),
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             isDense: true,
             filled: true,
             fillColor: Colors.grey.shade50,
           ),
+          minLines: minLines,
           maxLines: maxLines,
           keyboardType: keyboardType,
           validator: validator,
-          style: const TextStyle(fontSize: 14),
+          style: const TextStyle(fontSize: 15),
         ),
       ],
     );
@@ -626,7 +764,7 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton.icon(
-                        onPressed: _showCreatePostDialog,
+                        onPressed: () => _showPostFormSheet(),
                         icon: const Icon(Icons.add, size: 16),
                         label: const Text('Create Post'),
                         style: ElevatedButton.styleFrom(
@@ -655,183 +793,247 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                     posts[index].id,
                   );
 
-                  final isPastEvent = post.eventDate.isBefore(DateTime.now());
+                          final isPastEvent = post.eventDate.isBefore(DateTime.now());
 
-                  return Card(
-                    elevation: 0,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.grey.shade200),
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Header with Gradient
                         Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: isPastEvent
-                                ? Colors.grey.shade300
-                                : const Color(0xFF00C49A),
+                            gradient: LinearGradient(
+                              colors: isPastEvent
+                                  ? [Colors.grey.shade400, Colors.grey.shade600]
+                                  : [
+                                      const Color(0xFF00C49A),
+                                      const Color(0xFF00A884)
+                                    ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(12),
-                              topRight: Radius.circular(12),
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
                             ),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Expanded(
-                                child: Text(
-                                  post.title,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    decoration: isPastEvent
-                                        ? TextDecoration.lineThrough
-                                        : null,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      post.title,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.location_on,
+                                          size: 14,
+                                          color: Colors.white.withOpacity(0.9),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            post.location,
+                                            style: TextStyle(
+                                              color: Colors.white
+                                                  .withOpacity(0.9),
+                                              fontSize: 13,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
                               Row(
                                 children: [
-                                  if (isPastEvent)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: const Text(
-                                        'Past',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ),
-                                  const SizedBox(width: 8),
-                                  // Edit button
-                                  Tooltip(
-                                    message: 'Edit post',
-                                    child: GestureDetector(
-                                      onTap: () => _showEditPostDialog(post),
-                                      child: const Icon(
-                                        Icons.edit_outlined,
-                                        color: Colors.white,
-                                        size: 18,
-                                      ),
-                                    ),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit,
+                                        color: Colors.white, size: 20),
+                                    onPressed: () =>
+                                        _showPostFormSheet(post: post),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
                                   ),
-                                  const SizedBox(width: 8),
-                                  // Reuse button for past events
-                                  if (isPastEvent)
-                                    Tooltip(
-                                      message: 'Reuse post for a new event',
-                                      child: GestureDetector(
-                                        onTap: () => _reuseVolunteerPost(post),
-                                        child: const Icon(
-                                          Icons.refresh_outlined,
-                                          color: Colors.white,
-                                          size: 18,
-                                        ),
-                                      ),
+                                  const SizedBox(width: 16),
+                                  if (isPastEvent) ...[
+                                    IconButton(
+                                      icon: const Icon(Icons.refresh,
+                                          color: Colors.white, size: 20),
+                                      onPressed: () =>
+                                          _reuseVolunteerPost(post),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
                                     ),
-                                  if (isPastEvent) const SizedBox(width: 8),
-                                  Tooltip(
-                                    message: 'Delete post',
-                                    child: GestureDetector(
-                                      onTap: () =>
-                                          _deletePost(post.id, post.title),
-                                      child: const Icon(
-                                        Icons.delete_outline,
-                                        color: Colors.white,
-                                        size: 18,
-                                      ),
-                                    ),
+                                    const SizedBox(width: 16),
+                                  ],
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline,
+                                        color: Colors.white, size: 20),
+                                    onPressed: () =>
+                                        _deletePost(post.id, post.title),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
                                   ),
                                 ],
                               ),
                             ],
                           ),
                         ),
+
+                        // Body
                         Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                post.description,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[700],
+                              // Info Row
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildInfoItem(
+                                      Icons.calendar_today_rounded,
+                                      DateFormat('MMM d')
+                                          .format(post.eventDate),
+                                      DateFormat('yyyy')
+                                          .format(post.eventDate),
+                                    ),
+                                  ),
+                                  Container(
+                                    height: 40,
+                                    width: 1,
+                                    color: Colors.grey.shade200,
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                  ),
+                                  Expanded(
+                                    child: _buildInfoItem(
+                                      Icons.access_time_rounded,
+                                      post.formattedTime,
+                                      'Start time',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Description
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF7FAFC),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                                child: Text(
+                                  post.description,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[700],
+                                    height: 1.5,
+                                  ),
+                                ),
                               ),
-                              const SizedBox(height: 16),
-                              _buildPostDetailRow(
-                                icon: Icons.location_on,
-                                text: post.location,
-                              ),
-                              const Divider(height: 16, thickness: 0.5),
-                              _buildPostDetailRow(
-                                icon: Icons.calendar_today,
-                                text: DateFormat('EEEE, MMMM d, yyyy')
-                                    .format(post.eventDate),
-                              ),
-                              const Divider(height: 16, thickness: 0.5),
-                              _buildPostDetailRow(
-                                icon: Icons.access_time,
-                                text: post.formattedTime,
-                              ),
-                              const Divider(height: 16, thickness: 0.5),
-                              _buildPostDetailRow(
-                                icon: Icons.people,
-                                text:
-                                    '${post.joinedUsers.length}/${post.maxVolunteers} volunteers',
-                                trailing: Row(
-                                  children: [
-                                    SizedBox(
-                                      width: 50,
-                                      height: 4,
-                                      child: LinearProgressIndicator(
-                                        value: post.maxVolunteers > 0
-                                            ? post.joinedUsers.length /
-                                                post.maxVolunteers
-                                            : 0,
-                                        backgroundColor: Colors.grey[200],
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                          post.joinedUsers.length >=
-                                                  post.maxVolunteers
-                                              ? Colors.redAccent
-                                              : const Color(0xFF00C49A),
+                              const SizedBox(height: 20),
+
+                              // Progress Bar
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Volunteers Joined',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey[600],
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Tooltip(
-                                      message: 'View interested volunteers',
-                                      child: IconButton(
-                                        icon: const Icon(Icons.visibility,
-                                            size: 18),
-                                        color: const Color(0xFF00C49A),
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        onPressed: () =>
-                                            _showInterestedUsers(post),
+                                      Text(
+                                        '${post.joinedUsers.length}/${post.maxVolunteers}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: const Color(0xFF00C49A),
+                                        ),
                                       ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: post.maxVolunteers > 0
+                                          ? post.joinedUsers.length /
+                                              post.maxVolunteers
+                                          : 0,
+                                      backgroundColor: Colors.grey[100],
+                                      valueColor:
+                                          const AlwaysStoppedAnimation<Color>(
+                                        Color(0xFF00C49A),
+                                      ),
+                                      minHeight: 6,
                                     ),
-                                  ],
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+
+                              // View Volunteers Button
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: OutlinedButton.icon(
+                                  onPressed: () =>
+                                      _showInterestedUsers(post),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(
+                                        color: Color(0xFF00C49A)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.people_outline,
+                                      color: Color(0xFF00C49A)),
+                                  label: const Text(
+                                    'View Volunteers',
+                                    style: TextStyle(
+                                      color: Color(0xFF00C49A),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -847,81 +1049,125 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showCreatePostDialog,
+        onPressed: () => _showPostFormSheet(),
         backgroundColor: const Color(0xFF00C49A),
-        elevation: 2,
+        elevation: 4,
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
 
-  Widget _buildPostDetailRow({
-    required IconData icon,
-    required String text,
-    Widget? trailing,
-  }) {
+  Widget _buildInfoItem(IconData icon, String title, String subtitle) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: const Color(0xFF00C49A),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              color: Colors.grey[800],
-              fontSize: 13,
-            ),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE6FFFA),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: const Color(0xFF00C49A),
           ),
         ),
-        if (trailing != null) trailing,
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2D3748),
+              ),
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
 
   Future<void> _showInterestedUsers(VolunteerPost post) async {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (_, controller) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF00C49A),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12),
+              // Drag Handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
+              ),
+              // Header
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.people,
-                      color: Colors.white,
-                      size: 20,
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00C49A).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.people_rounded,
+                        color: Color(0xFF00C49A),
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        'Interested Volunteers (${post.joinedUsers.length}/${post.maxVolunteers})',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Interested Volunteers',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A202C),
+                            ),
+                          ),
+                          Text(
+                            '${post.joinedUsers.length} of ${post.maxVolunteers} joined',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
+                      icon: const Icon(Icons.close),
                       onPressed: () => Navigator.pop(context),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -929,39 +1175,37 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                   ],
                 ),
               ),
-              Flexible(
+              const Divider(height: 1),
+              // Content
+              Expanded(
                 child: post.joinedUsers.isEmpty
                     ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.people_outline,
-                                size: 48,
-                                color: Colors.grey.shade400,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.people_outline_rounded,
+                              size: 64,
+                              color: Colors.grey.shade300,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No volunteers yet',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey.shade600,
+                                fontWeight: FontWeight.w500,
                               ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No volunteers yet',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Users who join will appear here',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade500,
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'When users join this volunteer post, they will appear here.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade500,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       )
                     : FutureBuilder<List<Map<String, dynamic>>>(
@@ -979,36 +1223,9 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
 
                           if (snapshot.hasError) {
                             return Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.error_outline,
-                                      size: 48,
-                                      color: Colors.red.shade300,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Error loading volunteers',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.grey.shade600,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Please try again later.',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey.shade500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              child: Text(
+                                'Error loading volunteers',
+                                style: TextStyle(color: Colors.grey.shade600),
                               ),
                             );
                           }
@@ -1016,79 +1233,112 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
                           final users = snapshot.data ?? [];
 
                           return ListView.separated(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            controller: controller,
+                            padding: const EdgeInsets.all(16),
                             itemCount: users.length,
-                            separatorBuilder: (context, index) => const Divider(
-                              height: 1,
-                              indent: 16,
-                              endIndent: 16,
-                            ),
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               final user = users[index];
-                              return ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor:
-                                      const Color(0xFF00C49A).withOpacity(0.1),
-                                  backgroundImage: user['profileImageUrl'] !=
-                                          null
-                                      ? NetworkImage(user['profileImageUrl'])
-                                      : null,
-                                  child: user['profileImageUrl'] == null
-                                      ? Text(
-                                          user['fullName']?.isNotEmpty == true
-                                              ? user['fullName'][0]
-                                                  .toUpperCase()
-                                              : '?',
-                                          style: const TextStyle(
-                                            color: Color(0xFF00C49A),
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        )
-                                      : null,
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border:
+                                      Border.all(color: Colors.grey.shade200),
                                 ),
-                                title: Text(
-                                  user['fullName'] ?? 'Unknown User',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                child: Row(
                                   children: [
-                                    Text(user['email'] ?? 'No email'),
-                                    if (user['mobile'] != null &&
-                                        user['mobile'].isNotEmpty)
-                                      Text(user['mobile']),
+                                    CircleAvatar(
+                                      radius: 24,
+                                      backgroundColor: const Color(0xFF00C49A)
+                                          .withOpacity(0.1),
+                                      backgroundImage: user['profileImageUrl'] !=
+                                              null
+                                          ? NetworkImage(
+                                              user['profileImageUrl'])
+                                          : null,
+                                      child: user['profileImageUrl'] == null
+                                          ? Text(
+                                              user['fullName']?.isNotEmpty ==
+                                                      true
+                                                  ? user['fullName'][0]
+                                                      .toUpperCase()
+                                                  : '?',
+                                              style: const TextStyle(
+                                                color: Color(0xFF00C49A),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 18,
+                                              ),
+                                            )
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            user['fullName'] ?? 'Unknown User',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 16,
+                                              color: Color(0xFF2D3748),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          if (user['email'] != null)
+                                            Row(
+                                              children: [
+                                                Icon(Icons.email_outlined,
+                                                    size: 14,
+                                                    color: Colors.grey[500]),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(
+                                                    user['email'],
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          if (user['mobile'] != null &&
+                                              user['mobile'].isNotEmpty) ...[
+                                            const SizedBox(height: 2),
+                                            Row(
+                                              children: [
+                                                Icon(Icons.phone_outlined,
+                                                    size: 14,
+                                                    color: Colors.grey[500]),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  user['mobile'],
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
                                   ],
                                 ),
-                                isThreeLine: user['mobile'] != null &&
-                                    user['mobile'].isNotEmpty,
-                                dense: true,
                               );
                             },
                           );
                         },
                       ),
-              ),
-              Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(12),
-                    bottomRight: Radius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  'Volunteer post: ${post.title}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade600,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
               ),
             ],
           ),
@@ -1169,230 +1419,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     }
   }
 
-  void _showEditPostDialog(VolunteerPost post) {
-    _titleController.text = post.title;
-    _descriptionController.text = post.description;
-    _locationController.text = post.location;
-    _maxVolunteersController.text = post.maxVolunteers.toString();
-    _selectedDate = post.eventDate;
-    _selectedTime =
-        TimeOfDay(hour: post.eventDate.hour, minute: post.eventDate.minute);
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Edit Volunteer Post',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 20),
-                      onPressed: () => Navigator.pop(context),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-                const Divider(height: 24),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildFormField(
-                            label: 'Title',
-                            controller: _titleController,
-                            hintText: 'Tree Planting',
-                            validator: (value) => value?.isEmpty ?? true
-                                ? 'Please enter a title'
-                                : null,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildFormField(
-                            label: 'Description',
-                            controller: _descriptionController,
-                            hintText:
-                                'Join us for a community tree planting event...',
-                            maxLines: 3,
-                            validator: (value) => value?.isEmpty ?? true
-                                ? 'Please enter a description'
-                                : null,
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildDateField(
-                                  label: 'Date',
-                                  value: DateFormat('MM/dd/yyyy')
-                                      .format(_selectedDate),
-                                  icon: Icons.calendar_today,
-                                  onTap: () async {
-                                    final date = await showDatePicker(
-                                      context: context,
-                                      initialDate: _selectedDate,
-                                      firstDate: DateTime.now(),
-                                      lastDate: DateTime.now()
-                                          .add(const Duration(days: 365)),
-                                      builder: (context, child) {
-                                        return Theme(
-                                          data: Theme.of(context).copyWith(
-                                            colorScheme:
-                                                const ColorScheme.light(
-                                              primary: Color(0xFF00C49A),
-                                            ),
-                                          ),
-                                          child: child!,
-                                        );
-                                      },
-                                    );
-                                    if (date != null && mounted) {
-                                      setState(() => _selectedDate = date);
-                                    }
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _buildDateField(
-                                  label: 'Time',
-                                  value: _selectedTime.format(context),
-                                  icon: Icons.access_time,
-                                  onTap: () async {
-                                    final time = await showTimePicker(
-                                      context: context,
-                                      initialTime: _selectedTime,
-                                      builder: (context, child) {
-                                        return Theme(
-                                          data: Theme.of(context).copyWith(
-                                            colorScheme:
-                                                const ColorScheme.light(
-                                              primary: Color(0xFF00C49A),
-                                            ),
-                                          ),
-                                          child: child!,
-                                        );
-                                      },
-                                    );
-                                    if (time != null && mounted) {
-                                      setState(() => _selectedTime = time);
-                                    }
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          _buildFormField(
-                            label: 'Location',
-                            controller: _locationController,
-                            hintText: 'Barangay Pulse',
-                            validator: (value) => value?.isEmpty ?? true
-                                ? 'Please enter a location'
-                                : null,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildFormField(
-                            label: 'Maximum Volunteers',
-                            controller: _maxVolunteersController,
-                            hintText: '1',
-                            keyboardType: TextInputType.number,
-                            validator: (value) {
-                              if (value?.isEmpty ?? true) {
-                                return 'Please enter maximum volunteers';
-                              }
-                              if (int.tryParse(value!) == null) {
-                                return 'Please enter a valid number';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _isCreatingPost
-                                      ? null
-                                      : () => Navigator.pop(context),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    side:
-                                        BorderSide(color: Colors.grey.shade300),
-                                  ),
-                                  child: const Text('Cancel'),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _isCreatingPost
-                                      ? null
-                                      : () => _editVolunteerPost(post.id),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF00C49A),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                  child: _isCreatingPost
-                                      ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                    Colors.white),
-                                          ),
-                                        )
-                                      : const Text(
-                                          'Save Changes',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Future<void> _editVolunteerPost(String postId) async {
     if (!_formKey.currentState!.validate()) return;
@@ -1448,22 +1474,108 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
   Future<void> _reuseVolunteerPost(VolunteerPost post) async {
     final shouldReuse = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reuse Post?'),
-        content: Text('Do you want to reuse "${post.title}" for a new event?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.rectangle,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10.0,
+                offset: const Offset(0.0, 10.0),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF00C49A),
-            ),
-            child: const Text('Reuse'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00C49A).withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.refresh_rounded,
+                  color: Color(0xFF00C49A),
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Reuse Post?',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A202C),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Do you want to reuse "${post.title}" for a new event? This will create a new post with the same details.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey[600],
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        backgroundColor: Colors.grey[50],
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00C49A),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Reuse',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
 
@@ -1481,6 +1593,6 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     _selectedTime =
         TimeOfDay(hour: post.eventDate.hour, minute: post.eventDate.minute);
 
-    _showCreatePostDialog(keepExistingValues: true);
+    _showPostFormSheet(keepExistingValues: true);
   }
 }
