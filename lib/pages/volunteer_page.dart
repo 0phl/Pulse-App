@@ -92,6 +92,23 @@ class _VolunteerPageState extends State<VolunteerPage> {
         return;
       }
 
+      // Check if the activity has already started or ended
+      if (post.status == VolunteerPostStatus.ongoing) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('This activity has already started. You cannot join anymore.')),
+        );
+        return;
+      }
+
+      if (post.status == VolunteerPostStatus.done) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('This activity has already ended.')),
+        );
+        return;
+      }
+
       debugPrint(
           'DEBUG: User ${currentUser.uid} attempting to join volunteer post ${post.id}');
       debugPrint('DEBUG: Post admin ID: ${post.adminId}');
@@ -141,6 +158,23 @@ class _VolunteerPageState extends State<VolunteerPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text('Please login to manage your activities')),
+        );
+        return;
+      }
+
+      // Check if the activity has already started or ended - cannot cancel
+      if (post.status == VolunteerPostStatus.ongoing) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('This activity has already started. You cannot cancel your registration.')),
+        );
+        return;
+      }
+
+      if (post.status == VolunteerPostStatus.done) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('This activity has already ended. You cannot cancel your registration.')),
         );
         return;
       }
@@ -314,12 +348,36 @@ class _VolunteerPageState extends State<VolunteerPage> {
     }
   }
 
+  String _getButtonText(bool hasJoined, bool isFull, bool isOngoingOrDone, VolunteerPostStatus status) {
+    if (hasJoined) {
+      if (status == VolunteerPostStatus.ongoing) {
+        return 'Activity In Progress';
+      } else if (status == VolunteerPostStatus.done) {
+        return 'Activity Completed';
+      }
+      return 'Cancel Registration';
+    } else {
+      if (status == VolunteerPostStatus.ongoing) {
+        return 'Already Started';
+      } else if (status == VolunteerPostStatus.done) {
+        return 'Activity Ended';
+      } else if (isFull) {
+        return 'Activity Full';
+      }
+      return 'Join Activity';
+    }
+  }
+
   Widget _buildVolunteerCard(VolunteerPost post) {
     final spotsLeft = post.maxVolunteers - post.joinedUsers.length;
     final currentUser = AuthService().currentUser;
     final bool hasJoined =
         currentUser != null && post.joinedUsers.contains(currentUser.uid);
     final bool isFull = spotsLeft <= 0;
+    final bool isOngoingOrDone = post.status == VolunteerPostStatus.ongoing || 
+                                  post.status == VolunteerPostStatus.done;
+    final bool canJoin = !hasJoined && !isFull && !isOngoingOrDone;
+    final bool canCancel = hasJoined && !isOngoingOrDone;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -661,31 +719,45 @@ class _VolunteerPageState extends State<VolunteerPage> {
                   height: 48,
                   child: ElevatedButton(
                     onPressed: hasJoined
-                        ? () => _cancelVolunteerPost(context, post)
-                        : (isFull
-                            ? null
-                            : () => _joinVolunteerPost(context, post)),
+                        ? (canCancel ? () => _cancelVolunteerPost(context, post) : null)
+                        : (canJoin ? () => _joinVolunteerPost(context, post) : null),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: hasJoined
-                          ? Colors.redAccent.withOpacity(0.1)
-                          : const Color(0xFF00C49A),
-                      foregroundColor:
-                          hasJoined ? Colors.redAccent : Colors.white,
-                      elevation: hasJoined ? 0 : 2,
+                          ? (canCancel ? Colors.redAccent.withOpacity(0.1) : Colors.grey[200])
+                          : (canJoin ? const Color(0xFF00C49A) : Colors.grey[300]),
+                      foregroundColor: hasJoined
+                          ? (canCancel ? Colors.redAccent : Colors.grey[500])
+                          : Colors.white,
+                      elevation: (hasJoined && canCancel) ? 0 : (canJoin ? 2 : 0),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                       disabledBackgroundColor: Colors.grey[300],
                     ),
-                    child: Text(
-                      hasJoined
-                          ? 'Cancel Registration'
-                          : (isFull ? 'Activity Full' : 'Join Activity'),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: isFull ? Colors.grey[600] : null,
-                      ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (isOngoingOrDone && hasJoined) ...[
+                          Icon(
+                            post.status == VolunteerPostStatus.ongoing
+                                ? Icons.play_circle_rounded
+                                : Icons.check_circle_rounded,
+                            size: 18,
+                            color: Colors.grey[500],
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        Text(
+                          _getButtonText(hasJoined, isFull, isOngoingOrDone, post.status),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: (hasJoined && !canCancel) || (!hasJoined && !canJoin)
+                                ? Colors.grey[600]
+                                : null,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
