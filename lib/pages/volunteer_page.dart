@@ -69,7 +69,8 @@ class _VolunteerPageState extends State<VolunteerPage> {
         return snapshot.docs
             .map((doc) => VolunteerPost.fromMap(
                 doc.data(), doc.id))
-            .where((post) => post.eventDate.isAfter(DateTime.now()))
+            // Only show posts that haven't ended yet (upcoming or ongoing)
+            .where((post) => post.status != VolunteerPostStatus.done)
             .toList();
       });
 
@@ -280,6 +281,39 @@ class _VolunteerPageState extends State<VolunteerPage> {
     }
   }
 
+  Color _getStatusColor(VolunteerPostStatus status) {
+    switch (status) {
+      case VolunteerPostStatus.upcoming:
+        return const Color(0xFF3B82F6); // Blue
+      case VolunteerPostStatus.ongoing:
+        return const Color(0xFFF59E0B); // Amber
+      case VolunteerPostStatus.done:
+        return const Color(0xFF10B981); // Green
+    }
+  }
+
+  IconData _getStatusIcon(VolunteerPostStatus status) {
+    switch (status) {
+      case VolunteerPostStatus.upcoming:
+        return Icons.schedule_rounded;
+      case VolunteerPostStatus.ongoing:
+        return Icons.play_circle_rounded;
+      case VolunteerPostStatus.done:
+        return Icons.check_circle_rounded;
+    }
+  }
+
+  List<Color> _getHeaderGradient(VolunteerPostStatus status) {
+    switch (status) {
+      case VolunteerPostStatus.upcoming:
+        return [const Color(0xFF00C49A), const Color(0xFF00A884)];
+      case VolunteerPostStatus.ongoing:
+        return [const Color(0xFFF59E0B), const Color(0xFFD97706)];
+      case VolunteerPostStatus.done:
+        return [const Color(0xFF10B981), const Color(0xFF059669)];
+    }
+  }
+
   Widget _buildVolunteerCard(VolunteerPost post) {
     final spotsLeft = post.maxVolunteers - post.joinedUsers.length;
     final currentUser = AuthService().currentUser;
@@ -303,16 +337,16 @@ class _VolunteerPageState extends State<VolunteerPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with Gradient
+          // Header with Status-based Gradient
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF00C49A), Color(0xFF00A884)],
+                colors: _getHeaderGradient(post.status),
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.only(
+              borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
               ),
@@ -324,6 +358,35 @@ class _VolunteerPageState extends State<VolunteerPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Status Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _getStatusIcon(post.status),
+                              size: 12,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              post.statusLabel,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Text(
                         post.title,
                         style: const TextStyle(
@@ -387,32 +450,118 @@ class _VolunteerPageState extends State<VolunteerPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Info Row (Date & Time)
+                // Time Info Banner
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(post.status).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 16,
+                        color: _getStatusColor(post.status),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        post.timeInfo,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: _getStatusColor(post.status),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Start & End Date/Time
                 Row(
                   children: [
                     Expanded(
-                      child: _buildInfoItem(
-                        Icons.calendar_today_rounded,
-                        DateFormat('MMM d').format(post.eventDate),
-                        DateFormat('yyyy').format(post.eventDate),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Starts',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.play_circle_outline_rounded,
+                                size: 16,
+                                color: Color(0xFF3B82F6),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '${DateFormat('MMM d').format(post.startDate)} • ${post.formattedStartTime}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2D3748),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                     Container(
-                      height: 40,
+                      height: 36,
                       width: 1,
                       color: Colors.grey.shade200,
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      margin: const EdgeInsets.symmetric(horizontal: 12),
                     ),
                     Expanded(
-                      child: _buildInfoItem(
-                        Icons.access_time_rounded,
-                        post.formattedTime,
-                        'Start time',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Ends',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.stop_circle_outlined,
+                                size: 16,
+                                color: Color(0xFF10B981),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '${DateFormat('MMM d').format(post.endDate)} • ${post.formattedEndTime}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2D3748),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 // Description Preview
                 GestureDetector(
@@ -437,9 +586,9 @@ class _VolunteerPageState extends State<VolunteerPage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Row(
+                        const Row(
                           children: [
-                            const Text(
+                            Text(
                               'Read more details',
                               style: TextStyle(
                                 fontSize: 12,
@@ -447,8 +596,8 @@ class _VolunteerPageState extends State<VolunteerPage> {
                                 color: Color(0xFF00C49A),
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            const Icon(
+                            SizedBox(width: 4),
+                            Icon(
                               Icons.arrow_forward_rounded,
                               size: 12,
                               color: Color(0xFF00C49A),
@@ -459,7 +608,7 @@ class _VolunteerPageState extends State<VolunteerPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 // Progress Bar
                 Column(
@@ -504,7 +653,7 @@ class _VolunteerPageState extends State<VolunteerPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 // Action Button
                 SizedBox(
@@ -548,53 +697,13 @@ class _VolunteerPageState extends State<VolunteerPage> {
     );
   }
 
-  Widget _buildInfoItem(IconData icon, String title, String subtitle) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE6FFFA),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: const Color(0xFF00C49A),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF2D3748),
-              ),
-            ),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   void _showDescriptionSheet(BuildContext context, VolunteerPost post) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
+        initialChildSize: 0.7,
         minChildSize: 0.4,
         maxChildSize: 0.9,
         builder: (_, controller) => Container(
@@ -621,6 +730,56 @@ class _VolunteerPageState extends State<VolunteerPage> {
                   controller: controller,
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                   children: [
+                    // Status Badge
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(post.status).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _getStatusIcon(post.status),
+                                size: 14,
+                                color: _getStatusColor(post.status),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                post.statusLabel,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: _getStatusColor(post.status),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            post.timeInfo,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     // Header
                     Text(
                       post.title,
@@ -631,30 +790,114 @@ class _VolunteerPageState extends State<VolunteerPage> {
                         height: 1.3,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
+                    
+                    // Start & End Date/Time Cards
                     Row(
                       children: [
-                        Icon(Icons.calendar_today,
-                            size: 16, color: Colors.grey[600]),
-                        const SizedBox(width: 8),
-                        Text(
-                          DateFormat('MMM d, yyyy').format(post.eventDate),
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF3B82F6).withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFF3B82F6).withOpacity(0.2),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.play_circle_outline_rounded,
+                                      size: 14,
+                                      color: Color(0xFF3B82F6),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Starts',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF3B82F6),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  DateFormat('MMM d, yyyy').format(post.startDate),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2D3748),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  post.formattedStartTime,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        Icon(Icons.access_time,
-                            size: 16, color: Colors.grey[600]),
-                        const SizedBox(width: 8),
-                        Text(
-                          post.formattedTime,
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFF10B981).withOpacity(0.2),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.stop_circle_outlined,
+                                      size: 14,
+                                      color: Color(0xFF10B981),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Ends',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF10B981),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  DateFormat('MMM d, yyyy').format(post.endDate),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2D3748),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  post.formattedEndTime,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],

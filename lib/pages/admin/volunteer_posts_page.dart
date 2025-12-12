@@ -17,15 +17,31 @@ class AdminVolunteerPostsPage extends StatefulWidget {
       _AdminVolunteerPostsPageState();
 }
 
-class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
+class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
   final _maxVolunteersController = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
-  TimeOfDay _selectedTime = TimeOfDay.now();
+  
+  // Start date/time fields
+  DateTime _startDate = DateTime.now().add(const Duration(days: 1));
+  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
+  
+  // End date/time fields
+  DateTime _endDate = DateTime.now().add(const Duration(days: 1));
+  TimeOfDay _endTime = const TimeOfDay(hour: 17, minute: 0);
+  
   bool _isCreatingPost = false;
+
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
 
   Future<String?> _getAdminCommunityId() async {
     final currentUser = AuthService().currentUser;
@@ -48,7 +64,62 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     _descriptionController.dispose();
     _locationController.dispose();
     _maxVolunteersController.dispose();
+    _tabController.dispose();
     super.dispose();
+  }
+
+  /// Records permanent participation for users when a volunteer post transitions to ongoing or done
+  Future<void> _recordPermanentParticipation(VolunteerPost post) async {
+    if (post.joinedUsers.isEmpty) return;
+
+    final batch = FirebaseFirestore.instance.batch();
+
+    for (final userId in post.joinedUsers) {
+      // Create a unique document ID based on post and user
+      final participationDocId = '${post.id}_$userId';
+      final participationRef = FirebaseFirestore.instance
+          .collection('volunteer_participation_records')
+          .doc(participationDocId);
+
+      // Only add if it doesn't exist (idempotent operation)
+      batch.set(
+        participationRef,
+        {
+          'userId': userId,
+          'postId': post.id,
+          'postTitle': post.title,
+          'communityId': post.communityId,
+          'eventDate': post.eventDate,
+          'recordedAt': FieldValue.serverTimestamp(),
+          'status': post.status.name,
+        },
+        SetOptions(merge: true),
+      );
+    }
+
+    await batch.commit();
+  }
+
+  Color _getStatusColor(VolunteerPostStatus status) {
+    switch (status) {
+      case VolunteerPostStatus.upcoming:
+        return const Color(0xFF3B82F6); // Blue
+      case VolunteerPostStatus.ongoing:
+        return const Color(0xFFF59E0B); // Amber
+      case VolunteerPostStatus.done:
+        return const Color(0xFF10B981); // Green
+    }
+  }
+
+  IconData _getStatusIcon(VolunteerPostStatus status) {
+    switch (status) {
+      case VolunteerPostStatus.upcoming:
+        return Icons.schedule_rounded;
+      case VolunteerPostStatus.ongoing:
+        return Icons.play_circle_rounded;
+      case VolunteerPostStatus.done:
+        return Icons.check_circle_rounded;
+    }
   }
 
   Future<void> _createVolunteerPost() async {
@@ -86,13 +157,37 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     final userData = userDoc.data()!;
     final communityId = userData['communityId'] as String;
 
-    final eventDateTime = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-      _selectedTime.hour,
-      _selectedTime.minute,
+    final startDateTime = DateTime(
+      _startDate.year,
+      _startDate.month,
+      _startDate.day,
+      _startTime.hour,
+      _startTime.minute,
     );
+
+    final endDateTime = DateTime(
+      _endDate.year,
+      _endDate.month,
+      _endDate.day,
+      _endTime.hour,
+      _endTime.minute,
+    );
+
+    // Validate that end date is after start date
+    if (endDateTime.isBefore(startDateTime)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('End date must be after start date'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isCreatingPost = false;
+        });
+      }
+      return;
+    }
 
     final post = VolunteerPost(
       id: '',
@@ -101,7 +196,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
       adminId: currentUser.uid,
       adminName: currentUser.displayName ?? 'Admin',
       date: DateTime.now(),
-      eventDate: eventDateTime,
+      startDate: startDateTime,
+      endDate: endDateTime,
       location: _locationController.text,
       maxVolunteers: int.parse(_maxVolunteersController.text),
       joinedUsers: [],
@@ -186,7 +282,7 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Are you sure you want to delete "$title"? This action cannot be undone.',
+                'Are you sure you want to delete "$title"? This action cannot be undone, but participation records will be preserved.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,
@@ -280,270 +376,411 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
       _descriptionController.text = post.description;
       _locationController.text = post.location;
       _maxVolunteersController.text = post.maxVolunteers.toString();
-      _selectedDate = post.eventDate;
-      _selectedTime =
-          TimeOfDay(hour: post.eventDate.hour, minute: post.eventDate.minute);
+      _startDate = post.startDate;
+      _startTime = TimeOfDay(hour: post.startDate.hour, minute: post.startDate.minute);
+      _endDate = post.endDate;
+      _endTime = TimeOfDay(hour: post.endDate.hour, minute: post.endDate.minute);
     } else if (!keepExistingValues) {
       // Create mode - clear values
       _titleController.clear();
       _descriptionController.clear();
       _locationController.clear();
       _maxVolunteersController.text = "1";
-      _selectedDate = DateTime.now().add(const Duration(days: 1));
-      _selectedTime = const TimeOfDay(hour: 9, minute: 0);
+      _startDate = DateTime.now().add(const Duration(days: 1));
+      _startTime = const TimeOfDay(hour: 9, minute: 0);
+      _endDate = DateTime.now().add(const Duration(days: 1));
+      _endTime = const TimeOfDay(hour: 17, minute: 0);
     }
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.9,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (_, controller) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              // Drag Handle
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
+      builder: (modalContext) => StatefulBuilder(
+        builder: (context, setModalState) => DraggableScrollableSheet(
+          initialChildSize: 0.9,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (_, controller) => Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                // Drag Handle
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              // Header
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      post != null
-                          ? 'Edit Volunteer Post'
-                          : 'Create Volunteer Post',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A202C),
+                // Header
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        post != null
+                            ? 'Edit Volunteer Post'
+                            : 'Create Volunteer Post',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A202C),
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const Divider(),
-              // Form
-              Expanded(
-                child: ListView(
-                  controller: controller,
-                  padding: const EdgeInsets.all(24),
-                  children: [
-                    Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildFormField(
-                            label: 'Title',
-                            controller: _titleController,
-                            hintText: 'e.g. Tree Planting Activity',
-                            validator: (value) => value?.isEmpty ?? true
-                                ? 'Please enter a title'
-                                : null,
-                          ),
-                          const SizedBox(height: 20),
-                          _buildFormField(
-                            label: 'Description',
-                            controller: _descriptionController,
-                            hintText:
-                                'Describe the activity, requirements, and other important details...',
-                            minLines: 3,
-                            maxLines: 8,
-                            validator: (value) => value?.isEmpty ?? true
-                                ? 'Please enter a description'
-                                : null,
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildDateField(
-                                  label: 'Date',
-                                  value: DateFormat('MMM d, yyyy')
-                                      .format(_selectedDate),
-                                  icon: Icons.calendar_today_rounded,
-                                  onTap: () async {
-                                    final date = await showDatePicker(
-                                      context: context,
-                                      initialDate: _selectedDate,
-                                      firstDate: DateTime.now(),
-                                      lastDate: DateTime.now()
-                                          .add(const Duration(days: 365)),
-                                      builder: (context, child) {
-                                        return Theme(
-                                          data: Theme.of(context).copyWith(
-                                            colorScheme:
-                                                const ColorScheme.light(
-                                              primary: Color(0xFF00C49A),
-                                              onPrimary: Colors.white,
-                                              onSurface: Color(0xFF1A202C),
-                                            ),
-                                          ),
-                                          child: child!,
-                                        );
-                                      },
-                                    );
-                                    if (date != null && mounted) {
-                                      setState(() => _selectedDate = date);
-                                    }
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _buildDateField(
-                                  label: 'Time',
-                                  value: _selectedTime.format(context),
-                                  icon: Icons.access_time_rounded,
-                                  onTap: () async {
-                                    final time = await showTimePicker(
-                                      context: context,
-                                      initialTime: _selectedTime,
-                                      builder: (context, child) {
-                                        return Theme(
-                                          data: Theme.of(context).copyWith(
-                                            colorScheme:
-                                                const ColorScheme.light(
-                                              primary: Color(0xFF00C49A),
-                                              onPrimary: Colors.white,
-                                              onSurface: Color(0xFF1A202C),
-                                            ),
-                                          ),
-                                          child: child!,
-                                        );
-                                      },
-                                    );
-                                    if (time != null && mounted) {
-                                      setState(() => _selectedTime = time);
-                                    }
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          _buildFormField(
-                            label: 'Location',
-                            controller: _locationController,
-                            hintText: 'e.g. Barangay Hall',
-                            icon: Icons.location_on_outlined,
-                            validator: (value) => value?.isEmpty ?? true
-                                ? 'Please enter a location'
-                                : null,
-                          ),
-                          const SizedBox(height: 20),
-                          _buildFormField(
-                            label: 'Maximum Volunteers',
-                            controller: _maxVolunteersController,
-                            hintText: 'e.g. 20',
-                            keyboardType: TextInputType.number,
-                            icon: Icons.people_outline,
-                            validator: (value) {
-                              if (value?.isEmpty ?? true) {
-                                return 'Please enter maximum volunteers';
-                              }
-                              if (int.tryParse(value!) == null) {
-                                return 'Please enter a valid number';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 32),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton(
-                              onPressed: _isCreatingPost
-                                  ? null
-                                  : () => post != null
-                                      ? _editVolunteerPost(post.id)
-                                      : _createVolunteerPost(),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF00C49A),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: _isCreatingPost
-                                  ? const SizedBox(
-                                      height: 24,
-                                      width: 24,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                                Colors.white),
-                                      ),
-                                    )
-                                  : Text(
-                                      post != null
-                                          ? 'Save Changes'
-                                          : 'Create Post',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                const Divider(),
+                // Form
+                Expanded(
+                  child: ListView(
+                    controller: controller,
+                    padding: const EdgeInsets.all(24),
+                    children: [
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildFormField(
+                              label: 'Title',
+                              controller: _titleController,
+                              hintText: 'e.g. Tree Planting Activity',
+                              validator: (value) => value?.isEmpty ?? true
+                                  ? 'Please enter a title'
+                                  : null,
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              style: TextButton.styleFrom(
-                                foregroundColor: Colors.grey[600],
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                            const SizedBox(height: 20),
+                            _buildFormField(
+                              label: 'Description',
+                              controller: _descriptionController,
+                              hintText:
+                                  'Describe the activity, requirements, and other important details...',
+                              minLines: 3,
+                              maxLines: 8,
+                              validator: (value) => value?.isEmpty ?? true
+                                  ? 'Please enter a description'
+                                  : null,
+                            ),
+                            const SizedBox(height: 20),
+                            // Start Date/Time Section
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF3B82F6).withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFF3B82F6).withOpacity(0.2),
                                 ),
                               ),
-                              child: const Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.play_circle_outline_rounded,
+                                        size: 18,
+                                        color: Color(0xFF3B82F6),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Start Date & Time',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                          color: Color(0xFF3B82F6),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildDateField(
+                                          label: 'Date',
+                                          value: DateFormat('MMM d, yyyy').format(_startDate),
+                                          icon: Icons.calendar_today_rounded,
+                                          onTap: () async {
+                                            final date = await showDatePicker(
+                                              context: context,
+                                              initialDate: _startDate,
+                                              firstDate: DateTime.now(),
+                                              lastDate: DateTime.now().add(const Duration(days: 365)),
+                                              builder: (context, child) {
+                                                return Theme(
+                                                  data: Theme.of(context).copyWith(
+                                                    colorScheme: const ColorScheme.light(
+                                                      primary: Color(0xFF00C49A),
+                                                      onPrimary: Colors.white,
+                                                      onSurface: Color(0xFF1A202C),
+                                                    ),
+                                                  ),
+                                                  child: child!,
+                                                );
+                                              },
+                                            );
+                                            if (date != null) {
+                                              setModalState(() {
+                                                _startDate = date;
+                                                // Auto-update end date if it's before start date
+                                                if (_endDate.isBefore(date)) {
+                                                  _endDate = date;
+                                                }
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _buildDateField(
+                                          label: 'Time',
+                                          value: _startTime.format(context),
+                                          icon: Icons.access_time_rounded,
+                                          onTap: () async {
+                                            final time = await showTimePicker(
+                                              context: context,
+                                              initialTime: _startTime,
+                                              builder: (context, child) {
+                                                return Theme(
+                                                  data: Theme.of(context).copyWith(
+                                                    colorScheme: const ColorScheme.light(
+                                                      primary: Color(0xFF00C49A),
+                                                      onPrimary: Colors.white,
+                                                      onSurface: Color(0xFF1A202C),
+                                                    ),
+                                                  ),
+                                                  child: child!,
+                                                );
+                                              },
+                                            );
+                                            if (time != null) {
+                                              setModalState(() => _startTime = time);
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                          SizedBox(
-                              height:
-                                  MediaQuery.of(context).viewInsets.bottom),
-                        ],
+                            const SizedBox(height: 16),
+                            // End Date/Time Section
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFF10B981).withOpacity(0.2),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.stop_circle_outlined,
+                                        size: 18,
+                                        color: Color(0xFF10B981),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'End Date & Time',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                          color: Color(0xFF10B981),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildDateField(
+                                          label: 'Date',
+                                          value: DateFormat('MMM d, yyyy').format(_endDate),
+                                          icon: Icons.calendar_today_rounded,
+                                          onTap: () async {
+                                            final date = await showDatePicker(
+                                              context: context,
+                                              initialDate: _endDate.isBefore(_startDate) ? _startDate : _endDate,
+                                              firstDate: _startDate,
+                                              lastDate: DateTime.now().add(const Duration(days: 365)),
+                                              builder: (context, child) {
+                                                return Theme(
+                                                  data: Theme.of(context).copyWith(
+                                                    colorScheme: const ColorScheme.light(
+                                                      primary: Color(0xFF00C49A),
+                                                      onPrimary: Colors.white,
+                                                      onSurface: Color(0xFF1A202C),
+                                                    ),
+                                                  ),
+                                                  child: child!,
+                                                );
+                                              },
+                                            );
+                                            if (date != null) {
+                                              setModalState(() => _endDate = date);
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _buildDateField(
+                                          label: 'Time',
+                                          value: _endTime.format(context),
+                                          icon: Icons.access_time_rounded,
+                                          onTap: () async {
+                                            final time = await showTimePicker(
+                                              context: context,
+                                              initialTime: _endTime,
+                                              builder: (context, child) {
+                                                return Theme(
+                                                  data: Theme.of(context).copyWith(
+                                                    colorScheme: const ColorScheme.light(
+                                                      primary: Color(0xFF00C49A),
+                                                      onPrimary: Colors.white,
+                                                      onSurface: Color(0xFF1A202C),
+                                                    ),
+                                                  ),
+                                                  child: child!,
+                                                );
+                                              },
+                                            );
+                                            if (time != null) {
+                                              setModalState(() => _endTime = time);
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _buildFormField(
+                              label: 'Location',
+                              controller: _locationController,
+                              hintText: 'e.g. Barangay Hall',
+                              icon: Icons.location_on_outlined,
+                              validator: (value) => value?.isEmpty ?? true
+                                  ? 'Please enter a location'
+                                  : null,
+                            ),
+                            const SizedBox(height: 20),
+                            _buildFormField(
+                              label: 'Maximum Volunteers',
+                              controller: _maxVolunteersController,
+                              hintText: 'e.g. 20',
+                              keyboardType: TextInputType.number,
+                              icon: Icons.people_outline,
+                              validator: (value) {
+                                if (value?.isEmpty ?? true) {
+                                  return 'Please enter maximum volunteers';
+                                }
+                                if (int.tryParse(value!) == null) {
+                                  return 'Please enter a valid number';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 32),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: ElevatedButton(
+                                onPressed: _isCreatingPost
+                                    ? null
+                                    : () => post != null
+                                        ? _editVolunteerPost(post.id)
+                                        : _createVolunteerPost(),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF00C49A),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: _isCreatingPost
+                                    ? const SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                  Colors.white),
+                                        ),
+                                      )
+                                    : Text(
+                                        post != null
+                                            ? 'Save Changes'
+                                            : 'Create Post',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.grey[600],
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Cancel',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                                height:
+                                    MediaQuery.of(context).viewInsets.bottom),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -659,7 +896,7 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
       title: 'Manage Volunteer Posts',
       appBar: AppBar(
         title: const Text(
-          'Manage Volunteer Posts',
+          'Manage Volunteers',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w500,
@@ -671,10 +908,31 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
+            icon: const Icon(Icons.emoji_events_rounded),
+            onPressed: () => _showTopEngagedUsersSheet(),
+            tooltip: 'Top Volunteers',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => setState(() {}),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white.withOpacity(0.6),
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+          tabs: const [
+            Tab(text: 'All'),
+            Tab(text: 'Ongoing'),
+            Tab(text: 'Done'),
+          ],
+        ),
       ),
       body: StreamBuilder<String?>(
         stream: Stream.fromFuture(_getAdminCommunityId()),
@@ -711,343 +969,13 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
             );
           }
 
-          return StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('volunteer_posts')
-                .where('communityId', isEqualTo: communityId)
-                .orderBy('date', descending: true)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(
-                  child: Text(
-                    'Error loading posts',
-                    style: TextStyle(color: Colors.grey.shade700),
-                  ),
-                );
-              }
-
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
-                  ),
-                );
-              }
-
-              final posts = snapshot.data?.docs ?? [];
-
-              if (posts.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.volunteer_activism,
-                        size: 48,
-                        color: const Color(0xFF00C49A).withOpacity(0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'No volunteer posts yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF2D3748),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Create your first volunteer post',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: () => _showPostFormSheet(),
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Create Post'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00C49A),
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              return ListView.builder(
-                itemCount: posts.length,
-                padding: const EdgeInsets.all(16),
-                itemBuilder: (context, index) {
-                  final post = VolunteerPost.fromMap(
-                    posts[index].data() as Map<String, dynamic>,
-                    posts[index].id,
-                  );
-
-                          final isPastEvent = post.eventDate.isBefore(DateTime.now());
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header with Gradient
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: isPastEvent
-                                  ? [Colors.grey.shade400, Colors.grey.shade600]
-                                  : [
-                                      const Color(0xFF00C49A),
-                                      const Color(0xFF00A884)
-                                    ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(16),
-                              topRight: Radius.circular(16),
-                            ),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      post.title,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.location_on,
-                                          size: 14,
-                                          color: Colors.white.withOpacity(0.9),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Text(
-                                            post.location,
-                                            style: TextStyle(
-                                              color: Colors.white
-                                                  .withOpacity(0.9),
-                                              fontSize: 13,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit,
-                                        color: Colors.white, size: 20),
-                                    onPressed: () =>
-                                        _showPostFormSheet(post: post),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  if (isPastEvent) ...[
-                                    IconButton(
-                                      icon: const Icon(Icons.refresh,
-                                          color: Colors.white, size: 20),
-                                      onPressed: () =>
-                                          _reuseVolunteerPost(post),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                    ),
-                                    const SizedBox(width: 16),
-                                  ],
-                                  IconButton(
-                                    icon: const Icon(Icons.delete_outline,
-                                        color: Colors.white, size: 20),
-                                    onPressed: () =>
-                                        _deletePost(post.id, post.title),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Body
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Info Row
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildInfoItem(
-                                      Icons.calendar_today_rounded,
-                                      DateFormat('MMM d')
-                                          .format(post.eventDate),
-                                      DateFormat('yyyy')
-                                          .format(post.eventDate),
-                                    ),
-                                  ),
-                                  Container(
-                                    height: 40,
-                                    width: 1,
-                                    color: Colors.grey.shade200,
-                                    margin: const EdgeInsets.symmetric(
-                                        horizontal: 16),
-                                  ),
-                                  Expanded(
-                                    child: _buildInfoItem(
-                                      Icons.access_time_rounded,
-                                      post.formattedTime,
-                                      'Start time',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 20),
-
-                              // Description
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF7FAFC),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  post.description,
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[700],
-                                    height: 1.5,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-
-                              // Progress Bar
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Volunteers Joined',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                      Text(
-                                        '${post.joinedUsers.length}/${post.maxVolunteers}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: const Color(0xFF00C49A),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: post.maxVolunteers > 0
-                                          ? post.joinedUsers.length /
-                                              post.maxVolunteers
-                                          : 0,
-                                      backgroundColor: Colors.grey[100],
-                                      valueColor:
-                                          const AlwaysStoppedAnimation<Color>(
-                                        Color(0xFF00C49A),
-                                      ),
-                                      minHeight: 6,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 20),
-
-                              // View Volunteers Button
-                              SizedBox(
-                                width: double.infinity,
-                                height: 48,
-                                child: OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _showInterestedUsers(post),
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(
-                                        color: Color(0xFF00C49A)),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.people_outline,
-                                      color: Color(0xFF00C49A)),
-                                  label: const Text(
-                                    'View Volunteers',
-                                    style: TextStyle(
-                                      color: Color(0xFF00C49A),
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
-            },
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildPostsTab(communityId, null), // All posts
+              _buildPostsTab(communityId, VolunteerPostStatus.ongoing),
+              _buildPostsTab(communityId, VolunteerPostStatus.done),
+            ],
           );
         },
       ),
@@ -1060,44 +988,991 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     );
   }
 
-  Widget _buildInfoItem(IconData icon, String title, String subtitle) {
+  Widget _buildPostsTab(String communityId, VolunteerPostStatus? filterStatus) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('volunteer_posts')
+          .where('communityId', isEqualTo: communityId)
+          .orderBy('date', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Error loading posts',
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+          );
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+            ),
+          );
+        }
+
+        final allPosts = snapshot.data?.docs ?? [];
+        
+        // Convert to VolunteerPost objects and filter by computed status
+        final allPostObjects = allPosts.map((doc) {
+          return VolunteerPost.fromMap(
+            doc.data() as Map<String, dynamic>,
+            doc.id,
+          );
+        }).toList();
+
+        // Auto-record participation for posts that have transitioned
+        _checkAndRecordParticipation(allPostObjects);
+
+        // Filter by computed status (based on dates)
+        final filteredPosts = filterStatus == null
+            ? allPostObjects
+            : allPostObjects.where((post) => post.status == filterStatus).toList();
+
+        final posts = filteredPosts;
+
+        if (posts.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  filterStatus == VolunteerPostStatus.ongoing
+                      ? Icons.play_circle_outline_rounded
+                      : filterStatus == VolunteerPostStatus.done
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.volunteer_activism,
+                  size: 48,
+                  color: const Color(0xFF00C49A).withOpacity(0.5),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  filterStatus == VolunteerPostStatus.ongoing
+                      ? 'No ongoing activities'
+                      : filterStatus == VolunteerPostStatus.done
+                          ? 'No completed activities'
+                          : 'No volunteer posts yet',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF2D3748),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  filterStatus == null
+                      ? 'Create your first volunteer post'
+                      : 'Posts will appear here when status changes',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                if (filterStatus == null) ...[
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () => _showPostFormSheet(),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Create Post'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00C49A),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: posts.length,
+          padding: const EdgeInsets.all(16),
+          itemBuilder: (context, index) {
+            return _buildPostCard(posts[index]);
+          },
+        );
+      },
+    );
+  }
+
+  /// Check and auto-record participation for posts that have transitioned to ongoing/done
+  Future<void> _checkAndRecordParticipation(List<VolunteerPost> posts) async {
+    for (final post in posts) {
+      // Check if participation should be recorded (ongoing or done, and not already recorded)
+      if (post.shouldRecordParticipation) {
+        await _recordPermanentParticipation(post);
+        // Mark as recorded in Firestore
+        try {
+          await FirebaseFirestore.instance
+              .collection('volunteer_posts')
+              .doc(post.id)
+              .update({'participationRecorded': true});
+        } catch (e) {
+          debugPrint('Error updating participationRecorded: $e');
+        }
+      }
+    }
+  }
+
+  Widget _buildPostCard(VolunteerPost post) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with Status-based Gradient
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: _getHeaderGradient(post.status),
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _getStatusIcon(post.status),
+                                  size: 12,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  post.statusLabel,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        post.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: 14,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              post.location,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                _buildActionButtons(post),
+              ],
+            ),
+          ),
+
+          // Body
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Time Info Banner
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(post.status).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 16,
+                        color: _getStatusColor(post.status),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        post.timeInfo,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: _getStatusColor(post.status),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Date/Time Info Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Starts',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.play_circle_outline_rounded,
+                                size: 16,
+                                color: const Color(0xFF3B82F6),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '${DateFormat('MMM d, yyyy').format(post.startDate)} • ${post.formattedStartTime}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2D3748),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      height: 36,
+                      width: 1,
+                      color: Colors.grey.shade200,
+                      margin: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Ends',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.stop_circle_outlined,
+                                size: 16,
+                                color: const Color(0xFF10B981),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '${DateFormat('MMM d, yyyy').format(post.endDate)} • ${post.formattedEndTime}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2D3748),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Description
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    post.description,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Progress Bar
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Volunteers Joined',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        Text(
+                          '${post.joinedUsers.length}/${post.maxVolunteers}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF00C49A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: post.maxVolunteers > 0
+                            ? post.joinedUsers.length / post.maxVolunteers
+                            : 0,
+                        backgroundColor: Colors.grey[100],
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF00C49A),
+                        ),
+                        minHeight: 6,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Bottom Buttons Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showInterestedUsers(post),
+                          style: OutlinedButton.styleFrom(
+                            side:
+                                const BorderSide(color: Color(0xFF00C49A)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.people_outline,
+                              color: Color(0xFF00C49A), size: 18),
+                          label: const Text(
+                            'Volunteers',
+                            style: TextStyle(
+                              color: Color(0xFF00C49A),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Auto Status Indicator (status is now automatic based on dates)
+                    Container(
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(post.status).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _getStatusColor(post.status)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _getStatusIcon(post.status),
+                            size: 18,
+                            color: _getStatusColor(post.status),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            post.statusLabel,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _getStatusColor(post.status),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Color> _getHeaderGradient(VolunteerPostStatus status) {
+    switch (status) {
+      case VolunteerPostStatus.upcoming:
+        return [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)];
+      case VolunteerPostStatus.ongoing:
+        return [const Color(0xFFF59E0B), const Color(0xFFD97706)];
+      case VolunteerPostStatus.done:
+        return [const Color(0xFF10B981), const Color(0xFF059669)];
+    }
+  }
+
+  Widget _buildActionButtons(VolunteerPost post) {
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE6FFFA),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: const Color(0xFF00C49A),
-          ),
+        IconButton(
+          icon: const Icon(Icons.edit, color: Colors.white, size: 20),
+          onPressed: () => _showPostFormSheet(post: post),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
         ),
         const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF2D3748),
-              ),
-            ),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
+        if (post.status == VolunteerPostStatus.done) ...[
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white, size: 20),
+            onPressed: () => _reuseVolunteerPost(post),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Reuse Post',
+          ),
+          const SizedBox(width: 12),
+        ],
+        IconButton(
+          icon: const Icon(Icons.delete_outline, color: Colors.white, size: 20),
+          onPressed: () => _deletePost(post.id, post.title),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
         ),
       ],
     );
+  }
+
+  /// Show Top Engaged Users modal sheet
+  Future<void> _showTopEngagedUsersSheet() async {
+    final communityId = await _getAdminCommunityId();
+    if (communityId == null) return;
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, controller) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Drag Handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Header
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.emoji_events_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Top Engaged Volunteers',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A202C),
+                            ),
+                          ),
+                          Text(
+                            'Based on completed/ongoing activities',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Content
+              Expanded(
+                child: _buildTopEngagedUsersList(communityId, controller),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopEngagedUsersList(
+      String communityId, ScrollController controller) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('volunteer_participation_records')
+          .where('communityId', isEqualTo: communityId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Error loading data',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          );
+        }
+
+        final participationRecords = snapshot.data?.docs ?? [];
+
+        if (participationRecords.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.emoji_events_outlined,
+                  size: 64,
+                  color: Colors.grey.shade300,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No participation records yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Records appear when posts are marked ongoing or done',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Aggregate participation counts by user
+        final Map<String, int> userParticipationCounts = {};
+        for (final doc in participationRecords) {
+          final data = doc.data() as Map<String, dynamic>;
+          final userId = data['userId'] as String;
+          userParticipationCounts[userId] =
+              (userParticipationCounts[userId] ?? 0) + 1;
+        }
+
+        // Sort by count descending
+        final sortedUsers = userParticipationCounts.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+
+        // Get top 20 users
+        final topUsers = sortedUsers.take(20).toList();
+
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: _fetchTopUsersDetails(topUsers),
+          builder: (context, userSnapshot) {
+            if (userSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                ),
+              );
+            }
+
+            final users = userSnapshot.data ?? [];
+
+            return ListView.builder(
+              controller: controller,
+              padding: const EdgeInsets.all(16),
+              itemCount: users.length,
+              itemBuilder: (context, index) {
+                final user = users[index];
+                final rank = index + 1;
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: rank <= 3
+                          ? _getRankColor(rank).withOpacity(0.3)
+                          : Colors.grey.shade200,
+                      width: rank <= 3 ? 2 : 1,
+                    ),
+                    boxShadow: rank <= 3
+                        ? [
+                            BoxShadow(
+                              color: _getRankColor(rank).withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      // Rank Badge
+                      _buildRankBadge(rank),
+                      const SizedBox(width: 16),
+                      // Avatar
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor:
+                            const Color(0xFF00C49A).withOpacity(0.1),
+                        backgroundImage: user['profileImageUrl'] != null
+                            ? NetworkImage(user['profileImageUrl'])
+                            : null,
+                        child: user['profileImageUrl'] == null
+                            ? Text(
+                                user['fullName']?.isNotEmpty == true
+                                    ? user['fullName'][0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(
+                                  color: Color(0xFF00C49A),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      // User Info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user['fullName'] ?? 'Unknown User',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: Color(0xFF2D3748),
+                              ),
+                            ),
+                            if (user['email'] != null)
+                              Text(
+                                user['email'],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[500],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                      // Participation Count
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00C49A).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.volunteer_activism,
+                              size: 16,
+                              color: Color(0xFF00C49A),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${user['count']}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Color(0xFF00C49A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Color _getRankColor(int rank) {
+    switch (rank) {
+      case 1:
+        return const Color(0xFFFFD700); // Gold
+      case 2:
+        return const Color(0xFFC0C0C0); // Silver
+      case 3:
+        return const Color(0xFFCD7F32); // Bronze
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Widget _buildRankBadge(int rank) {
+    if (rank <= 3) {
+      return Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              _getRankColor(rank),
+              _getRankColor(rank).withOpacity(0.7),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: _getRankColor(rank).withOpacity(0.3),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: rank == 1
+              ? const Icon(Icons.emoji_events, color: Colors.white, size: 20)
+              : Text(
+                  '$rank',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+        ),
+      );
+    }
+
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          '$rank',
+          style: TextStyle(
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchTopUsersDetails(
+      List<MapEntry<String, int>> topUsers) async {
+    final List<Map<String, dynamic>> users = [];
+
+    for (final entry in topUsers) {
+      final userId = entry.key;
+      final count = entry.value;
+
+      // Try Firestore first
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        users.add({
+          ...userData,
+          'count': count,
+        });
+      } else {
+        // Try RTDB
+        try {
+          final rtdbSnapshot = await FirebaseDatabase.instance
+              .ref()
+              .child('users/$userId')
+              .get();
+
+          if (rtdbSnapshot.exists) {
+            final rtdbData = rtdbSnapshot.value as Map<dynamic, dynamic>;
+
+            String fullName = '';
+            if (rtdbData['firstName'] != null && rtdbData['lastName'] != null) {
+              fullName = rtdbData['middleName'] != null &&
+                      rtdbData['middleName'].toString().isNotEmpty
+                  ? '${rtdbData['firstName']} ${rtdbData['middleName']} ${rtdbData['lastName']}'
+                  : '${rtdbData['firstName']} ${rtdbData['lastName']}';
+            } else if (rtdbData['fullName'] != null) {
+              fullName = rtdbData['fullName'];
+            } else {
+              fullName = 'User';
+            }
+
+            users.add({
+              'fullName': fullName,
+              'email': rtdbData['email'] ?? '',
+              'profileImageUrl': rtdbData['profileImageUrl'],
+              'count': count,
+            });
+          } else {
+            users.add({
+              'fullName': 'Unknown User',
+              'email': '',
+              'profileImageUrl': null,
+              'count': count,
+            });
+          }
+        } catch (e) {
+          users.add({
+            'fullName': 'Unknown User',
+            'email': '',
+            'profileImageUrl': null,
+            'count': count,
+          });
+        }
+      }
+    }
+
+    return users;
   }
 
   Future<void> _showInterestedUsers(VolunteerPost post) async {
@@ -1758,13 +2633,37 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     });
 
     try {
-      final eventDateTime = DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
-        _selectedTime.hour,
-        _selectedTime.minute,
+      final startDateTime = DateTime(
+        _startDate.year,
+        _startDate.month,
+        _startDate.day,
+        _startTime.hour,
+        _startTime.minute,
       );
+
+      final endDateTime = DateTime(
+        _endDate.year,
+        _endDate.month,
+        _endDate.day,
+        _endTime.hour,
+        _endTime.minute,
+      );
+
+      // Validate that end date is after start date
+      if (endDateTime.isBefore(startDateTime)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('End date must be after start date'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isCreatingPost = false;
+          });
+        }
+        return;
+      }
 
       await FirebaseFirestore.instance
           .collection('volunteer_posts')
@@ -1773,7 +2672,9 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
         'title': _titleController.text,
         'description': _descriptionController.text,
         'location': _locationController.text,
-        'eventDate': eventDateTime,
+        'startDate': startDateTime,
+        'endDate': endDateTime,
+        'eventDate': startDateTime, // Keep for backward compatibility
         'maxVolunteers': int.parse(_maxVolunteersController.text),
       });
 
@@ -1917,11 +2818,14 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage> {
     _locationController.text = post.location;
     _maxVolunteersController.text = post.maxVolunteers.toString();
 
-    _selectedDate = DateTime.now().add(const Duration(days: 1));
-
-    // Keep the same time from the original post
-    _selectedTime =
-        TimeOfDay(hour: post.eventDate.hour, minute: post.eventDate.minute);
+    // Set new dates for tomorrow, keeping the same time duration
+    _startDate = DateTime.now().add(const Duration(days: 1));
+    _startTime = TimeOfDay(hour: post.startDate.hour, minute: post.startDate.minute);
+    
+    // Calculate the duration and apply to end date
+    final duration = post.endDate.difference(post.startDate);
+    _endDate = _startDate.add(duration);
+    _endTime = TimeOfDay(hour: post.endDate.hour, minute: post.endDate.minute);
 
     _showPostFormSheet(keepExistingValues: true);
   }
