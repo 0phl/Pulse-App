@@ -648,7 +648,8 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _sendMessage(
       {String? message,
       bool isInitial = false,
-      bool isSystemMessage = false}) async {
+      bool isSystemMessage = false,
+      String? systemMessageType}) async {
     try {
       final messageText = message ?? _messageController.text.trim();
       if (messageText.isEmpty) return;
@@ -682,6 +683,7 @@ class _ChatPageState extends State<ChatPage> {
         timestamp: DateTime.now(),
         isInitialMessage: isInitial,
         isSystemMessage: isSystemMessage,
+        systemMessageType: systemMessageType,
         profileImageUrl: profileImageUrl,
       );
 
@@ -1045,6 +1047,13 @@ class _ChatPageState extends State<ChatPage> {
     try {
       await _marketService.markItemAsSold(widget.itemId);
 
+      // Send system message notifying buyer they can rate the seller
+      await _sendMessage(
+        message: 'This item has been marked as sold. You can now rate the seller.',
+        isSystemMessage: true,
+        systemMessageType: 'sold',
+      );
+
       // The real-time listener will automatically update the UI
       // but we'll also update the local state immediately for better UX
       if (mounted) {
@@ -1267,6 +1276,13 @@ class _ChatPageState extends State<ChatPage> {
 
       await _marketService.addSellerRating(newRating);
 
+      // Send system message confirming the rating
+      await _sendMessage(
+        message: 'This transaction has been rated ${rating.toStringAsFixed(1)} stars',
+        isSystemMessage: true,
+        systemMessageType: 'rated',
+      );
+
       setState(() {
         _hasRatedSeller = true;
       });
@@ -1360,7 +1376,9 @@ class _ChatPageState extends State<ChatPage> {
             child: Text(
               message.message,
               style: TextStyle(
-                  color: Colors.grey[800], fontStyle: FontStyle.italic),
+                color: Colors.grey[800],
+                fontStyle: FontStyle.italic,
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -1576,6 +1594,7 @@ class ChatMessage {
   final DateTime timestamp;
   final bool isInitialMessage;
   final bool isSystemMessage;
+  final String? systemMessageType; // 'sold', 'rated', or null for regular system messages
   final String? profileImageUrl;
   final String? imageUrl; // URL for image attachment
   final String? videoUrl; // URL for video attachment
@@ -1588,6 +1607,7 @@ class ChatMessage {
     required this.timestamp,
     this.isInitialMessage = false,
     this.isSystemMessage = false,
+    this.systemMessageType,
     this.profileImageUrl,
     this.imageUrl,
     this.videoUrl,
@@ -1608,6 +1628,9 @@ class ChatMessage {
     }
     if (isSystemMessage) {
       json['isSystemMessage'] = true;
+    }
+    if (systemMessageType != null) {
+      json['systemMessageType'] = systemMessageType as Object;
     }
     if (profileImageUrl != null) {
       json['profileImageUrl'] = profileImageUrl as Object;
@@ -1632,6 +1655,7 @@ class ChatMessage {
       timestamp: DateTime.fromMillisecondsSinceEpoch(json['timestamp']),
       isInitialMessage: json['isInitialMessage'] ?? false,
       isSystemMessage: json['isSystemMessage'] ?? false,
+      systemMessageType: json['systemMessageType'] as String?,
       profileImageUrl: json['profileImageUrl'] as String?,
       imageUrl: json['imageUrl'] as String?,
       videoUrl: json['videoUrl'] as String?,
