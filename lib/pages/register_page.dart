@@ -12,11 +12,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
-<<<<<<< HEAD
-=======
-import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:path_provider/path_provider.dart' as path_provider;
->>>>>>> e5bc26f335d847e1dce7fc5da3b47a7e610b1ef1
 import '../services/cloudinary_service.dart';
 import 'package:uuid/uuid.dart';
 
