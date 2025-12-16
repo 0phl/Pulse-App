@@ -1905,131 +1905,138 @@ class _CreateNoticeSheetState extends State<CreateNoticeSheet>
                                           child: Row(
                                             children: [
                                               // Date picker
-                                              TextButton(
-                                                onPressed: () async {
-                                                  final pickedDate =
-                                                      await showDatePicker(
-                                                    context: context,
-                                                    initialDate:
-                                                        _pollExpiryDate,
-                                                    firstDate: DateTime.now(),
-                                                    lastDate:
-                                                        DateTime.now().add(
-                                                      const Duration(days: 365),
-                                                    ),
-                                                    builder: (context, child) {
-                                                      return Theme(
-                                                        data: Theme.of(context)
-                                                            .copyWith(
-                                                          colorScheme:
-                                                              const ColorScheme
-                                                                  .light(
-                                                            primary: Color(
-                                                                0xFF00C49A),
+                                              Flexible(
+                                                child: TextButton(
+                                                  onPressed: () async {
+                                                    final pickedDate =
+                                                        await showDatePicker(
+                                                      context: context,
+                                                      initialDate:
+                                                          _pollExpiryDate,
+                                                      firstDate: DateTime.now(),
+                                                      lastDate:
+                                                          DateTime.now().add(
+                                                        const Duration(days: 365),
+                                                      ),
+                                                      builder: (context, child) {
+                                                        return Theme(
+                                                          data: Theme.of(context)
+                                                              .copyWith(
+                                                            colorScheme:
+                                                                const ColorScheme
+                                                                    .light(
+                                                              primary: Color(
+                                                                  0xFF00C49A),
+                                                            ),
                                                           ),
-                                                        ),
-                                                        child: child!,
-                                                      );
-                                                    },
-                                                  );
-                                                  if (pickedDate != null) {
-                                                    final newDate = DateTime(
-                                                      pickedDate.year,
-                                                      pickedDate.month,
-                                                      pickedDate.day,
-                                                      _pollExpiryDate.hour,
-                                                      _pollExpiryDate.minute,
+                                                          child: child!,
+                                                        );
+                                                      },
                                                     );
-                                                    setState(() {
-                                                      _pollExpiryDate = newDate;
-                                                    });
-                                                  }
-                                                },
-                                                style: TextButton.styleFrom(
-                                                  backgroundColor: Colors.white,
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 8),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            8),
-                                                    side: BorderSide(
-                                                        color: Colors
-                                                            .grey.shade300),
+                                                    if (pickedDate != null) {
+                                                      final newDate = DateTime(
+                                                        pickedDate.year,
+                                                        pickedDate.month,
+                                                        pickedDate.day,
+                                                        _pollExpiryDate.hour,
+                                                        _pollExpiryDate.minute,
+                                                      );
+                                                      setState(() {
+                                                        _pollExpiryDate = newDate;
+                                                      });
+                                                    }
+                                                  },
+                                                  style: TextButton.styleFrom(
+                                                    backgroundColor: Colors.white,
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 8),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              8),
+                                                      side: BorderSide(
+                                                          color: Colors
+                                                              .grey.shade300),
+                                                    ),
                                                   ),
-                                                ),
-                                                child: Text(
-                                                  DateFormat('MMM d, yyyy')
-                                                      .format(_pollExpiryDate),
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w500,
-                                                    fontSize: 14,
-                                                    color: Colors.black87,
+                                                  child: Text(
+                                                    DateFormat('MM/dd/yy')
+                                                        .format(_pollExpiryDate),
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.w500,
+                                                      fontSize: 13,
+                                                      color: Colors.black87,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                               ),
-                                              const SizedBox(width: 8),
+                                              const SizedBox(width: 6),
                                               // Time picker
-                                              TextButton(
-                                                onPressed: () async {
-                                                  final pickedTime =
-                                                      await showTimePicker(
-                                                    context: context,
-                                                    initialTime:
-                                                        TimeOfDay.fromDateTime(
-                                                            _pollExpiryDate),
-                                                    builder: (context, child) {
-                                                      return Theme(
-                                                        data: Theme.of(context)
-                                                            .copyWith(
-                                                          colorScheme:
-                                                              const ColorScheme
-                                                                  .light(
-                                                            primary: Color(
-                                                                0xFF00C49A),
+                                              Flexible(
+                                                child: TextButton(
+                                                  onPressed: () async {
+                                                    final pickedTime =
+                                                        await showTimePicker(
+                                                      context: context,
+                                                      initialTime:
+                                                          TimeOfDay.fromDateTime(
+                                                              _pollExpiryDate),
+                                                      builder: (context, child) {
+                                                        return Theme(
+                                                          data: Theme.of(context)
+                                                              .copyWith(
+                                                            colorScheme:
+                                                                const ColorScheme
+                                                                    .light(
+                                                              primary: Color(
+                                                                  0xFF00C49A),
+                                                            ),
                                                           ),
-                                                        ),
-                                                        child: child!,
-                                                      );
-                                                    },
-                                                  );
-                                                  if (pickedTime != null) {
-                                                    final newDate = DateTime(
-                                                      _pollExpiryDate.year,
-                                                      _pollExpiryDate.month,
-                                                      _pollExpiryDate.day,
-                                                      pickedTime.hour,
-                                                      pickedTime.minute,
+                                                          child: child!,
+                                                        );
+                                                      },
                                                     );
-                                                    setState(() {
-                                                      _pollExpiryDate = newDate;
-                                                    });
-                                                  }
-                                                },
-                                                style: TextButton.styleFrom(
-                                                  backgroundColor: Colors.white,
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 8),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            8),
-                                                    side: BorderSide(
-                                                        color: Colors
-                                                            .grey.shade300),
+                                                    if (pickedTime != null) {
+                                                      final newDate = DateTime(
+                                                        _pollExpiryDate.year,
+                                                        _pollExpiryDate.month,
+                                                        _pollExpiryDate.day,
+                                                        pickedTime.hour,
+                                                        pickedTime.minute,
+                                                      );
+                                                      setState(() {
+                                                        _pollExpiryDate = newDate;
+                                                      });
+                                                    }
+                                                  },
+                                                  style: TextButton.styleFrom(
+                                                    backgroundColor: Colors.white,
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 8),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              8),
+                                                      side: BorderSide(
+                                                          color: Colors
+                                                              .grey.shade300),
+                                                    ),
                                                   ),
-                                                ),
-                                                child: Text(
-                                                  DateFormat('h:mm a')
-                                                      .format(_pollExpiryDate),
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w500,
-                                                    fontSize: 14,
-                                                    color: Colors.black87,
+                                                  child: Text(
+                                                    DateFormat('h:mm a')
+                                                        .format(_pollExpiryDate),
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.w500,
+                                                      fontSize: 13,
+                                                      color: Colors.black87,
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                               ),

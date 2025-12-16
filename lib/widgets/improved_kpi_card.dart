@@ -71,12 +71,13 @@ class ImprovedKpiCard extends StatelessWidget {
             child: Text(
               title,
               textAlign: TextAlign.center,
-              maxLines: 1, // Single line for title to save space
+              maxLines: 2, // Allow wrapping to 2 lines
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11, // Slightly smaller font for better fit
                 fontWeight: FontWeight.w500,
                 color: Colors.grey[700],
+                height: 1.2, // Tighter line height for better spacing
               ),
             ),
           ),

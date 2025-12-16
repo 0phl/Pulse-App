@@ -36,6 +36,7 @@ class StatisticsCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   icon,
@@ -43,14 +44,16 @@ class StatisticsCard extends StatelessWidget {
                   color: color,
                 ),
                 const SizedBox(width: 8),
-                Expanded(
+                Flexible(
                   child: Text(
                     title,
+                    textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 15, // Slightly smaller for better fit
                       fontWeight: FontWeight.bold,
                       color: color,
                     ),
+                    maxLines: 2, // Allow wrapping to 2 lines
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -90,9 +93,11 @@ class StatisticsCard extends StatelessWidget {
                         child: Text(
                           item.label,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 13, // Slightly smaller for better fit
                             color: Colors.grey[600],
+                            height: 1.3, // Tighter line height
                           ),
+                          maxLines: 2, // Allow wrapping to 2 lines
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),

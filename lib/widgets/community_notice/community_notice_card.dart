@@ -608,16 +608,9 @@ class CommunityNoticeCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                 ],
-                RichText(
-                  text: TextSpan(
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.grey[800],
-                      height: 1.5,
-                      fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
-                    ),
-                    children: _parseContent(notice.content),
-                  ),
+                _ExpandableText(
+                  text: notice.content,
+                  parseContent: _parseContent,
                 ),
                 const SizedBox(height: 16),
                 Container(
@@ -768,6 +761,136 @@ class CommunityNoticeCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ExpandableText extends StatefulWidget {
+  final String text;
+  final List<TextSpan> Function(String) parseContent;
+
+  const _ExpandableText({
+    required this.text,
+    required this.parseContent,
+  });
+
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  bool _isExpanded = false;
+  bool _showSeeMore = false;
+  static const int _maxLines = 3;
+
+  @override
+  void initState() {
+    super.initState();
+    // Check if text is long enough to need truncation
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkIfTextOverflows();
+    });
+  }
+
+  void _checkIfTextOverflows() {
+    if (!mounted) return;
+    
+    final textStyle = TextStyle(
+      fontSize: 15,
+      color: Colors.grey[800],
+      height: 1.5,
+      fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
+    );
+    
+    final textSpan = TextSpan(
+      style: textStyle,
+      children: widget.parseContent(widget.text),
+    );
+    
+    final textPainter = TextPainter(
+      text: textSpan,
+      maxLines: _maxLines,
+      textDirection: Directionality.of(context),
+    );
+    
+    textPainter.layout(maxWidth: MediaQuery.of(context).size.width - 32);
+    
+    if (mounted && textPainter.didExceedMaxLines != _showSeeMore) {
+      setState(() {
+        _showSeeMore = textPainter.didExceedMaxLines;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = TextStyle(
+      fontSize: 15,
+      color: Colors.grey[800],
+      height: 1.5,
+      fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
+    );
+
+    final textSpan = TextSpan(
+      style: textStyle,
+      children: widget.parseContent(widget.text),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          textSpan,
+          maxLines: _isExpanded ? null : _maxLines,
+          overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+          textAlign: TextAlign.justify,
+        ),
+        if (_showSeeMore)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _isExpanded = !_isExpanded;
+                  });
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00C49A).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFF00C49A).withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _isExpanded ? 'See less' : 'See more',
+                        style: const TextStyle(
+                          color: Color(0xFF00C49A),
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        _isExpanded ? Icons.expand_less : Icons.expand_more,
+                        color: const Color(0xFF00C49A),
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
