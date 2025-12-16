@@ -22,6 +22,7 @@ class VolunteerPost {
   final bool isActive;
   final String communityId;
   final bool participationRecorded; // Track if participation has been recorded
+  final String? imageUrl; // Optional image for visual appeal
 
   VolunteerPost({
     required this.id,
@@ -38,6 +39,7 @@ class VolunteerPost {
     required this.communityId,
     this.isActive = true,
     this.participationRecorded = false,
+    this.imageUrl,
   });
 
   /// Automatically computed status based on current time and start/end dates
@@ -76,6 +78,7 @@ class VolunteerPost {
       'isActive': isActive,
       'communityId': communityId,
       'participationRecorded': participationRecorded,
+      'imageUrl': imageUrl,
     };
   }
 
@@ -111,6 +114,7 @@ class VolunteerPost {
       isActive: map['isActive'] ?? true,
       communityId: map['communityId'] ?? '',
       participationRecorded: map['participationRecorded'] ?? false,
+      imageUrl: map['imageUrl'] as String?,
     );
   }
 
@@ -211,6 +215,7 @@ class VolunteerPost {
     bool? isActive,
     String? communityId,
     bool? participationRecorded,
+    String? imageUrl,
   }) {
     return VolunteerPost(
       id: id,
@@ -227,6 +232,7 @@ class VolunteerPost {
       isActive: isActive ?? this.isActive,
       communityId: communityId ?? this.communityId,
       participationRecorded: participationRecorded ?? this.participationRecorded,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 

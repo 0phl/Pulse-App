@@ -12,7 +12,7 @@ def flutterVersionName = "1.0.5" // Matches the 1.0.5 in pubspec.yaml
 android {
     namespace = "com.example.pulse_app"
     compileSdk = Math.max(flutter.compileSdkVersion, 35)
-    ndkVersion = "25.1.8937393"
+    ndkVersion = "27.0.12077973" //pag may error, revert back to version 25.1.8937393
 
     compileOptions {
         // Enable core library desugaring

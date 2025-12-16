@@ -370,6 +370,25 @@ class CloudinaryService {
     }
   }
 
+  Future<String> uploadVolunteerImage(File file) async {
+    try {
+      // Compress image before upload to reduce bandwidth
+      final compressedFile = await _compressImage(file);
+
+      final cloudinaryFile = CloudinaryFile.fromFile(
+        compressedFile.path,
+        folder: 'volunteer_posts',
+      );
+
+      CloudinaryResponse response =
+          await noticeCloudinary.uploadFile(cloudinaryFile);
+      return response.secureUrl;
+    } catch (e) {
+      debugPrint('Failed to upload volunteer image: $e');
+      throw Exception('Failed to upload volunteer image: $e');
+    }
+  }
+
   // Optimize image URLs for bandwidth using the MediaCacheService
   String getOptimizedImageUrl(String originalUrl, {bool isListView = false}) {
     final mediaCacheService = MediaCacheService();

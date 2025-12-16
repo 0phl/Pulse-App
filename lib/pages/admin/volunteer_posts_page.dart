@@ -5,9 +5,14 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:io';
 import '../../models/volunteer_post.dart';
 import '../../services/auth_service.dart';
+import '../../services/cloudinary_service.dart';
 import '../../widgets/admin_scaffold.dart';
+import '../../widgets/image_viewer_page.dart';
 
 class AdminVolunteerPostsPage extends StatefulWidget {
   const AdminVolunteerPostsPage({super.key});
@@ -34,6 +39,12 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
   TimeOfDay _endTime = const TimeOfDay(hour: 17, minute: 0);
   
   bool _isCreatingPost = false;
+
+  // Image state
+  final ImagePicker _imagePicker = ImagePicker();
+  final CloudinaryService _cloudinaryService = CloudinaryService();
+  XFile? _selectedImage;
+  String? _existingImageUrl;
 
   late TabController _tabController;
 
@@ -189,6 +200,26 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
       return;
     }
 
+    // Upload image if selected
+    String? imageUrl;
+    if (_selectedImage != null) {
+      try {
+        imageUrl = await _cloudinaryService.uploadVolunteerImage(
+          File(_selectedImage!.path),
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error uploading image: $e'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        // Continue without image if upload fails
+      }
+    }
+
     final post = VolunteerPost(
       id: '',
       title: _titleController.text,
@@ -202,6 +233,7 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
       maxVolunteers: int.parse(_maxVolunteersController.text),
       joinedUsers: [],
       communityId: communityId,
+      imageUrl: imageUrl,
     );
 
     try {
@@ -230,6 +262,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
       if (mounted) {
         setState(() {
           _isCreatingPost = false;
+          _selectedImage = null;
+          _existingImageUrl = null;
         });
       }
     }
@@ -380,6 +414,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
       _startTime = TimeOfDay(hour: post.startDate.hour, minute: post.startDate.minute);
       _endDate = post.endDate;
       _endTime = TimeOfDay(hour: post.endDate.hour, minute: post.endDate.minute);
+      _existingImageUrl = post.imageUrl;
+      _selectedImage = null;
     } else if (!keepExistingValues) {
       // Create mode - clear values
       _titleController.clear();
@@ -390,6 +426,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
       _startTime = const TimeOfDay(hour: 9, minute: 0);
       _endDate = DateTime.now().add(const Duration(days: 1));
       _endTime = const TimeOfDay(hour: 17, minute: 0);
+      _selectedImage = null;
+      _existingImageUrl = null;
     }
 
     showModalBottomSheet(
@@ -458,6 +496,9 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Image Upload Section - Prominently placed at top
+                            _buildImagePickerSection(setModalState),
+                            const SizedBox(height: 24),
                             _buildFormField(
                               label: 'Title',
                               controller: _titleController,
@@ -890,6 +931,239 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
     );
   }
 
+  Widget _buildImagePickerSection(StateSetter setModalState) {
+    final bool hasImage = _selectedImage != null || _existingImageUrl != null;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.image_rounded,
+              size: 20,
+              color: Color(0xFF00C49A),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Cover Image',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: Color(0xFF2D3748),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00C49A).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                'Recommended',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF00C49A),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Add an eye-catching image to attract more volunteers',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[500],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (hasImage)
+          Stack(
+            children: [
+              Container(
+                width: double.infinity,
+                height: 200,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: _selectedImage != null
+                      ? Image.file(
+                          File(_selectedImage!.path),
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: _existingImageUrl!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          placeholder: (context, url) => Container(
+                            color: Colors.grey[200],
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    Color(0xFF00C49A)),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: Colors.grey[200],
+                            child: const Icon(Icons.error),
+                          ),
+                        ),
+                ),
+              ),
+              // Remove/Change buttons overlay
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Row(
+                  children: [
+                    _buildImageActionButton(
+                      icon: Icons.edit_rounded,
+                      onTap: () => _pickImage(setModalState),
+                      tooltip: 'Change Image',
+                    ),
+                    const SizedBox(width: 8),
+                    _buildImageActionButton(
+                      icon: Icons.close_rounded,
+                      onTap: () {
+                        setModalState(() {
+                          _selectedImage = null;
+                          _existingImageUrl = null;
+                        });
+                      },
+                      tooltip: 'Remove Image',
+                      isDestructive: true,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          )
+        else
+          InkWell(
+            onTap: () => _pickImage(setModalState),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: double.infinity,
+              height: 160,
+              decoration: BoxDecoration(
+                color: const Color(0xFF00C49A).withOpacity(0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: const Color(0xFF00C49A).withOpacity(0.3),
+                  width: 2,
+                  style: BorderStyle.solid,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00C49A).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add_photo_alternate_rounded,
+                      size: 32,
+                      color: Color(0xFF00C49A),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Tap to add cover image',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF00C49A),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'PNG, JPG up to 10MB',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildImageActionButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required String tooltip,
+    bool isDestructive = false,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: isDestructive 
+            ? Colors.red.withOpacity(0.9)
+            : Colors.black.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(
+              icon,
+              size: 18,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(StateSetter setModalState) async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+      
+      if (image != null) {
+        setModalState(() {
+          _selectedImage = image;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AdminScaffold(
@@ -1141,96 +1415,267 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with Status-based Gradient
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: _getHeaderGradient(post.status),
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Image Header (if available) or Gradient Header
+          if (post.imageUrl != null && post.imageUrl!.isNotEmpty)
+            Stack(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _getStatusIcon(post.status),
-                                  size: 12,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  post.statusLabel,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                // Cover Image - Clickable
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ImageViewerPage(imageUrl: post.imageUrl!),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        post.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                    );
+                  },
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                    child: CachedNetworkImage(
+                      imageUrl: post.imageUrl!,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        height: 180,
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C49A)),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.location_on,
-                            size: 14,
-                            color: Colors.white.withOpacity(0.9),
+                      errorWidget: (context, url, error) => Container(
+                        height: 180,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: _getHeaderGradient(post.status),
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              post.location,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 13,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.image_not_supported, color: Colors.white54, size: 40),
+                        ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-                _buildActionButtons(post),
+                // Dark gradient overlay for text readability (IgnorePointer to allow image tap)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                        ),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.7),
+                          ],
+                          stops: const [0.3, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Status badge at top left
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(post.status),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _getStatusIcon(post.status),
+                          size: 12,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          post.statusLabel,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Action buttons at top right
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: _buildActionButtons(post),
+                ),
+                // Title and location at bottom (IgnorePointer to allow image tap)
+                Positioned(
+                  bottom: 12,
+                  left: 12,
+                  right: 12,
+                  child: IgnorePointer(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          post.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            shadows: [
+                              Shadow(
+                                offset: Offset(0, 1),
+                                blurRadius: 3,
+                                color: Colors.black45,
+                              ),
+                            ],
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.location_on,
+                              size: 14,
+                              color: Colors.white70,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                post.location,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
+            )
+          else
+            // Original gradient header when no image
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: _getHeaderGradient(post.status),
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _getStatusIcon(post.status),
+                                    size: 12,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    post.statusLabel,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          post.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              size: 14,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                post.location,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontSize: 13,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildActionButtons(post),
+                ],
+              ),
             ),
-          ),
 
           // Body
           Padding(
@@ -2665,6 +3110,26 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
         return;
       }
 
+      // Upload new image if selected
+      String? imageUrl = _existingImageUrl;
+      if (_selectedImage != null) {
+        try {
+          imageUrl = await _cloudinaryService.uploadVolunteerImage(
+            File(_selectedImage!.path),
+          );
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error uploading image: $e'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          // Keep existing image if upload fails
+        }
+      }
+
       await FirebaseFirestore.instance
           .collection('volunteer_posts')
           .doc(postId)
@@ -2676,6 +3141,7 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
         'endDate': endDateTime,
         'eventDate': startDateTime, // Keep for backward compatibility
         'maxVolunteers': int.parse(_maxVolunteersController.text),
+        'imageUrl': imageUrl,
       });
 
       if (mounted) {
@@ -2697,6 +3163,8 @@ class _AdminVolunteerPostsPageState extends State<AdminVolunteerPostsPage>
       if (mounted) {
         setState(() {
           _isCreatingPost = false;
+          _selectedImage = null;
+          _existingImageUrl = null;
         });
       }
     }
